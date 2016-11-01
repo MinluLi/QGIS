@@ -108,21 +108,36 @@ static QVariant tvl2variant( TVL v )
 
 inline bool isIntSafe( const QVariant& v )
 {
-  if ( v.type() == QVariant::Int ) return true;
-  if ( v.type() == QVariant::UInt ) return true;
-  if ( v.type() == QVariant::LongLong ) return true;
-  if ( v.type() == QVariant::ULongLong ) return true;
-  if ( v.type() == QVariant::Double ) return false;
-  if ( v.type() == QVariant::String ) { bool ok; v.toString().toInt( &ok ); return ok; }
+  if ( v.type() == QVariant::Int )
+    return true;
+  if ( v.type() == QVariant::UInt )
+    return true;
+  if ( v.type() == QVariant::LongLong )
+    return true;
+  if ( v.type() == QVariant::ULongLong )
+    return true;
+  if ( v.type() == QVariant::Double )
+    return false;
+  if ( v.type() == QVariant::String )
+  {
+    bool ok;
+    v.toString().toInt( &ok );
+    return ok;
+  }
   return false;
 }
 inline bool isDoubleSafe( const QVariant& v )
 {
-  if ( v.type() == QVariant::Double ) return true;
-  if ( v.type() == QVariant::Int ) return true;
-  if ( v.type() == QVariant::UInt ) return true;
-  if ( v.type() == QVariant::LongLong ) return true;
-  if ( v.type() == QVariant::ULongLong ) return true;
+  if ( v.type() == QVariant::Double )
+    return true;
+  if ( v.type() == QVariant::Int )
+    return true;
+  if ( v.type() == QVariant::UInt )
+    return true;
+  if ( v.type() == QVariant::LongLong )
+    return true;
+  if ( v.type() == QVariant::ULongLong )
+    return true;
   if ( v.type() == QVariant::String )
   {
     bool ok;
@@ -135,8 +150,9 @@ inline bool isDoubleSafe( const QVariant& v )
 
 inline bool isDateTimeSafe( const QVariant& v )
 {
-  return v.type() == QVariant::DateTime || v.type() == QVariant::Date ||
-         v.type() == QVariant::Time;
+  return v.type() == QVariant::DateTime
+         || v.type() == QVariant::Date
+         || v.type() == QVariant::Time;
 }
 
 inline bool isIntervalSafe( const QVariant& v )
@@ -153,7 +169,10 @@ inline bool isIntervalSafe( const QVariant& v )
   return false;
 }
 
-inline bool isNull( const QVariant& v ) { return v.isNull(); }
+inline bool isNull( const QVariant& v )
+{
+  return v.isNull();
+}
 
 ///////////////////////////////////////////////
 // evaluation error macros
@@ -682,8 +701,12 @@ static QVariant fcnAggregate( const QVariantList& values, const QgsExpressionCon
   {
     QString cacheKey = QStringLiteral( "aggfcn:%1:%2:%3:%4" ).arg( vl->id(), QString::number( aggregate ), subExpression, parameters.filter );
 
+    QgsExpression subExp( subExpression );
     QgsExpression filterExp( parameters.filter );
-    if ( filterExp.referencedVariables().contains( "parent" ) || filterExp.referencedVariables().contains( QString() ) )
+    if ( filterExp.referencedVariables().contains( "parent" )
+         || filterExp.referencedVariables().contains( QString() )
+         || subExp.referencedVariables().contains( "parent" )
+         || subExp.referencedVariables().contains( QString() ) )
     {
       cacheKey += ':' + qHash( context->feature() );
     }
@@ -3647,14 +3670,22 @@ const QList<QgsExpression::Function*>& QgsExpression::Functions()
       if ( !node )
         return true;
 
-      if ( !node->args() || node->args()->count() < 4 )
+      if ( !node->args() )
         return false;
-      else
+
+      QSet<QString> referencedVars;
+      if ( node->args()->count() > 2 )
+      {
+        QgsExpression::Node* subExpressionNode = node->args()->at( 2 );
+        referencedVars = subExpressionNode->referencedVariables();
+      }
+
+      if ( node->args()->count() > 3 )
       {
         QgsExpression::Node* filterNode = node->args()->at( 3 );
-        QSet<QString> referencedVars = filterNode->referencedVariables();
-        return referencedVars.contains( "parent" ) || referencedVars.contains( QString() );
+        referencedVars.unite( filterNode->referencedVariables() );
       }
+      return referencedVars.contains( "parent" ) || referencedVars.contains( QString() );
     },
     []( const QgsExpression::NodeFunction* node )
     {
@@ -3663,18 +3694,29 @@ const QList<QgsExpression::Function*>& QgsExpression::Functions()
       if ( !node )
         return QSet<QString>() << QgsFeatureRequest::AllAttributes;
 
-      if ( !node->args() || node->args()->count() < 4 )
+      if ( !node->args() )
         return QSet<QString>();
-      else
+
+      QSet<QString> referencedCols;
+      QSet<QString> referencedVars;
+
+      if ( node->args()->count() > 2 )
+      {
+        QgsExpression::Node* subExpressionNode = node->args()->at( 2 );
+        referencedVars = subExpressionNode->referencedVariables();
+        referencedCols = subExpressionNode->referencedColumns();
+      }
+      if ( node->args()->count() > 3 )
       {
         QgsExpression::Node* filterNode = node->args()->at( 3 );
-        QSet<QString> referencedVars = filterNode->referencedVariables();
-
-        if ( referencedVars.contains( "parent" ) || referencedVars.contains( QString() ) )
-          return QSet<QString>() << QgsFeatureRequest::AllAttributes;
-        else
-          return QSet<QString>();
+        referencedVars = filterNode->referencedVariables();
+        referencedCols.unite( filterNode->referencedColumns() );
       }
+
+      if ( referencedVars.contains( "parent" ) || referencedVars.contains( QString() ) )
+        return QSet<QString>() << QgsFeatureRequest::AllAttributes;
+      else
+        return referencedCols;
     },
     true
                          )
