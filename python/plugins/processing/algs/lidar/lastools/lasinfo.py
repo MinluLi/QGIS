@@ -8,7 +8,7 @@
     Copyright            : (C) 2012 by Victor Olaya
     Email                : volayaf at gmail dot com
     ---------------------
-    Date                 : September 2013
+    Date                 : September 2013 and May 2016
     Copyright            : (C) 2013 by Martin Isenburg
     Email                : martin near rapidlasso point com
 ***************************************************************************
@@ -20,6 +20,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -28,8 +31,8 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterBoolean
@@ -79,7 +82,10 @@ class lasinfo(LAStoolsAlgorithm):
         self.addParametersAdditionalGUI()
 
     def processAlgorithm(self, progress):
-        commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "lasinfo")]
+        if (LAStoolsUtils.hasWine()):
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "lasinfo.exe")]
+        else:
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "lasinfo")]
         self.addParametersVerboseCommands(commands)
         self.addParametersPointInputCommands(commands)
         if self.getParameterValue(lasinfo.COMPUTE_DENSITY):
@@ -92,17 +98,17 @@ class lasinfo(LAStoolsAlgorithm):
         if histo != 0:
             commands.append("-histo")
             commands.append(lasinfo.HISTOGRAM[histo])
-            commands.append(unicode(self.getParameterValue(lasinfo.HISTO1_BIN)))
+            commands.append(str(self.getParameterValue(lasinfo.HISTO1_BIN)))
         histo = self.getParameterValue(lasinfo.HISTO2)
         if histo != 0:
             commands.append("-histo")
             commands.append(lasinfo.HISTOGRAM[histo])
-            commands.append(unicode(self.getParameterValue(lasinfo.HISTO2_BIN)))
+            commands.append(str(self.getParameterValue(lasinfo.HISTO2_BIN)))
         histo = self.getParameterValue(lasinfo.HISTO3)
         if histo != 0:
             commands.append("-histo")
             commands.append(lasinfo.HISTOGRAM[histo])
-            commands.append(unicode(self.getParameterValue(lasinfo.HISTO3_BIN)))
+            commands.append(str(self.getParameterValue(lasinfo.HISTO3_BIN)))
         commands.append("-o")
         commands.append(self.getOutputValue(lasinfo.OUTPUT))
         self.addParametersAdditionalCommands(commands)

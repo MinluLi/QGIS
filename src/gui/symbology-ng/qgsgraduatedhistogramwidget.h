@@ -25,7 +25,7 @@ class QgsGraduatedHistogramEventFilter;
 /** \ingroup gui
  * \class QgsGraduatedHistogramWidget
  * \brief Graphical histogram for displaying distribution of field values and
- * editing range breaks for a QgsGraduatedSymbolRendererV2 renderer.
+ * editing range breaks for a QgsGraduatedSymbolRenderer renderer.
  *
  * \note Added in version 2.9
  */
@@ -39,14 +39,14 @@ class GUI_EXPORT QgsGraduatedHistogramWidget : public QgsHistogramWidget
     /** QgsGraduatedHistogramWidget constructor
      * @param parent parent widget
      */
-    QgsGraduatedHistogramWidget( QWidget *parent = 0 );
+    QgsGraduatedHistogramWidget( QWidget *parent = nullptr );
     ~QgsGraduatedHistogramWidget();
 
-    /** Sets the QgsGraduatedSymbolRendererV2 renderer associated with the histogram.
+    /** Sets the QgsGraduatedSymbolRenderer renderer associated with the histogram.
      * The histogram will fetch the ranges from the renderer before every refresh.
-     * @param renderer associated QgsGraduatedSymbolRendererV2
+     * @param renderer associated QgsGraduatedSymbolRenderer
      */
-    void setRenderer( QgsGraduatedSymbolRendererV2* renderer );
+    void setRenderer( QgsGraduatedSymbolRenderer* renderer );
 
   signals:
 
@@ -67,7 +67,7 @@ class GUI_EXPORT QgsGraduatedHistogramWidget : public QgsHistogramWidget
 
   private:
 
-    QgsGraduatedSymbolRendererV2* mRenderer;
+    QgsGraduatedSymbolRenderer* mRenderer;
     QwtPlotPicker* mHistoPicker;
     QgsGraduatedHistogramEventFilter* mFilter;
     double mPressedValue;
@@ -87,7 +87,7 @@ class GUI_EXPORT QgsGraduatedHistogramWidget : public QgsHistogramWidget
 // For private use by QgsGraduatedHistogramWidget only,
 // not part of stable api or exposed to Python bindings
 //
-///@cond
+/// @cond PRIVATE
 class GUI_EXPORT QgsGraduatedHistogramEventFilter: public QObject
 {
     Q_OBJECT
@@ -108,7 +108,7 @@ class GUI_EXPORT QgsGraduatedHistogramEventFilter: public QObject
   private:
 
     QwtPlot* mPlot;
-    double posToValue( const QPointF& point ) const;
+    double posToValue( QPointF point ) const;
 };
 ///@endcond
 

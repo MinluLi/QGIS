@@ -30,13 +30,14 @@ struct ANALYSIS_EXPORT vertexData
   double z;
 };
 
-/** Interface class for interpolations. Interpolators take
+/** \ingroup analysis
+ * Interface class for interpolations. Interpolators take
 the vertices of a vector layer as base data. The z-Value
 can be an attribute or the z-coordinates in case of 25D types*/
 class ANALYSIS_EXPORT QgsInterpolator
 {
   public:
-    /** Describes the type of input data*/
+    //! Describes the type of input data
     enum InputType
     {
       POINTS,
@@ -44,7 +45,7 @@ class ANALYSIS_EXPORT QgsInterpolator
       BREAK_LINES
     };
 
-    /** A layer together with the information about interpolation attribute / z-coordinate interpolation and the type (point, structure line, breakline)*/
+    //! A layer together with the information about interpolation attribute / z-coordinate interpolation and the type (point, structure line, breakline)
     struct LayerData
     {
       QgsVectorLayer* vectorLayer;
@@ -64,7 +65,7 @@ class ANALYSIS_EXPORT QgsInterpolator
        @return 0 in case of success*/
     virtual int interpolatePoint( double x, double y, double& result ) = 0;
 
-    // @note not available in python bindings
+    //! @note not available in Python bindings
     const QList<LayerData>& layerData() const { return mLayerData; }
 
   protected:
@@ -75,7 +76,7 @@ class ANALYSIS_EXPORT QgsInterpolator
 
     QVector<vertexData> mCachedBaseData;
 
-    /** Flag that tells if the cache already has been filled*/
+    //! Flag that tells if the cache already has been filled
     bool mDataIsCached;
 
     //Information about the input vector layers and the attributes (or z-values) that are used for interpolation
@@ -88,7 +89,7 @@ class ANALYSIS_EXPORT QgsInterpolator
        @param zCoord true if the z-coordinate of the geometry is to be interpolated
        @param attributeValue the attribute value for interpolation (if not interpolated from z-coordinate)
      @return 0 in case of success*/
-    int addVerticesToCache( const QgsGeometry* geom, bool zCoord, double attributeValue );
+    int addVerticesToCache( const QgsGeometry& geom, bool zCoord, double attributeValue );
 };
 
 #endif

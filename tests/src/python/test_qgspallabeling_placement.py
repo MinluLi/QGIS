@@ -16,21 +16,15 @@ __copyright__ = 'Copyright 2015, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-import qgis
+import qgis  # NOQA
+
 import os
 import sys
 
-from PyQt4.QtCore import Qt, QPointF, QThreadPool
-from PyQt4.QtGui import QFont
+from qgis.PyQt.QtCore import QThreadPool, qDebug
 
-from qgis.core import QgsPalLayerSettings
-
-from utilities import (
-    svgSymbolsPath,
-    getTempfilePath,
-    renderMapToImage,
-    mapSettingsString
-)
+from qgis.core import QgsPalLayerSettings, QgsSingleSymbolRenderer, QgsMarkerSymbol
+from utilities import getTempfilePath, renderMapToImage, mapSettingsString
 
 from test_qgspallabeling_base import TestQgsPalLabeling, runSuite
 
@@ -48,12 +42,13 @@ class TestPlacementBase(TestQgsPalLabeling):
     @classmethod
     def tearDownClass(cls):
         TestQgsPalLabeling.tearDownClass()
-        #avoid crash on finish, probably related to https://bugreports.qt.io/browse/QTBUG-35760
+        # avoid crash on finish, probably related to https://bugreports.qt.io/browse/QTBUG-35760
         QThreadPool.globalInstance().waitForDone()
 
     def setUp(self):
         """Run before each test."""
         super(TestPlacementBase, self).setUp()
+        self.removeAllLayers()
         self.configTest('pal_placement', 'sp')
         self._TestImage = ''
         # ensure per test map settings stay encapsulated
@@ -131,6 +126,311 @@ class TestPointPlacement(TestPlacementBase):
         self.checkTest()
         self.removeMapLayer(self.layer)
         self.removeMapLayer(polyLayer)
+        self.layer = None
+
+    def test_point_placement_around_obstacle_large_symbol(self):
+        # Default point label placement with obstacle and large symbols
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point3')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_polygon_placement_with_hole(self):
+        # Horizontal label placement for polygon with hole
+        # Note for this test, the mask is used to check only pixels outside of the polygon.
+        # We don't care where in the polygon the label is, just that it
+        # is INSIDE the polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_with_hole')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Horizontal
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_polygon_placement_with_hole_and_point(self):
+        # Testing that hole from a feature is not treated as an obstacle for other feature's labels
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point')
+        polyLayer = TestQgsPalLabeling.loadFeatureLayer('polygon_with_hole')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.removeMapLayer(polyLayer)
+        self.layer = None
+
+    def test_polygon_multiple_labels(self):
+        # Horizontal label placement for polygon with hole
+        # Note for this test, the mask is used to check only pixels outside of the polygon.
+        # We don't care where in the polygon the label is, just that it
+        # is INSIDE the polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_rule_based')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Horizontal
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_multipolygon_obstacle(self):
+        # Test that all parts of multipolygon are used as an obstacle
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point')
+        polyLayer = TestQgsPalLabeling.loadFeatureLayer('multi_polygon')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.removeMapLayer(polyLayer)
+        self.layer = None
+
+    def test_point_ordered_placement1(self):
+        # Test ordered placements for point
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_point_ordered_placement2(self):
+        # Test ordered placements for point (1 obstacle)
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        obstacleLayer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_obstacle1')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.checkTest()
+        self.removeMapLayer(obstacleLayer)
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_point_ordered_placement3(self):
+        # Test ordered placements for point (2 obstacle)
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        obstacleLayer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_obstacle2')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.checkTest()
+        self.removeMapLayer(obstacleLayer)
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_point_ordered_placement4(self):
+        # Test ordered placements for point (3 obstacle)
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        obstacleLayer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_obstacle3')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.checkTest()
+        self.removeMapLayer(obstacleLayer)
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_point_dd_ordered_placement(self):
+        # Test ordered placements for point with data defined order
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.lyr.setDataDefinedProperty(QgsPalLayerSettings.PredefinedPositionOrder, True, True, "'T,B'", None)
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.lyr.removeDataDefinedProperty(QgsPalLayerSettings.PredefinedPositionOrder)
+        self.layer = None
+
+    def test_point_dd_ordered_placement1(self):
+        # Test ordered placements for point with data defined order and obstacle
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        obstacleLayer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_obstacle_top')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.lyr.setDataDefinedProperty(QgsPalLayerSettings.PredefinedPositionOrder, True, True, "'T,B'", None)
+        self.checkTest()
+        self.removeMapLayer(obstacleLayer)
+        self.removeMapLayer(self.layer)
+        self.lyr.removeDataDefinedProperty(QgsPalLayerSettings.PredefinedPositionOrder)
+        self.layer = None
+
+    def test_point_ordered_symbol_bound_offset(self):
+        # Test ordered placements for point using symbol bounds offset
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('point_ordered_placement')
+        # Make a big symbol
+        symbol = QgsMarkerSymbol.createSimple({'color': '31,120,180,255',
+                                               'outline_color': '0,0,0,0',
+                                               'outline_style': 'solid',
+                                               'size': '10',
+                                               'name': 'rectangle',
+                                               'size_unit': 'MM'})
+        renderer = QgsSingleSymbolRenderer(symbol)
+        self.layer.setRenderer(renderer)
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+        self.lyr.dist = 2
+        self.lyr.offsetType = QgsPalLayerSettings.FromSymbolBounds
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_polygon_placement_perimeter(self):
+        # Default polygon perimeter placement
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_perimeter')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.lyr.placementFlags = QgsPalLayerSettings.AboveLine
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_small_polygon_placement_perimeter(self):
+        # Default polygon perimeter placement for small polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_small')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_small_polygon_perimeter_only_fit(self):
+        # Polygon perimeter placement for small polygon when set to only show labels which fit in polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_small')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.lyr.fitInPolygonOnly = True
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_small_polygon_curvedperimeter_only_fit(self):
+        # Polygon perimeter placement for small polygon when set to only show labels which fit in polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_small')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.PerimeterCurved
+        self.lyr.fitInPolygonOnly = True
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_small_polygon_over_point_only_fit(self):
+        # Polygon over point placement for small polygon when set to only show labels which fit in polygon
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('polygon_small')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.OverPoint
+        self.lyr.fitInPolygonOnly = True
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_curved_above_instead_of_below(self):
+        # Test that labeling a line using curved labels when both above and below placement are allowed that above
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Curved
+        self.lyr.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.BelowLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_curved_above_instead_of_online(self):
+        # Test that labeling a line using curved labels when both above and online placement are allowed that above
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Curved
+        self.lyr.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.OnLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_curved_below_instead_of_online(self):
+        # Test that labeling a line using curved labels when both below and online placement are allowed that below
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Curved
+        self.lyr.placementFlags = QgsPalLayerSettings.BelowLine | QgsPalLayerSettings.OnLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_above_instead_of_below(self):
+        # Test that labeling a line using parallel labels when both above and below placement are allowed that above
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.lyr.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.BelowLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_above_instead_of_online(self):
+        # Test that labeling a line using parallel labels when both above and online placement are allowed that above
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.lyr.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.OnLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_line_below_instead_of_online(self):
+        # Test that labeling a line using parallel labels when both below and online placement are allowed that below
+        # is preferred
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.lyr.placementFlags = QgsPalLayerSettings.BelowLine | QgsPalLayerSettings.OnLine | QgsPalLayerSettings.MapOrientation
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_longer_lines_over_shorter(self):
+        # Test that labeling a line using parallel labels will tend to place the labels over the longer straight parts of
+        # the line
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line_placement_1')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_prefer_more_horizontal_lines(self):
+        # Test that labeling a line using parallel labels will tend to place the labels over more horizontal sections
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line_placement_2')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_label_line_over_small_angles(self):
+        # Test that labeling a line using parallel labels will place labels near center of straightish line
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line_placement_3')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_label_line_toward_center(self):
+        # Test that labeling a line using parallel labels will try to place labels as close to center of line as possible
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line_placement_4')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
+        self.layer = None
+
+    def test_label_line_avoid_jaggy(self):
+        # Test that labeling a line using parallel labels won't place labels over jaggy bits of line
+        self.layer = TestQgsPalLabeling.loadFeatureLayer('line_placement_5')
+        self._TestMapSettings = self.cloneMapSettings(self._MapSettings)
+        self.lyr.placement = QgsPalLayerSettings.Line
+        self.checkTest()
+        self.removeMapLayer(self.layer)
         self.layer = None
 
 if __name__ == '__main__':

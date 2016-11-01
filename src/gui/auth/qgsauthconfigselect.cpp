@@ -34,8 +34,8 @@ QgsAuthConfigSelect::QgsAuthConfigSelect( QWidget *parent, const QString &datapr
     , mDataProvider( dataprovider )
     , mConfigs( QgsAuthMethodConfigsMap() )
     , mDisabled( false )
-    , mAuthNotifyLayout( 0 )
-    , mAuthNotify( 0 )
+    , mAuthNotifyLayout( nullptr )
+    , mAuthNotify( nullptr )
 {
   if ( QgsAuthManager::instance()->isDisabled() )
   {
@@ -49,7 +49,7 @@ QgsAuthConfigSelect::QgsAuthConfigSelect( QWidget *parent, const QString &datapr
   {
     setupUi( this );
 
-    leConfigMsg->setStyleSheet( QString( "QLineEdit{background-color: %1}" )
+    leConfigMsg->setStyleSheet( QStringLiteral( "QLineEdit{background-color: %1}" )
                                 .arg( QgsAuthGuiUtils::yellowColor().name() ) );
 
     clearConfig();
@@ -139,15 +139,15 @@ void QgsAuthConfigSelect::populateConfigSelector()
   cmbConfigSelect->addItem( tr( "No authentication" ), "0" );
 
   QgsStringMap sortmap;
-  QgsAuthMethodConfigsMap::iterator cit = mConfigs.begin();
-  for ( cit = mConfigs.begin(); cit != mConfigs.end(); ++cit )
+  QgsAuthMethodConfigsMap::const_iterator cit = mConfigs.constBegin();
+  for ( cit = mConfigs.constBegin(); cit != mConfigs.constEnd(); ++cit )
   {
     QgsAuthMethodConfig config = cit.value();
     sortmap.insert( config.name(), cit.key() );
   }
 
-  QgsStringMap::iterator sm = sortmap.begin();
-  for ( sm = sortmap.begin(); sm != sortmap.end(); ++sm )
+  QgsStringMap::const_iterator sm = sortmap.constBegin();
+  for ( sm = sortmap.constBegin(); sm != sortmap.constEnd(); ++sm )
   {
     cmbConfigSelect->addItem( sm.key(), sm.value() );
   }
@@ -217,7 +217,7 @@ void QgsAuthConfigSelect::on_btnConfigEdit_clicked()
   ace->setWindowModality( Qt::WindowModal );
   if ( ace->exec() )
   {
-    //qDebug( "Edit returned config Id: %s", ace->configId().toAscii().constData() );
+    //qDebug( "Edit returned config Id: %s", ace->configId().toLatin1().constData() );
     setConfigId( ace->configId() );
   }
   ace->deleteLater();
@@ -257,8 +257,8 @@ QgsAuthConfigUriEdit::QgsAuthConfigUriEdit( QWidget *parent, const QString &data
     , mDataUri( QString() )
     , mDataUriOrig( QString() )
     , mDisabled( false )
-    , mAuthNotifyLayout( 0 )
-    , mAuthNotify( 0 )
+    , mAuthNotifyLayout( nullptr )
+    , mAuthNotify( nullptr )
 {
   if ( QgsAuthManager::instance()->isDisabled() )
   {
@@ -331,7 +331,7 @@ QString QgsAuthConfigUriEdit::dataSourceUri()
   return mDataUri;
 }
 
-bool QgsAuthConfigUriEdit::hasConfigID( const QString &txt )
+bool QgsAuthConfigUriEdit::hasConfigId( const QString &txt )
 {
   if ( QgsAuthManager::instance()->isDisabled() )
   {

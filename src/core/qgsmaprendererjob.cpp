@@ -21,7 +21,6 @@
 #include <QtConcurrentMap>
 #include <QSettings>
 
-#include "qgscrscache.h"
 #include "qgslogger.h"
 #include "qgsrendercontext.h"
 #include "qgsmaplayer.h"
@@ -29,13 +28,15 @@
 #include "qgsmaplayerrenderer.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgsmaprenderercache.h"
+#include "qgsmessagelog.h"
 #include "qgspallabeling.h"
 #include "qgsvectorlayerrenderer.h"
 #include "qgsvectorlayer.h"
+#include "qgscsexception.h"
 
 QgsMapRendererJob::QgsMapRendererJob( const QgsMapSettings& settings )
     : mSettings( settings )
-    , mCache( 0 )
+    , mCache( nullptr )
     , mRenderingTime( 0 )
 {
 }
@@ -63,7 +64,7 @@ const QgsMapSettings& QgsMapRendererJob::mapSettings() const
 }
 
 
-bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const QgsCoordinateTransform *ct, QgsRectangle &extent, QgsRectangle &r2 )
+bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const QgsCoordinateTransform& ct, QgsRectangle &extent, QgsRectangle &r2 )
 {
   bool split = false;
 
@@ -79,23 +80,22 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
     // extent separately.
     static const double splitCoord = 180.0;
 
-    if ( ml->crs().geographicFlag() )
+    if ( ml->crs().isGeographic() )
     {
-      if ( ml->type() == QgsMapLayer::VectorLayer && !ct->destCRS().geographicFlag() )
+      if ( ml->type() == QgsMapLayer::VectorLayer && !ct.destinationCrs().isGeographic() )
       {
         // if we transform from a projected coordinate system check
         // check if transforming back roughly returns the input
         // extend - otherwise render the world.
-        QgsRectangle extent1 = ct->transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
-        QgsRectangle extent2 = ct->transformBoundingBox( extent1, QgsCoordinateTransform::ForwardTransform );
+        QgsRectangle extent1 = ct.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
+        QgsRectangle extent2 = ct.transformBoundingBox( extent1, QgsCoordinateTransform::ForwardTransform );
 
-        QgsDebugMsg( QString( "\n0:%1 %2x%3\n1:%4\n2:%5 %6x%7 (w:%8 h:%9)" )
-                     .arg( extent.toString() ).arg( extent.width() ).arg( extent.height() )
-                     .arg( extent1.toString() )
-                     .arg( extent2.toString() ).arg( extent2.width() ).arg( extent2.height() )
-                     .arg( fabs( 1.0 - extent2.width() / extent.width() ) )
-                     .arg( fabs( 1.0 - extent2.height() / extent.height() ) )
-                   );
+        QgsDebugMsgLevel( QString( "\n0:%1 %2x%3\n1:%4\n2:%5 %6x%7 (w:%8 h:%9)" )
+                          .arg( extent.toString() ).arg( extent.width() ).arg( extent.height() )
+                          .arg( extent1.toString(), extent2.toString() ).arg( extent2.width() ).arg( extent2.height() )
+                          .arg( fabs( 1.0 - extent2.width() / extent.width() ) )
+                          .arg( fabs( 1.0 - extent2.height() / extent.height() ) )
+                          , 3 );
 
         if ( fabs( 1.0 - extent2.width() / extent.width() ) < 0.5 &&
              fabs( 1.0 - extent2.height() / extent.height() ) < 0.5 )
@@ -110,16 +110,16 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
       else
       {
         // Note: ll = lower left point
-        QgsPoint ll = ct->transform( extent.xMinimum(), extent.yMinimum(),
-                                     QgsCoordinateTransform::ReverseTransform );
+        QgsPoint ll = ct.transform( extent.xMinimum(), extent.yMinimum(),
+                                    QgsCoordinateTransform::ReverseTransform );
 
         //   and ur = upper right point
-        QgsPoint ur = ct->transform( extent.xMaximum(), extent.yMaximum(),
-                                     QgsCoordinateTransform::ReverseTransform );
+        QgsPoint ur = ct.transform( extent.xMaximum(), extent.yMaximum(),
+                                    QgsCoordinateTransform::ReverseTransform );
 
-        QgsDebugMsg( QString( "in:%1 (ll:%2 ur:%3)" ).arg( extent.toString() ).arg( ll.toString() ).arg( ur.toString() ) );
+        QgsDebugMsg( QString( "in:%1 (ll:%2 ur:%3)" ).arg( extent.toString(), ll.toString(), ur.toString() ) );
 
-        extent = ct->transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
+        extent = ct.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
 
         QgsDebugMsg( QString( "out:%1 (w:%2 h:%3)" ).arg( extent.toString() ).arg( extent.width() ).arg( extent.height() ) );
 
@@ -143,7 +143,7 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
     }
     else // can't cross 180
     {
-      if ( ct->destCRS().geographicFlag() &&
+      if ( ct.destinationCrs().isGeographic() &&
            ( extent.xMinimum() <= -180 || extent.xMaximum() >= 180 ||
              extent.yMinimum() <=  -90 || extent.yMaximum() >=  90 ) )
         // Use unlimited rectangle because otherwise we may end up transforming wrong coordinates.
@@ -152,7 +152,7 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
         // but this seems like a safer choice.
         extent = QgsRectangle( -DBL_MAX, -DBL_MAX, DBL_MAX, DBL_MAX );
       else
-        extent = ct->transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
+        extent = ct.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
     }
   }
   catch ( QgsCsException &cse )
@@ -168,7 +168,7 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
 
 
 
-LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsPalLabeling* labelingEngine, QgsLabelingEngineV2* labelingEngine2 )
+LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsLabelingEngine* labelingEngine2 )
 {
   LayerRenderJobs layerJobs;
 
@@ -189,7 +189,7 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsPalLabelin
   {
     QString layerId = li.previous();
 
-    QgsDebugMsg( "Rendering at layer item " + layerId );
+    QgsDebugMsgLevel( "Rendering at layer item " + layerId, 2 );
 
     QgsMapLayer *ml = QgsMapLayerRegistry::instance()->mapLayer( layerId );
 
@@ -199,31 +199,31 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsPalLabelin
       continue;
     }
 
-    QgsDebugMsg( QString( "layer %1:  minscale:%2  maxscale:%3  scaledepvis:%4  blendmode:%5" )
-                 .arg( ml->name() )
-                 .arg( ml->minimumScale() )
-                 .arg( ml->maximumScale() )
-                 .arg( ml->hasScaleBasedVisibility() )
-                 .arg( ml->blendMode() )
-               );
+    QgsDebugMsgLevel( QString( "layer %1:  minscale:%2  maxscale:%3  scaledepvis:%4  blendmode:%5" )
+                      .arg( ml->name() )
+                      .arg( ml->minimumScale() )
+                      .arg( ml->maximumScale() )
+                      .arg( ml->hasScaleBasedVisibility() )
+                      .arg( ml->blendMode() )
+                      , 3 );
 
-    if ( ml->hasScaleBasedVisibility() && ( mSettings.scale() < ml->minimumScale() || mSettings.scale() > ml->maximumScale() ) ) //|| mOverview )
+    if ( !ml->isInScaleRange( mSettings.scale() ) ) //|| mOverview )
     {
-      QgsDebugMsg( "Layer not rendered because it is not within the defined visibility scale range" );
+      QgsDebugMsgLevel( "Layer not rendered because it is not within the defined visibility scale range", 3 );
       continue;
     }
 
     QgsRectangle r1 = mSettings.visibleExtent(), r2;
-    const QgsCoordinateTransform* ct = 0;
+    QgsCoordinateTransform ct;
 
     if ( mSettings.hasCrsTransformEnabled() )
     {
       ct = mSettings.layerTransform( ml );
-      if ( ct )
+      if ( ct.isValid() )
       {
         reprojectToLayerExtent( ml, ct, r1, r2 );
       }
-      QgsDebugMsg( "extent: " + r1.toString() );
+      QgsDebugMsgLevel( "extent: " + r1.toString(), 3 );
       if ( !r1.isFinite() || !r2.isFinite() )
       {
         mErrors.append( Error( layerId, tr( "There was a problem transforming the layer's extent. Layer skipped." ) ) );
@@ -236,20 +236,25 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsPalLabelin
     if ( mCache && ml->type() == QgsMapLayer::VectorLayer )
     {
       QgsVectorLayer* vl = qobject_cast<QgsVectorLayer *>( ml );
-      if ( vl->isEditable() || (( labelingEngine || labelingEngine2 ) && QgsPalLabeling::staticWillUseLayer( vl ) ) )
+      if ( vl->isEditable() || ( labelingEngine2 && QgsPalLabeling::staticWillUseLayer( vl ) ) )
         mCache->clearCacheImage( ml->id() );
     }
 
     layerJobs.append( LayerRenderJob() );
     LayerRenderJob& job = layerJobs.last();
     job.cached = false;
-    job.img = 0;
+    job.img = nullptr;
     job.blendMode = ml->blendMode();
+    job.opacity = 1.0;
+    if ( QgsVectorLayer* vl = qobject_cast<QgsVectorLayer *>( ml ) )
+    {
+      job.opacity = 1.0 - vl->layerTransparency() / 100.0;
+    }
     job.layerId = ml->id();
+    job.renderingTime = -1;
 
     job.context = QgsRenderContext::fromMapSettings( mSettings );
     job.context.setPainter( painter );
-    job.context.setLabelingEngine( labelingEngine );
     job.context.setLabelingEngineV2( labelingEngine2 );
     job.context.setCoordinateTransform( ct );
     job.context.setExtent( r1 );
@@ -259,18 +264,18 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter* painter, QgsPalLabelin
     {
       job.cached = true;
       job.img = new QImage( mCache->cacheImage( ml->id() ) );
-      job.renderer = 0;
-      job.context.setPainter( 0 );
+      job.renderer = nullptr;
+      job.context.setPainter( nullptr );
       continue;
     }
 
     // If we are drawing with an alternative blending mode then we need to render to a separate image
     // before compositing this on the map. This effectively flattens the layer and prevents
-    // blending occuring between objects on the layer
+    // blending occurring between objects on the layer
     if ( mCache || !painter || needTemporaryImage( ml ) )
     {
       // Flattened image for drawing when a blending mode is set
-      QImage * mypFlattenedImage = 0;
+      QImage * mypFlattenedImage = nullptr;
       mypFlattenedImage = new QImage( mSettings.outputSize().width(),
                                       mSettings.outputSize().height(),
                                       mSettings.outputImageFormat() );
@@ -320,7 +325,7 @@ void QgsMapRendererJob::cleanupJobs( LayerRenderJobs& jobs )
     if ( job.img )
     {
       delete job.context.painter();
-      job.context.setPainter( 0 );
+      job.context.setPainter( nullptr );
 
       if ( mCache && !job.cached && !job.context.renderingStopped() )
       {
@@ -329,16 +334,16 @@ void QgsMapRendererJob::cleanupJobs( LayerRenderJobs& jobs )
       }
 
       delete job.img;
-      job.img = 0;
+      job.img = nullptr;
     }
 
     if ( job.renderer )
     {
       Q_FOREACH ( const QString& message, job.renderer->errors() )
-        mErrors.append( Error( job.renderer->layerID(), message ) );
+        mErrors.append( Error( job.renderer->layerId(), message ) );
 
       delete job.renderer;
-      job.renderer = 0;
+      job.renderer = nullptr;
     }
   }
 
@@ -351,7 +356,7 @@ void QgsMapRendererJob::cleanupJobs( LayerRenderJobs& jobs )
 QImage QgsMapRendererJob::composeImage( const QgsMapSettings& settings, const LayerRenderJobs& jobs )
 {
   QImage image( settings.outputSize(), settings.outputImageFormat() );
-  image.fill( settings.backgroundColor().rgb() );
+  image.fill( settings.backgroundColor().rgba() );
 
   QPainter painter( &image );
 
@@ -360,11 +365,32 @@ QImage QgsMapRendererJob::composeImage( const QgsMapSettings& settings, const La
     const LayerRenderJob& job = *it;
 
     painter.setCompositionMode( job.blendMode );
+    painter.setOpacity( job.opacity );
 
-    Q_ASSERT( job.img != 0 );
+    Q_ASSERT( job.img );
+
     painter.drawImage( 0, 0, *job.img );
   }
 
   painter.end();
   return image;
+}
+
+void QgsMapRendererJob::logRenderingTime( const LayerRenderJobs& jobs )
+{
+  QSettings settings;
+  if ( !settings.value( QStringLiteral( "/Map/logCanvasRefreshEvent" ), false ).toBool() )
+    return;
+
+  QMultiMap<int, QString> elapsed;
+  Q_FOREACH ( const LayerRenderJob& job, jobs )
+    elapsed.insert( job.renderingTime, job.layerId );
+
+  QList<int> tt( elapsed.uniqueKeys() );
+  qSort( tt.begin(), tt.end(), qGreater<int>() );
+  Q_FOREACH ( int t, tt )
+  {
+    QgsMessageLog::logMessage( tr( "%1 ms: %2" ).arg( t ).arg( QStringList( elapsed.values( t ) ).join( QStringLiteral( ", " ) ) ), tr( "Rendering" ) );
+  }
+  QgsMessageLog::logMessage( QStringLiteral( "---" ), tr( "Rendering" ) );
 }

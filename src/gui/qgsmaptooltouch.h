@@ -26,6 +26,7 @@ class QgsMapCanvas;
 /** \ingroup gui
  * A map tool for panning the map.
  * @see QgsMapTool
+ * @note may not be available in Python bindings on all platforms
  */
 class GUI_EXPORT QgsMapToolTouch : public QgsMapTool
 {
@@ -47,7 +48,7 @@ class GUI_EXPORT QgsMapToolTouch : public QgsMapTool
     //! Overridden Mouse double click event.
     virtual void canvasDoubleClickEvent( QgsMapMouseEvent* e ) override;
 
-    virtual bool isTransient() override { return true; }
+    virtual Flags flags() const override { return QgsMapTool::Transient | QgsMapTool::AllowZoomRect; }
 
     bool gestureEvent( QGestureEvent *event ) override;
 

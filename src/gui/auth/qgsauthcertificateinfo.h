@@ -40,7 +40,7 @@ class GUI_EXPORT QgsAuthCertInfo : public QWidget, private Ui::QgsAuthCertInfo
   public:
     explicit QgsAuthCertInfo( const QSslCertificate& cert,
                               bool manageCertTrust = false,
-                              QWidget *parent = 0,
+                              QWidget *parent = nullptr,
                               const QList<QSslCertificate>& connectionCAs = QList<QSslCertificate>() );
     ~QgsAuthCertInfo();
 
@@ -59,7 +59,7 @@ class GUI_EXPORT QgsAuthCertInfo : public QWidget, private Ui::QgsAuthCertInfo
 
     void decorateCertTreeItem( const QSslCertificate& cert,
                                QgsAuthCertUtils::CertTrustPolicy trustpolicy,
-                               QTreeWidgetItem * item = 0 );
+                               QTreeWidgetItem * item = nullptr );
 
   private:
     enum DetailsType
@@ -151,11 +151,11 @@ class GUI_EXPORT QgsAuthCertInfoDialog : public QDialog
      */
     explicit QgsAuthCertInfoDialog( const QSslCertificate& cert,
                                     bool manageCertTrust,
-                                    QWidget *parent = 0,
+                                    QWidget *parent = nullptr,
                                     const QList<QSslCertificate>& connectionCAs = QList<QSslCertificate>() );
     ~QgsAuthCertInfoDialog();
 
-    /** Get access to embedded info widget */
+    //! Get access to embedded info widget
     QgsAuthCertInfo *certInfoWidget() { return mCertInfoWdgt; }
 
     /** Whether the trust cache has been rebuilt

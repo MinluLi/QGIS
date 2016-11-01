@@ -1,8 +1,16 @@
 /***************************************************************************
- *  qgsgeometryduplicatecheck.h                                            *
- *  -------------------                                                    *
- *  copyright            : (C) 2014 by Sandro Mani / Sourcepole AG         *
- *  email                : smani@sourcepole.ch                             *
+    qgsgeometryduplicatecheck.h
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2014 by Sandro Mani / Sourcepole AG
+    email                : smani at sourcepole dot ch
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
  ***************************************************************************/
 
 #ifndef QGS_GEOMETRY_DUPLICATE_CHECK_H
@@ -14,10 +22,12 @@ class QgsGeometryDuplicateCheckError : public QgsGeometryCheckError
 {
   public:
     QgsGeometryDuplicateCheckError( const QgsGeometryCheck* check,
-                                    const QgsFeatureId& featureId,
+                                    QgsFeatureId featureId,
                                     const QgsPointV2& errorLocation,
                                     const QList<QgsFeatureId>& duplicates )
-        : QgsGeometryCheckError( check, featureId, errorLocation, QgsVertexId(), duplicatesString( duplicates ) ), mDuplicates( duplicates ) { }
+        : QgsGeometryCheckError( check, featureId, errorLocation, QgsVertexId(), duplicatesString( duplicates ) )
+        , mDuplicates( duplicates )
+    { }
     const QList<QgsFeatureId>& duplicates() const { return mDuplicates; }
 
     bool isEqual( QgsGeometryCheckError* other ) const override
@@ -38,7 +48,7 @@ class QgsGeometryDuplicateCheckError : public QgsGeometryCheckError
       {
         str.append( QString::number( id ) );
       }
-      return str.join( ", " );
+      return str.join( QStringLiteral( ", " ) );
     }
 };
 
@@ -49,11 +59,11 @@ class QgsGeometryDuplicateCheck : public QgsGeometryCheck
   public:
     explicit QgsGeometryDuplicateCheck( QgsFeaturePool* featurePool )
         : QgsGeometryCheck( FeatureCheck, featurePool ) {}
-    void collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList &messages, QAtomicInt* progressCounter = 0, const QgsFeatureIds& ids = QgsFeatureIds() ) const override;
+    void collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList &messages, QAtomicInt* progressCounter = nullptr, const QgsFeatureIds& ids = QgsFeatureIds() ) const override;
     void fixError( QgsGeometryCheckError* error, int method, int mergeAttributeIndex, Changes& changes ) const override;
     const QStringList& getResolutionMethods() const override;
     QString errorDescription() const override { return tr( "Duplicate" ); }
-    QString errorName() const override { return "QgsGeometryDuplicateCheck"; }
+    QString errorName() const override { return QStringLiteral( "QgsGeometryDuplicateCheck" ); }
 
   private:
     enum ResolutionMethod { NoChange, RemoveDuplicates };

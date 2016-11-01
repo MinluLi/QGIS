@@ -50,9 +50,7 @@ class QgsSelectedFeature: public QObject
      * Setting selected feature
      * @param featureId id of feature which was selected
      * @param vlayer vector layer in which feature is selected
-     * @param rubberBand rubber band which displays feature
      * @param canvas mapCanvas on which we are working
-     * @param geometry geometry of the selected feature
      */
     void setSelectedFeature( QgsFeatureId featureId, QgsVectorLayer* vlayer, QgsMapCanvas* canvas );
 
@@ -82,14 +80,19 @@ class QgsSelectedFeature: public QObject
      * Moves selected vertex
      * @param v translation vector
      */
-    void moveSelectedVertexes( const QgsVector &v );
+    void moveSelectedVertexes( QgsVector v );
 
     /**
      * Inverts selection of vertex with number
      * @param vertexNr number of vertex which is to be inverted
-     * @param invert flag if vertex selection should be inverted or not
      */
     void invertVertexSelection( int vertexNr );
+
+    /**
+     * Inverts selection of a set of vertices at once.
+     * @param vertexIndices list of vertex indices to invert whether or not they are selected
+     */
+    void invertVertexSelection( const QVector<int> &vertexIndices );
 
     /**
      * Tells if vertex is selected
@@ -157,7 +160,7 @@ class QgsSelectedFeature: public QObject
     /*
      * the geometry of a feature from the layer was changed - might be the selected
      */
-    void geometryChanged( QgsFeatureId, QgsGeometry & );
+    void geometryChanged( QgsFeatureId, const QgsGeometry& );
 
     /*
      * the current layer changed - destroy
@@ -189,12 +192,12 @@ class QgsSelectedFeature: public QObject
      * Updates stored geometry to actual one loaded from layer
      * (or already available geometry)
      */
-    void updateGeometry( QgsGeometry *geom );
+    void updateGeometry( const QgsGeometry* geom );
 
     /**
      * Validates the geometry
      */
-    void validateGeometry( QgsGeometry *g = 0 );
+    void validateGeometry( QgsGeometry *g = nullptr );
 
     QgsFeatureId mFeatureId;
     QgsGeometry *mGeometry;

@@ -29,15 +29,22 @@
 
 
 QgsGuiVectorLayerTools::QgsGuiVectorLayerTools()
-    : QObject( NULL )
+    : QObject( nullptr )
 {}
 
-bool QgsGuiVectorLayerTools::addFeature( QgsVectorLayer* layer, const QgsAttributeMap& defaultValues, const QgsGeometry& defaultGeometry ) const
+bool QgsGuiVectorLayerTools::addFeature( QgsVectorLayer* layer, const QgsAttributeMap& defaultValues, const QgsGeometry& defaultGeometry, QgsFeature* feat ) const
 {
-  QgsFeature f;
-  f.setGeometry( defaultGeometry );
-  QgsFeatureAction a( tr( "Add feature" ), f, layer );
-  return a.addFeature( defaultValues );
+  QgsFeature* f = feat;
+  if ( !feat )
+    f = new QgsFeature();
+
+  f->setGeometry( defaultGeometry );
+  QgsFeatureAction a( tr( "Add feature" ), *f, layer );
+  bool added = a.addFeature( defaultValues );
+  if ( !feat )
+    delete f;
+
+  return added;
 }
 
 bool QgsGuiVectorLayerTools::startEditing( QgsVectorLayer* layer ) const
@@ -49,7 +56,7 @@ bool QgsGuiVectorLayerTools::startEditing( QgsVectorLayer* layer ) const
 
   bool res = true;
 
-  if ( !layer->isEditable() && !layer->isReadOnly() )
+  if ( !layer->isEditable() && !layer->readOnly() )
   {
     if ( !( layer->dataProvider()->capabilities() & QgsVectorDataProvider::EditingCapabilities ) )
     {
@@ -99,7 +106,7 @@ bool QgsGuiVectorLayerTools::stopEditing( QgsVectorLayer* layer, bool allowCance
     if ( allowCancel )
       buttons |= QMessageBox::Cancel;
 
-    switch ( QMessageBox::information( 0,
+    switch ( QMessageBox::information( nullptr,
                                        tr( "Stop editing" ),
                                        tr( "Do you want to save the changes to layer %1?" ).arg( layer->name() ),
                                        buttons ) )
@@ -157,7 +164,7 @@ void QgsGuiVectorLayerTools::commitError( QgsVectorLayer* vlayer ) const
   mv->setWindowTitle( tr( "Commit errors" ) );
   mv->setMessageAsPlainText( tr( "Could not commit changes to layer %1" ).arg( vlayer->name() )
                              + "\n\n"
-                             + tr( "Errors: %1\n" ).arg( vlayer->commitErrors().join( "\n  " ) )
+                             + tr( "Errors: %1\n" ).arg( vlayer->commitErrors().join( QStringLiteral( "\n  " ) ) )
                            );
 
   QToolButton *showMore = new QToolButton();
@@ -165,7 +172,7 @@ void QgsGuiVectorLayerTools::commitError( QgsVectorLayer* vlayer ) const
   QAction *act = new QAction( showMore );
   act->setData( QVariant( QMetaType::QObjectStar, &vlayer ) );
   act->setText( tr( "Show more" ) );
-  showMore->setStyleSheet( "background-color: rgba(255, 255, 255, 0); color: black; text-decoration: underline;" );
+  showMore->setStyleSheet( QStringLiteral( "background-color: rgba(255, 255, 255, 0); color: black; text-decoration: underline;" ) );
   showMore->setCursor( Qt::PointingHandCursor );
   showMore->setSizePolicy( QSizePolicy::Maximum, QSizePolicy::Preferred );
   showMore->addAction( act );

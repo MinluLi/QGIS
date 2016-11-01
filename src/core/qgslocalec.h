@@ -20,6 +20,8 @@
 
 #include <QMutex>
 
+/** \ingroup core
+ */
 class CORE_EXPORT QgsLocaleNumC
 {
     char *mOldlocale;
@@ -28,6 +30,11 @@ class CORE_EXPORT QgsLocaleNumC
   public:
     QgsLocaleNumC();
     ~QgsLocaleNumC();
+
+  private:
+
+    QgsLocaleNumC( const QgsLocaleNumC& rh );
+    QgsLocaleNumC& operator=( const QgsLocaleNumC& rh );
 
 };
 

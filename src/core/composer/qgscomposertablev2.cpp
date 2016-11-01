@@ -18,7 +18,7 @@
 #include "qgscomposertablev2.h"
 #include "qgscomposerutils.h"
 #include "qgscomposertablecolumn.h"
-#include "qgssymbollayerv2utils.h"
+#include "qgssymbollayerutils.h"
 #include "qgscomposerframe.h"
 #include "qgsfontutils.h"
 
@@ -26,18 +26,18 @@
 // QgsComposerTableStyle
 //
 
-bool QgsComposerTableStyle::writeXML( QDomElement& styleElem, QDomDocument& doc ) const
+bool QgsComposerTableStyle::writeXml( QDomElement& styleElem, QDomDocument& doc ) const
 {
   Q_UNUSED( doc );
-  styleElem.setAttribute( "cellBackgroundColor", QgsSymbolLayerV2Utils::encodeColor( cellBackgroundColor ) );
-  styleElem.setAttribute( "enabled", enabled );
+  styleElem.setAttribute( QStringLiteral( "cellBackgroundColor" ), QgsSymbolLayerUtils::encodeColor( cellBackgroundColor ) );
+  styleElem.setAttribute( QStringLiteral( "enabled" ), enabled );
   return true;
 }
 
-bool QgsComposerTableStyle::readXML( const QDomElement& styleElem )
+bool QgsComposerTableStyle::readXml( const QDomElement& styleElem )
 {
-  cellBackgroundColor = QgsSymbolLayerV2Utils::decodeColor( styleElem.attribute( "cellBackgroundColor", "255,255,255,255" ) );
-  enabled = ( styleElem.attribute( "enabled", "0" ) != "0" );
+  cellBackgroundColor = QgsSymbolLayerUtils::decodeColor( styleElem.attribute( QStringLiteral( "cellBackgroundColor" ), QStringLiteral( "255,255,255,255" ) ) );
+  enabled = ( styleElem.attribute( QStringLiteral( "enabled" ), QStringLiteral( "0" ) ) != QLatin1String( "0" ) );
   return true;
 }
 
@@ -58,6 +58,8 @@ QgsComposerTableV2::QgsComposerTableV2( QgsComposition *composition, bool create
     , mShowGrid( true )
     , mGridStrokeWidth( 0.5 )
     , mGridColor( Qt::black )
+    , mHorizontalGrid( true )
+    , mVerticalGrid( true )
     , mBackgroundColor( Qt::white )
     , mWrapBehaviour( TruncateText )
 {
@@ -69,7 +71,7 @@ QgsComposerTableV2::QgsComposerTableV2( QgsComposition *composition, bool create
 
   //get default composer font from settings
   QSettings settings;
-  QString defaultFontString = settings.value( "/Composer/defaultFont" ).toString();
+  QString defaultFontString = settings.value( QStringLiteral( "/Composer/defaultFont" ) ).toString();
   if ( !defaultFontString.isEmpty() )
   {
     mHeaderFont.setFamily( defaultFontString );
@@ -80,7 +82,7 @@ QgsComposerTableV2::QgsComposerTableV2( QgsComposition *composition, bool create
 }
 
 QgsComposerTableV2::QgsComposerTableV2()
-    : QgsComposerMultiFrame( 0, false )
+    : QgsComposerMultiFrame( nullptr, false )
     , mCellMargin( 1.0 )
     , mEmptyTableMode( HeadersOnly )
     , mShowEmptyRows( false )
@@ -106,56 +108,63 @@ QgsComposerTableV2::~QgsComposerTableV2()
   mCellStyles.clear();
 }
 
-bool QgsComposerTableV2::writeXML( QDomElement& elem, QDomDocument & doc, bool ignoreFrames ) const
+bool QgsComposerTableV2::writeXml( QDomElement& elem, QDomDocument & doc, bool ignoreFrames ) const
 {
-  elem.setAttribute( "cellMargin", QString::number( mCellMargin ) );
-  elem.setAttribute( "emptyTableMode", QString::number(( int )mEmptyTableMode ) );
-  elem.setAttribute( "emptyTableMessage", mEmptyTableMessage );
-  elem.setAttribute( "showEmptyRows", mShowEmptyRows );
-  elem.appendChild( QgsFontUtils::toXmlElement( mHeaderFont, doc, "headerFontProperties" ) );
-  elem.setAttribute( "headerFontColor", QgsSymbolLayerV2Utils::encodeColor( mHeaderFontColor ) );
-  elem.setAttribute( "headerHAlignment", QString::number(( int )mHeaderHAlignment ) );
-  elem.setAttribute( "headerMode", QString::number(( int )mHeaderMode ) );
-  elem.appendChild( QgsFontUtils::toXmlElement( mContentFont, doc, "contentFontProperties" ) );
-  elem.setAttribute( "contentFontColor", QgsSymbolLayerV2Utils::encodeColor( mContentFontColor ) );
-  elem.setAttribute( "gridStrokeWidth", QString::number( mGridStrokeWidth ) );
-  elem.setAttribute( "gridColor", QgsSymbolLayerV2Utils::encodeColor( mGridColor ) );
-  elem.setAttribute( "showGrid", mShowGrid );
-  elem.setAttribute( "backgroundColor", QgsSymbolLayerV2Utils::encodeColor( mBackgroundColor ) );
-  elem.setAttribute( "wrapBehaviour", QString::number(( int )mWrapBehaviour ) );
+  elem.setAttribute( QStringLiteral( "cellMargin" ), QString::number( mCellMargin ) );
+  elem.setAttribute( QStringLiteral( "emptyTableMode" ), QString::number( static_cast< int >( mEmptyTableMode ) ) );
+  elem.setAttribute( QStringLiteral( "emptyTableMessage" ), mEmptyTableMessage );
+  elem.setAttribute( QStringLiteral( "showEmptyRows" ), mShowEmptyRows );
+  elem.appendChild( QgsFontUtils::toXmlElement( mHeaderFont, doc, QStringLiteral( "headerFontProperties" ) ) );
+  elem.setAttribute( QStringLiteral( "headerFontColor" ), QgsSymbolLayerUtils::encodeColor( mHeaderFontColor ) );
+  elem.setAttribute( QStringLiteral( "headerHAlignment" ), QString::number( static_cast< int >( mHeaderHAlignment ) ) );
+  elem.setAttribute( QStringLiteral( "headerMode" ), QString::number( static_cast< int >( mHeaderMode ) ) );
+  elem.appendChild( QgsFontUtils::toXmlElement( mContentFont, doc, QStringLiteral( "contentFontProperties" ) ) );
+  elem.setAttribute( QStringLiteral( "contentFontColor" ), QgsSymbolLayerUtils::encodeColor( mContentFontColor ) );
+  elem.setAttribute( QStringLiteral( "gridStrokeWidth" ), QString::number( mGridStrokeWidth ) );
+  elem.setAttribute( QStringLiteral( "gridColor" ), QgsSymbolLayerUtils::encodeColor( mGridColor ) );
+  elem.setAttribute( QStringLiteral( "horizontalGrid" ), mHorizontalGrid );
+  elem.setAttribute( QStringLiteral( "verticalGrid" ), mVerticalGrid );
+  elem.setAttribute( QStringLiteral( "showGrid" ), mShowGrid );
+  elem.setAttribute( QStringLiteral( "backgroundColor" ), QgsSymbolLayerUtils::encodeColor( mBackgroundColor ) );
+  elem.setAttribute( QStringLiteral( "wrapBehaviour" ), QString::number( static_cast< int >( mWrapBehaviour ) ) );
 
   //columns
-  QDomElement displayColumnsElem = doc.createElement( "displayColumns" );
+  QDomElement displayColumnsElem = doc.createElement( QStringLiteral( "displayColumns" ) );
   QList<QgsComposerTableColumn*>::const_iterator columnIt = mColumns.constBegin();
   for ( ; columnIt != mColumns.constEnd(); ++columnIt )
   {
-    QDomElement columnElem = doc.createElement( "column" );
-    ( *columnIt )->writeXML( columnElem, doc );
+    QDomElement columnElem = doc.createElement( QStringLiteral( "column" ) );
+    ( *columnIt )->writeXml( columnElem, doc );
     displayColumnsElem.appendChild( columnElem );
   }
   elem.appendChild( displayColumnsElem );
 
   //cell styles
-  QDomElement stylesElem = doc.createElement( "cellStyles" );
-  Q_FOREACH ( CellStyleGroup group, mCellStyleNames.keys() )
+  QDomElement stylesElem = doc.createElement( QStringLiteral( "cellStyles" ) );
+  QMap< CellStyleGroup, QString >::const_iterator it = mCellStyleNames.constBegin();
+  for ( ; it != mCellStyleNames.constEnd(); ++it )
   {
-    QString styleName = mCellStyleNames.value( group );
+    QString styleName = it.value();
     QDomElement styleElem = doc.createElement( styleName );
-    mCellStyles.value( group )->writeXML( styleElem, doc );
-    stylesElem.appendChild( styleElem );
+    QgsComposerTableStyle* style = mCellStyles.value( it.key() );
+    if ( style )
+    {
+      style->writeXml( styleElem, doc );
+      stylesElem.appendChild( styleElem );
+    }
   }
   elem.appendChild( stylesElem );
 
-  bool state = _writeXML( elem, doc, ignoreFrames );
+  bool state = _writeXml( elem, doc, ignoreFrames );
   return state;
 }
 
-bool QgsComposerTableV2::readXML( const QDomElement &itemElem, const QDomDocument &doc, bool ignoreFrames )
+bool QgsComposerTableV2::readXml( const QDomElement &itemElem, const QDomDocument &doc, bool ignoreFrames )
 {
   deleteFrames();
 
   //first create the frames
-  if ( !_readXML( itemElem, doc, ignoreFrames ) )
+  if ( !_readXml( itemElem, doc, ignoreFrames ) )
   {
     return false;
   }
@@ -165,58 +174,62 @@ bool QgsComposerTableV2::readXML( const QDomElement &itemElem, const QDomDocumen
     return false;
   }
 
-  mEmptyTableMode = QgsComposerTableV2::EmptyTableMode( itemElem.attribute( "emptyTableMode", "0" ).toInt() );
-  mEmptyTableMessage = itemElem.attribute( "emptyTableMessage", tr( "No matching records" ) );
-  mShowEmptyRows = itemElem.attribute( "showEmptyRows", "0" ).toInt();
-  if ( !QgsFontUtils::setFromXmlChildNode( mHeaderFont, itemElem, "headerFontProperties" ) )
+  mEmptyTableMode = QgsComposerTableV2::EmptyTableMode( itemElem.attribute( QStringLiteral( "emptyTableMode" ), QStringLiteral( "0" ) ).toInt() );
+  mEmptyTableMessage = itemElem.attribute( QStringLiteral( "emptyTableMessage" ), tr( "No matching records" ) );
+  mShowEmptyRows = itemElem.attribute( QStringLiteral( "showEmptyRows" ), QStringLiteral( "0" ) ).toInt();
+  if ( !QgsFontUtils::setFromXmlChildNode( mHeaderFont, itemElem, QStringLiteral( "headerFontProperties" ) ) )
   {
-    mHeaderFont.fromString( itemElem.attribute( "headerFont", "" ) );
+    mHeaderFont.fromString( itemElem.attribute( QStringLiteral( "headerFont" ), QLatin1String( "" ) ) );
   }
-  mHeaderFontColor = QgsSymbolLayerV2Utils::decodeColor( itemElem.attribute( "headerFontColor", "0,0,0,255" ) );
-  mHeaderHAlignment = QgsComposerTableV2::HeaderHAlignment( itemElem.attribute( "headerHAlignment", "0" ).toInt() );
-  mHeaderMode = QgsComposerTableV2::HeaderMode( itemElem.attribute( "headerMode", "0" ).toInt() );
-  if ( !QgsFontUtils::setFromXmlChildNode( mContentFont, itemElem, "contentFontProperties" ) )
+  mHeaderFontColor = QgsSymbolLayerUtils::decodeColor( itemElem.attribute( QStringLiteral( "headerFontColor" ), QStringLiteral( "0,0,0,255" ) ) );
+  mHeaderHAlignment = QgsComposerTableV2::HeaderHAlignment( itemElem.attribute( QStringLiteral( "headerHAlignment" ), QStringLiteral( "0" ) ).toInt() );
+  mHeaderMode = QgsComposerTableV2::HeaderMode( itemElem.attribute( QStringLiteral( "headerMode" ), QStringLiteral( "0" ) ).toInt() );
+  if ( !QgsFontUtils::setFromXmlChildNode( mContentFont, itemElem, QStringLiteral( "contentFontProperties" ) ) )
   {
-    mContentFont.fromString( itemElem.attribute( "contentFont", "" ) );
+    mContentFont.fromString( itemElem.attribute( QStringLiteral( "contentFont" ), QLatin1String( "" ) ) );
   }
-  mContentFontColor = QgsSymbolLayerV2Utils::decodeColor( itemElem.attribute( "contentFontColor", "0,0,0,255" ) );
-  mCellMargin = itemElem.attribute( "cellMargin", "1.0" ).toDouble();
-  mGridStrokeWidth = itemElem.attribute( "gridStrokeWidth", "0.5" ).toDouble();
-  mShowGrid = itemElem.attribute( "showGrid", "1" ).toInt();
-  mGridColor = QgsSymbolLayerV2Utils::decodeColor( itemElem.attribute( "gridColor", "0,0,0,255" ) );
-  mBackgroundColor = QgsSymbolLayerV2Utils::decodeColor( itemElem.attribute( "backgroundColor", "255,255,255,0" ) );
-  mWrapBehaviour = QgsComposerTableV2::WrapBehaviour( itemElem.attribute( "wrapBehaviour", "0" ).toInt() );
+  mContentFontColor = QgsSymbolLayerUtils::decodeColor( itemElem.attribute( QStringLiteral( "contentFontColor" ), QStringLiteral( "0,0,0,255" ) ) );
+  mCellMargin = itemElem.attribute( QStringLiteral( "cellMargin" ), QStringLiteral( "1.0" ) ).toDouble();
+  mGridStrokeWidth = itemElem.attribute( QStringLiteral( "gridStrokeWidth" ), QStringLiteral( "0.5" ) ).toDouble();
+  mHorizontalGrid = itemElem.attribute( QStringLiteral( "horizontalGrid" ), QStringLiteral( "1" ) ).toInt();
+  mVerticalGrid = itemElem.attribute( QStringLiteral( "verticalGrid" ), QStringLiteral( "1" ) ).toInt();
+  mShowGrid = itemElem.attribute( QStringLiteral( "showGrid" ), QStringLiteral( "1" ) ).toInt();
+  mGridColor = QgsSymbolLayerUtils::decodeColor( itemElem.attribute( QStringLiteral( "gridColor" ), QStringLiteral( "0,0,0,255" ) ) );
+  mBackgroundColor = QgsSymbolLayerUtils::decodeColor( itemElem.attribute( QStringLiteral( "backgroundColor" ), QStringLiteral( "255,255,255,0" ) ) );
+  mWrapBehaviour = QgsComposerTableV2::WrapBehaviour( itemElem.attribute( QStringLiteral( "wrapBehaviour" ), QStringLiteral( "0" ) ).toInt() );
 
   //restore column specifications
   qDeleteAll( mColumns );
   mColumns.clear();
-  QDomNodeList columnsList = itemElem.elementsByTagName( "displayColumns" );
-  if ( columnsList.size() > 0 )
+  QDomNodeList columnsList = itemElem.elementsByTagName( QStringLiteral( "displayColumns" ) );
+  if ( !columnsList.isEmpty() )
   {
     QDomElement columnsElem =  columnsList.at( 0 ).toElement();
-    QDomNodeList columnEntryList = columnsElem.elementsByTagName( "column" );
+    QDomNodeList columnEntryList = columnsElem.elementsByTagName( QStringLiteral( "column" ) );
     for ( int i = 0; i < columnEntryList.size(); ++i )
     {
       QDomElement columnElem = columnEntryList.at( i ).toElement();
       QgsComposerTableColumn* column = new QgsComposerTableColumn;
-      column->readXML( columnElem );
+      column->readXml( columnElem );
       mColumns.append( column );
     }
   }
 
   //restore cell styles
-  QDomNodeList stylesList = itemElem.elementsByTagName( "cellStyles" );
-  if ( stylesList.size() > 0 )
+  QDomNodeList stylesList = itemElem.elementsByTagName( QStringLiteral( "cellStyles" ) );
+  if ( !stylesList.isEmpty() )
   {
     QDomElement stylesElem = stylesList.at( 0 ).toElement();
-    Q_FOREACH ( CellStyleGroup group, mCellStyleNames.keys() )
+
+    QMap< CellStyleGroup, QString >::const_iterator it = mCellStyleNames.constBegin();
+    for ( ; it != mCellStyleNames.constEnd(); ++it )
     {
-      QString styleName  = mCellStyleNames.value( group );
+      QString styleName = it.value();
       QDomNodeList styleList = stylesElem.elementsByTagName( styleName );
-      if ( styleList.size() > 0 )
+      if ( !styleList.isEmpty() )
       {
         QDomElement styleElem = styleList.at( 0 ).toElement();
-        mCellStyles.value( group )->readXML( styleElem );
+        mCellStyles.value( it.key() )->readXml( styleElem );
       }
     }
   }
@@ -229,49 +242,6 @@ QSizeF QgsComposerTableV2::totalSize() const
   return mTableSize;
 }
 
-int QgsComposerTableV2::rowsVisible( const int frameIndex ) const
-{
-  //get frame extent
-  if ( frameIndex >= frameCount() )
-  {
-    return 0;
-  }
-  QRectF frameExtent = frame( frameIndex )->extent();
-
-  bool includeHeader = false;
-  if (( mHeaderMode == QgsComposerTableV2::FirstFrame && frameIndex < 1 )
-      || ( mHeaderMode == QgsComposerTableV2::AllFrames ) )
-  {
-    includeHeader = true;
-  }
-  Q_NOWARN_DEPRECATED_PUSH
-  return rowsVisible( frameExtent.height(), includeHeader );
-  Q_NOWARN_DEPRECATED_POP
-}
-
-int QgsComposerTableV2::rowsVisible( const double frameHeight, const bool includeHeader ) const
-{
-  //calculate header height
-  double headerHeight = 0;
-  if ( includeHeader )
-  {
-    //frame has a header
-    headerHeight = 2 * ( mShowGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin +  QgsComposerUtils::fontAscentMM( mHeaderFont );
-  }
-  else
-  {
-    //frame has no header text, just the stroke
-    headerHeight = ( mShowGrid ? mGridStrokeWidth : 0 );
-  }
-
-  //remaining height available for content rows
-  double contentHeight = frameHeight - headerHeight;
-
-  //calculate number of visible rows
-  double rowHeight = ( mShowGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin + QgsComposerUtils::fontAscentMM( mContentFont );
-  return qMax( floor( contentHeight / rowHeight ), 0.0 );
-}
-
 int QgsComposerTableV2::rowsVisible( double frameHeight, int firstRow, bool includeHeader , bool includeEmptyRows ) const
 {
   //calculate header height
@@ -279,18 +249,18 @@ int QgsComposerTableV2::rowsVisible( double frameHeight, int firstRow, bool incl
   if ( includeHeader )
   {
     //frame has a header
-    headerHeight = 2 * ( mShowGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin +  QgsComposerUtils::fontAscentMM( mHeaderFont );
+    headerHeight = 2 * ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin +  QgsComposerUtils::fontAscentMM( mHeaderFont );
   }
   else
   {
     //frame has no header text, just the stroke
-    headerHeight = ( mShowGrid ? mGridStrokeWidth : 0 );
+    headerHeight = ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 );
   }
 
   //remaining height available for content rows
   double contentHeight = frameHeight - headerHeight;
 
-  double gridHeight = ( mShowGrid ? mGridStrokeWidth : 0 );
+  double gridHeight = ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 );
 
   int currentRow = firstRow;
   while ( contentHeight > 0 && currentRow <= mTableContents.count() )
@@ -302,7 +272,7 @@ int QgsComposerTableV2::rowsVisible( double frameHeight, int firstRow, bool incl
 
   if ( includeEmptyRows && contentHeight > 0 )
   {
-    double rowHeight = ( mShowGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin + QgsComposerUtils::fontAscentMM( mContentFont );
+    double rowHeight = ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 ) + 2 * mCellMargin + QgsComposerUtils::fontAscentMM( mContentFont );
     currentRow += qMax( floor( contentHeight / rowHeight ), 0.0 );
   }
 
@@ -352,13 +322,6 @@ QPair<int, int> QgsComposerTableV2::rowRange( const int frameIndex ) const
   return qMakePair( firstVisible, lastVisible );
 }
 
-QPair< int, int > QgsComposerTableV2::rowRange( const QRectF &extent, const int frameIndex ) const
-{
-  Q_UNUSED( extent );
-  return rowRange( frameIndex );
-}
-
-
 void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameIndex )
 {
   if ( !p )
@@ -384,7 +347,8 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
   //calculate which rows to show in this frame
   QPair< int, int > rowsToShow = rowRange( frameIndex );
 
-  double gridSize = mShowGrid ? mGridStrokeWidth : 0;
+  double gridSizeX = mShowGrid && mVerticalGrid ? mGridStrokeWidth : 0;
+  double gridSizeY = mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0;
   double cellHeaderHeight = QgsComposerUtils::fontAscentMM( mHeaderFont ) + 2 * mCellMargin;
   double cellBodyHeight = QgsComposerUtils::fontAscentMM( mContentFont ) + 2 * mCellMargin;
   QRectF cell;
@@ -418,13 +382,13 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
   //draw the text
   p->setPen( Qt::SolidLine );
 
-  double currentX = gridSize;
-  double currentY = gridSize;
+  double currentX = gridSizeX;
+  double currentY = gridSizeY;
   if ( drawHeader )
   {
     //draw the headers
     int col = 0;
-    for ( QList<QgsComposerTableColumn*>::const_iterator columnIt = mColumns.constBegin(); columnIt != mColumns.constEnd(); ++columnIt )
+    Q_FOREACH ( const QgsComposerTableColumn* column, mColumns )
     {
       //draw background
       p->save();
@@ -435,8 +399,8 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
 
       currentX += mCellMargin;
 
-      Qt::TextFlag textFlag = ( Qt::TextFlag )0;
-      if (( *columnIt )->width() <= 0 )
+      Qt::TextFlag textFlag = static_cast< Qt::TextFlag >( 0 );
+      if ( column->width() <= 0 )
       {
         //automatic column width, so we use the Qt::TextDontClip flag when drawing contents, as this works nicer for italicised text
         //which may slightly exceed the calculated width
@@ -451,7 +415,7 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
       switch ( mHeaderHAlignment )
       {
         case FollowColumn:
-          headerAlign = ( *columnIt )->hAlignment();
+          headerAlign = column->hAlignment();
           break;
         case HeaderLeft:
           headerAlign = Qt::AlignLeft;
@@ -464,16 +428,16 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
           break;
       }
 
-      QgsComposerUtils::drawText( p, cell, ( *columnIt )->heading(), mHeaderFont, mHeaderFontColor, headerAlign, Qt::AlignVCenter, textFlag );
+      QgsComposerUtils::drawText( p, cell, column->heading(), mHeaderFont, mHeaderFontColor, headerAlign, Qt::AlignVCenter, textFlag );
 
       currentX += mMaxColumnWidthMap[ col ];
       currentX += mCellMargin;
-      currentX += gridSize;
+      currentX += gridSizeX;
       col++;
     }
 
     currentY += cellHeaderHeight;
-    currentY += gridSize;
+    currentY += gridSizeY;
   }
 
   //now draw the body cells
@@ -484,14 +448,14 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
     for ( int row = rowsToShow.first; row < rowsToShow.second; ++row )
     {
       rowsDrawn++;
-      currentX = gridSize;
+      currentX = gridSizeX;
       int col = 0;
 
       //calculate row height
       double rowHeight = mMaxRowHeightMap[row + 1] + 2 * mCellMargin;
 
 
-      for ( QList<QgsComposerTableColumn*>::const_iterator columnIt = mColumns.constBegin(); columnIt != mColumns.constEnd(); ++columnIt )
+      Q_FOREACH ( const QgsComposerTableColumn* column, mColumns )
       {
         //draw background
         p->save();
@@ -506,29 +470,29 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
         QVariant cellContents = mTableContents.at( row ).at( col );
         QString str = cellContents.toString();
 
-        Qt::TextFlag textFlag = ( Qt::TextFlag )0;
-        if (( *columnIt )->width() <= 0 && mWrapBehaviour == TruncateText )
+        Qt::TextFlag textFlag = static_cast< Qt::TextFlag >( 0 );
+        if ( column->width() <= 0 && mWrapBehaviour == TruncateText )
         {
           //automatic column width, so we use the Qt::TextDontClip flag when drawing contents, as this works nicer for italicised text
           //which may slightly exceed the calculated width
           //if column size was manually set then we do apply text clipping, to avoid painting text outside of columns width
           textFlag = Qt::TextDontClip;
         }
-        else if ( textRequiresWrapping( str, ( *columnIt )->width(), mContentFont ) )
+        else if ( textRequiresWrapping( str, column->width(), mContentFont ) )
         {
-          str = wrappedText( str, ( *columnIt )->width(), mContentFont );
+          str = wrappedText( str, column->width(), mContentFont );
         }
 
         cell = QRectF( currentX, currentY, mMaxColumnWidthMap[col], rowHeight );
-        QgsComposerUtils::drawText( p, cell, str, mContentFont, mContentFontColor, ( *columnIt )->hAlignment(), ( *columnIt )->vAlignment(), textFlag );
+        QgsComposerUtils::drawText( p, cell, str, mContentFont, mContentFontColor, column->hAlignment(), column->vAlignment(), textFlag );
 
         currentX += mMaxColumnWidthMap[ col ];
         currentX += mCellMargin;
-        currentX += gridSize;
+        currentX += gridSizeX;
         col++;
       }
       currentY += rowHeight;
-      currentY += gridSize;
+      currentY += gridSizeY;
     }
   }
 
@@ -540,13 +504,13 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
     //draw background of empty rows
     for ( int row = rowsDrawn; row < numberRowsToDraw; ++row )
     {
-      currentX = gridSize;
+      currentX = gridSizeX;
       int col = 0;
 
       if ( mergeCells )
       {
         p->setBrush( backgroundColor( row + 10000, 0 ) );
-        p->drawRect( QRectF( gridSize, currentY, mTableSize.width() - 2 * gridSize, cellBodyHeight ) );
+        p->drawRect( QRectF( gridSizeX, currentY, mTableSize.width() - 2 * gridSizeX, cellBodyHeight ) );
       }
       else
       {
@@ -560,11 +524,11 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
 
           // currentY = gridSize;
           currentX += mMaxColumnWidthMap[ col ] + 2 * mCellMargin;
-          currentX += gridSize;
+          currentX += gridSizeX;
           col++;
         }
       }
-      currentY += cellBodyHeight + gridSize;
+      currentY += cellBodyHeight + gridSizeY;
     }
     p->restore();
   }
@@ -577,17 +541,23 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
     gridPen.setColor( mGridColor );
     gridPen.setJoinStyle( Qt::MiterJoin );
     p->setPen( gridPen );
-    drawHorizontalGridLines( p, rowsToShow.first, rowsToShow.second + numberEmptyRows, drawHeader );
-    drawVerticalGridLines( p, mMaxColumnWidthMap, rowsToShow.first, rowsToShow.second + numberEmptyRows, drawHeader, mergeCells );
+    if ( mHorizontalGrid )
+    {
+      drawHorizontalGridLines( p, rowsToShow.first, rowsToShow.second + numberEmptyRows, drawHeader );
+    }
+    if ( mVerticalGrid )
+    {
+      drawVerticalGridLines( p, mMaxColumnWidthMap, rowsToShow.first, rowsToShow.second + numberEmptyRows, drawHeader, mergeCells );
+    }
   }
 
   //special case - no records and table is set to ShowMessage mode
   if ( emptyTable && mEmptyTableMode == QgsComposerTableV2::ShowMessage )
   {
-    double messageX = gridSize + mCellMargin;
-    double messageY = gridSize + ( drawHeader ? cellHeaderHeight + gridSize : 0 );
+    double messageX = gridSizeX + mCellMargin;
+    double messageY = gridSizeY + ( drawHeader ? cellHeaderHeight + gridSizeY : 0 );
     cell = QRectF( messageX, messageY, mTableSize.width() - messageX, cellBodyHeight );
-    QgsComposerUtils::drawText( p, cell, mEmptyTableMessage, mContentFont, mContentFontColor, Qt::AlignHCenter, Qt::AlignVCenter, ( Qt::TextFlag )0 );
+    QgsComposerUtils::drawText( p, cell, mEmptyTableMessage, mContentFont, mContentFontColor, Qt::AlignHCenter, Qt::AlignVCenter, static_cast< Qt::TextFlag >( 0 ) );
   }
 
   p->restore();
@@ -596,7 +566,7 @@ void QgsComposerTableV2::render( QPainter *p, const QRectF &, const int frameInd
 
 void QgsComposerTableV2::setCellMargin( const double margin )
 {
-  if ( margin == mCellMargin )
+  if ( qgsDoubleNear( margin, mCellMargin ) )
   {
     return;
   }
@@ -747,7 +717,7 @@ void QgsComposerTableV2::setShowGrid( const bool showGrid )
 
 void QgsComposerTableV2::setGridStrokeWidth( const double width )
 {
-  if ( width == mGridStrokeWidth )
+  if ( qgsDoubleNear( width, mGridStrokeWidth ) )
   {
     return;
   }
@@ -768,6 +738,34 @@ void QgsComposerTableV2::setGridColor( const QColor &color )
 
   mGridColor = color;
   update();
+
+  emit changed();
+}
+
+void QgsComposerTableV2::setHorizontalGrid( const bool horizontalGrid )
+{
+  if ( horizontalGrid == mHorizontalGrid )
+  {
+    return;
+  }
+
+  mHorizontalGrid = horizontalGrid;
+  //since grid spacing has changed, we need to recalculate the table size
+  recalculateTableSize();
+
+  emit changed();
+}
+
+void QgsComposerTableV2::setVerticalGrid( const bool verticalGrid )
+{
+  if ( verticalGrid == mVerticalGrid )
+  {
+    return;
+  }
+
+  mVerticalGrid = verticalGrid;
+  //since grid spacing has changed, we need to recalculate the table size
+  recalculateTableSize();
 
   emit changed();
 }
@@ -818,7 +816,7 @@ void QgsComposerTableV2::setCellStyle( QgsComposerTableV2::CellStyleGroup group,
 const QgsComposerTableStyle* QgsComposerTableV2::cellStyle( QgsComposerTableV2::CellStyleGroup group ) const
 {
   if ( !mCellStyles.contains( group ) )
-    return 0;
+    return nullptr;
 
   return mCellStyles.value( group );
 }
@@ -886,15 +884,15 @@ void QgsComposerTableV2::initStyles()
   mCellStyles.insert( FirstRow, new QgsComposerTableStyle() );
   mCellStyles.insert( LastRow, new QgsComposerTableStyle() );
 
-  mCellStyleNames.insert( OddColumns, "oddColumns" );
-  mCellStyleNames.insert( EvenColumns, "evenColumns" );
-  mCellStyleNames.insert( OddRows, "oddRows" );
-  mCellStyleNames.insert( EvenRows, "evenRows" );
-  mCellStyleNames.insert( FirstColumn, "firstColumn" );
-  mCellStyleNames.insert( LastColumn, "lastColumn" );
-  mCellStyleNames.insert( HeaderRow, "headerRow" );
-  mCellStyleNames.insert( FirstRow, "firstRow" );
-  mCellStyleNames.insert( LastRow, "lastRow" );
+  mCellStyleNames.insert( OddColumns, QStringLiteral( "oddColumns" ) );
+  mCellStyleNames.insert( EvenColumns, QStringLiteral( "evenColumns" ) );
+  mCellStyleNames.insert( OddRows, QStringLiteral( "oddRows" ) );
+  mCellStyleNames.insert( EvenRows, QStringLiteral( "evenRows" ) );
+  mCellStyleNames.insert( FirstColumn, QStringLiteral( "firstColumn" ) );
+  mCellStyleNames.insert( LastColumn, QStringLiteral( "lastColumn" ) );
+  mCellStyleNames.insert( HeaderRow, QStringLiteral( "headerRow" ) );
+  mCellStyleNames.insert( FirstRow, QStringLiteral( "firstRow" ) );
+  mCellStyleNames.insert( LastRow, QStringLiteral( "lastRow" ) );
 }
 
 bool QgsComposerTableV2::calculateMaxColumnWidths()
@@ -1045,7 +1043,7 @@ double QgsComposerTableV2::totalWidth()
     totalWidth += maxColWidthIt.value();
   }
   totalWidth += ( 2 * mMaxColumnWidthMap.size() * mCellMargin );
-  totalWidth += ( mMaxColumnWidthMap.size() + 1 ) * ( mShowGrid ? mGridStrokeWidth : 0 );
+  totalWidth += ( mMaxColumnWidthMap.size() + 1 ) * ( mShowGrid && mVerticalGrid ? mGridStrokeWidth : 0 );
 
   return totalWidth;
 }
@@ -1121,12 +1119,6 @@ double QgsComposerTableV2::totalHeight()
   return height;
 }
 
-void QgsComposerTableV2::drawHorizontalGridLines( QPainter *painter, const int rows, const bool drawHeaderLines ) const
-{
-  //hacky shortcut to maintain 2.10 API without adding code - whooo!
-  drawHorizontalGridLines( painter, 100000, 100000 + rows, drawHeaderLines );
-}
-
 void QgsComposerTableV2::drawHorizontalGridLines( QPainter *painter, int firstRow, int lastRow, bool drawHeaderLines ) const
 {
   //horizontal lines
@@ -1155,15 +1147,9 @@ void QgsComposerTableV2::drawHorizontalGridLines( QPainter *painter, int firstRo
   painter->drawLine( QPointF( halfGridStrokeWidth, currentY ), QPointF( mTableSize.width() - halfGridStrokeWidth, currentY ) );
 }
 
-void QgsComposerTableV2::drawVerticalGridLines( QPainter *painter, const QMap<int, double> &maxWidthMap, const int numberRows, const bool hasHeader, const bool mergeCells ) const
-{
-  //hacky shortcut to maintain 2.10 API without adding code - whooo!
-  drawVerticalGridLines( painter, maxWidthMap, 100000, 100000 + numberRows, hasHeader, mergeCells );
-}
-
 bool QgsComposerTableV2::textRequiresWrapping( const QString& text, double columnWidth, const QFont &font ) const
 {
-  if ( columnWidth == 0 || mWrapBehaviour != WrapText )
+  if ( qgsDoubleNear( columnWidth, 0.0 ) || mWrapBehaviour != WrapText )
     return false;
 
   QStringList multiLineSplit = text.split( '\n' );
@@ -1231,7 +1217,7 @@ QString QgsComposerTableV2::wrappedText( const QString &value, double columnWidt
     }
   }
 
-  return outLines.join( "\n" );
+  return outLines.join( QStringLiteral( "\n" ) );
 }
 
 QColor QgsComposerTableV2::backgroundColor( int row, int column ) const
@@ -1271,22 +1257,22 @@ void QgsComposerTableV2::drawVerticalGridLines( QPainter *painter, const QMap<in
   double tableHeight = 0;
   if ( hasHeader )
   {
-    tableHeight += ( mShowGrid ? mGridStrokeWidth : 0 ) + mCellMargin * 2 + QgsComposerUtils::fontAscentMM( mHeaderFont );
+    tableHeight += ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 ) + mCellMargin * 2 + QgsComposerUtils::fontAscentMM( mHeaderFont );
   }
-  tableHeight += ( mShowGrid ? mGridStrokeWidth : 0 );
+  tableHeight += ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 );
   double headerHeight = tableHeight;
 
   double cellBodyHeight = QgsComposerUtils::fontAscentMM( mContentFont );
   for ( int row = firstRow; row < lastRow; ++row )
   {
     double rowHeight = row < mTableContents.count() ? mMaxRowHeightMap[row + 1] : cellBodyHeight;
-    tableHeight += rowHeight + ( mShowGrid ? mGridStrokeWidth : 0 ) + mCellMargin * 2;
+    tableHeight += rowHeight + ( mShowGrid && mHorizontalGrid ? mGridStrokeWidth : 0 ) + mCellMargin * 2;
   }
 
-  double halfGridStrokeWidth = ( mShowGrid ? mGridStrokeWidth : 0 ) / 2.0;
+  double halfGridStrokeWidth = ( mShowGrid && mVerticalGrid ? mGridStrokeWidth : 0 ) / 2.0;
   double currentX = halfGridStrokeWidth;
   painter->drawLine( QPointF( currentX, halfGridStrokeWidth ), QPointF( currentX, tableHeight - halfGridStrokeWidth ) );
-  currentX += ( mShowGrid ? mGridStrokeWidth : 0 );
+  currentX += ( mShowGrid && mVerticalGrid ? mGridStrokeWidth : 0 );
   QMap<int, double>::const_iterator maxColWidthIt = maxWidthMap.constBegin();
   int col = 1;
   for ( ; maxColWidthIt != maxWidthMap.constEnd(); ++maxColWidthIt )
@@ -1301,7 +1287,7 @@ void QgsComposerTableV2::drawVerticalGridLines( QPainter *painter, const QMap<in
       painter->drawLine( QPointF( currentX, halfGridStrokeWidth ), QPointF( currentX, headerHeight - halfGridStrokeWidth ) );
     }
 
-    currentX += ( mShowGrid ? mGridStrokeWidth : 0 );
+    currentX += ( mShowGrid && mVerticalGrid ? mGridStrokeWidth : 0 );
     col++;
   }
 }

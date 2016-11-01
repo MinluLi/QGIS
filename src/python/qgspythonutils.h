@@ -50,11 +50,11 @@ class PYTHON_EXPORT QgsPythonUtils
     virtual bool isEnabled() = 0;
 
     //! initialize python and import bindings
-    virtual void initPython( QgisInterface* interface ) = 0;
+    virtual void initPython( QgisInterface *iface ) = 0;
 
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
     //! initialize python and import server bindings
-    virtual void initServerPython( QgsServerInterface* interface ) = 0;
+    virtual void initServerPython( QgsServerInterface *iface ) = 0;
 
     //! start server plugin: call plugin's classServerFactory(serverInterface) add to active plugins
     virtual bool startServerPlugin( QString packageName ) = 0;
@@ -66,11 +66,11 @@ class PYTHON_EXPORT QgsPythonUtils
     /* console */
 
     //! run a statement, show an error message on error
-    //! @return true if no error occured
+    //! @return true if no error occurred
     virtual bool runString( const QString& command, QString msgOnError = QString(), bool single = true ) = 0;
 
     //! run a statement, error reporting is not done
-    //! @return true if no error occured
+    //! @return true if no error occurred
     virtual bool runStringUnsafe( const QString& command, bool single = true ) = 0;
 
     virtual bool evalString( const QString& command, QString& result ) = 0;

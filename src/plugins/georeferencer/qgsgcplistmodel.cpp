@@ -18,10 +18,9 @@
 #include "qgis.h"
 #include "qgsgeorefdatapoint.h"
 #include "qgsgeoreftransform.h"
-#include <QSettings>
 
+#include <QSettings>
 #include <cmath>
-using namespace std;
 
 class QgsStandardItem : public QStandardItem
 {
@@ -52,8 +51,8 @@ class QgsStandardItem : public QStandardItem
 
 QgsGCPListModel::QgsGCPListModel( QObject *parent )
     : QStandardItemModel( parent )
-    , mGCPList( 0 )
-    , mGeorefTransform( 0 )
+    , mGCPList( nullptr )
+    , mGeorefTransform( nullptr )
 {
   // Use data provided by Qt::UserRole as sorting key (needed for numerical sorting).
   setSortRole( Qt::UserRole );
@@ -80,7 +79,7 @@ void QgsGCPListModel::updateModel()
 
   bool bTransformUpdated = false;
 
-  vector<QgsPoint> mapCoords, pixelCoords;
+  QVector<QgsPoint> mapCoords, pixelCoords;
   mGCPList->createGCPVectors( mapCoords, pixelCoords );
 
   //  // Setup table header
@@ -96,7 +95,7 @@ void QgsGCPListModel::updateModel()
   }
 
 
-  if ( s.value( "/Plugin-GeoReferencer/Config/ResidualUnits" ) == "mapUnits" && mapUnitsPossible )
+  if ( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/ResidualUnits" ) ) == "mapUnits" && mapUnitsPossible )
   {
     unitType = tr( "map units" );
   }
@@ -184,9 +183,9 @@ void QgsGCPListModel::updateModel()
     }
     else
     {
-      setItem( i, j++, new QgsStandardItem( "n/a" ) );
-      setItem( i, j++, new QgsStandardItem( "n/a" ) );
-      setItem( i, j++, new QgsStandardItem( "n/a" ) );
+      setItem( i, j++, new QgsStandardItem( QStringLiteral( "n/a" ) ) );
+      setItem( i, j++, new QgsStandardItem( QStringLiteral( "n/a" ) ) );
+      setItem( i, j++, new QgsStandardItem( QStringLiteral( "n/a" ) ) );
     }
   }
 }

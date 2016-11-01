@@ -140,7 +140,7 @@ void eVisImageDisplayWidget::resizeEvent( QResizeEvent *event )
 */
 void eVisImageDisplayWidget::displayImage( const QString& path )
 {
-  mImageLoaded = mImage->load( path, 0, Qt::AutoColor );
+  mImageLoaded = mImage->load( path, nullptr, Qt::AutoColor );
   setToolTip( path );
 
   mCurrentZoomStep = 0;
@@ -197,8 +197,9 @@ void eVisImageDisplayWidget::displayImage()
 */
 void eVisImageDisplayWidget::displayUrlImage( const QString& url )
 {
-  QUrl myUrl( url );
+  Q_UNUSED( url );
 #if QT_VERSION < 0x050000
+  QUrl myUrl( url );
   mHttpConnection->setHost( myUrl.host() );
   mCurrentHttpImageRequestId = mHttpConnection->get( myUrl.path().replace( '\\', '/' ), mHttpBuffer );
 #endif

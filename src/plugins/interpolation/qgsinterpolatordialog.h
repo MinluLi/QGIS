@@ -25,9 +25,11 @@
 class QgsVectorLayer;
 class QgisInterface;
 
-/** Abstract base class for dialogs that allow to enter the options for interpolators*/
+//! Abstract base class for dialogs that allow entering the options for interpolators
 class QgsInterpolatorDialog: public QDialog
 {
+    Q_OBJECT
+
   public:
     QgsInterpolatorDialog( QWidget* parent, QgisInterface* iface );
     virtual ~QgsInterpolatorDialog();
@@ -39,10 +41,10 @@ class QgsInterpolatorDialog: public QDialog
     void setInputData( const QList< QgsInterpolator::LayerData >& inputData );
 
   protected:
-    /** Pointer to the running QGIS instance. This may be necessary to show interpolator properties on the map (e.g. triangulation)*/
+    //! Pointer to the running QGIS instance. This may be necessary to show interpolator properties on the map (e.g. triangulation)
     QgisInterface* mInterface;
 
-    /** A list of input data layers, their interpolation attribute and their type (point, structure lines, breaklines)*/
+    //! A list of input data layers, their interpolation attribute and their type (point, structure lines, breaklines)
     QList< QgsInterpolator::LayerData > mInputData;
 };
 

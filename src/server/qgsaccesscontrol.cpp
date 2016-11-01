@@ -23,48 +23,48 @@
 #include <QStringList>
 
 
-/** Filter the features of the layer */
+//! Filter the features of the layer
 void QgsAccessControl::filterFeatures( const QgsVectorLayer* layer, QgsFeatureRequest& featureRequest ) const
 {
   QStringList expressions = QStringList();
   QgsAccessControlFilterMap::const_iterator acIterator;
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    const QString expression = acIterator.value()->layerFilterExpression( layer );
-    if ( expression )
+    QString expression = acIterator.value()->layerFilterExpression( layer );
+    if ( !expression.isEmpty() )
     {
       expressions.append( expression );
     }
   }
   if ( !expressions.isEmpty() )
   {
-    featureRequest.setFilterExpression( expressions.join( " AND " ) );
+    featureRequest.setFilterExpression( QStringLiteral( "((" ).append( expressions.join( QStringLiteral( ") AND (" ) ) ).append( "))" ) );
   }
 }
 
-/** Clone the object */
+//! Clone the object
 QgsFeatureFilterProvider* QgsAccessControl::clone() const
 {
   return new QgsAccessControl( *this );
 }
 
-/** Return an additional subset string (typically SQL) filter */
-const QString QgsAccessControl::extraSubsetString( const QgsVectorLayer* layer ) const
+//! Return an additional subset string (typically SQL) filter
+QString QgsAccessControl::extraSubsetString( const QgsVectorLayer* layer ) const
 {
-  QStringList sqls = QStringList();
+  QStringList sqls;
   QgsAccessControlFilterMap::const_iterator acIterator;
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    const QString sql = acIterator.value()->layerFilterSubsetString( layer );
-    if ( sql )
+    QString sql = acIterator.value()->layerFilterSubsetString( layer );
+    if ( !sql.isEmpty() )
     {
       sqls.append( sql );
     }
   }
-  return sqls.isEmpty() ? QString::null : sqls.join( " AND " );
+  return sqls.isEmpty() ? QString() : QStringLiteral( "((" ).append( sqls.join( QStringLiteral( ") AND (" ) ) ).append( "))" );
 }
 
-/** Return the layer read right */
+//! Return the layer read right
 bool QgsAccessControl::layerReadPermission( const QgsMapLayer* layer ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -78,7 +78,7 @@ bool QgsAccessControl::layerReadPermission( const QgsMapLayer* layer ) const
   return true;
 }
 
-/** Return the layer insert right */
+//! Return the layer insert right
 bool QgsAccessControl::layerInsertPermission( const QgsVectorLayer* layer ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -92,7 +92,7 @@ bool QgsAccessControl::layerInsertPermission( const QgsVectorLayer* layer ) cons
   return true;
 }
 
-/** Return the layer update right */
+//! Return the layer update right
 bool QgsAccessControl::layerUpdatePermission( const QgsVectorLayer* layer ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -106,7 +106,7 @@ bool QgsAccessControl::layerUpdatePermission( const QgsVectorLayer* layer ) cons
   return true;
 }
 
-/** Return the layer delete right */
+//! Return the layer delete right
 bool QgsAccessControl::layerDeletePermission( const QgsVectorLayer* layer ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -120,23 +120,19 @@ bool QgsAccessControl::layerDeletePermission( const QgsVectorLayer* layer ) cons
   return true;
 }
 
-/** Return the authorized layer attributes */
-const QStringList QgsAccessControl::layerAttributes( const QgsVectorLayer* layer, const QStringList attributes ) const
+//! Return the authorized layer attributes
+QStringList QgsAccessControl::layerAttributes( const QgsVectorLayer* layer, const QStringList& attributes ) const
 {
   QStringList currentAttributes( attributes );
   QgsAccessControlFilterMap::const_iterator acIterator;
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    const QStringList* newAttributes = acIterator.value()->authorizedLayerAttributes( layer, currentAttributes );
-    if ( newAttributes )
-    {
-      currentAttributes = *newAttributes;
-    }
+    currentAttributes = acIterator.value()->authorizedLayerAttributes( layer, currentAttributes );
   }
   return currentAttributes;
 }
 
-/** Are we authorized to modify the following geometry */
+//! Are we authorized to modify the following geometry
 bool QgsAccessControl::allowToEdit( const QgsVectorLayer* layer, const QgsFeature& feature ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -150,7 +146,7 @@ bool QgsAccessControl::allowToEdit( const QgsVectorLayer* layer, const QgsFeatur
   return true;
 }
 
-/** Fill the capabilities caching key */
+//! Fill the capabilities caching key
 bool QgsAccessControl::fillCacheKey( QStringList& cacheKey ) const
 {
   QgsAccessControlFilterMap::const_iterator acIterator;
@@ -167,7 +163,7 @@ bool QgsAccessControl::fillCacheKey( QStringList& cacheKey ) const
   return true;
 }
 
-/** Register a new access control filter */
+//! Register a new access control filter
 void QgsAccessControl::registerAccessControl( QgsAccessControlFilter* accessControl, int priority )
 {
   mPluginsAccessControls->insert( priority, accessControl );

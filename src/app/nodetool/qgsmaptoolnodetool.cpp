@@ -19,6 +19,7 @@
 #include "nodetool/qgsvertexentry.h"
 #include "nodetool/qgsnodeeditor.h"
 
+#include "qgsfeatureiterator.h"
 #include "qgisapp.h"
 #include "qgslayertreeview.h"
 #include "qgslogger.h"
@@ -30,17 +31,18 @@
 
 #include <QMouseEvent>
 #include <QRubberBand>
+#include <QSettings>
 
 QgsMapToolNodeTool::QgsMapToolNodeTool( QgsMapCanvas* canvas )
     : QgsMapToolEdit( canvas )
-    , mSelectRubberBand( 0 )
-    , mSelectedFeature( 0 )
-    , mNodeEditor( 0 )
+    , mSelectRubberBand( nullptr )
+    , mSelectedFeature( nullptr )
+    , mNodeEditor( nullptr )
     , mMoving( true )
     , mSelectAnother( false )
     , mAnother( 0 )
-    , mSelectionRubberBand( 0 )
-    , mRect( 0 )
+    , mSelectionRubberBand( nullptr )
+    , mRect( nullptr )
     , mIsPoint( false )
     , mDeselectOnRelease( -1 )
 {
@@ -66,7 +68,7 @@ void QgsMapToolNodeTool::createTopologyRubberBands()
     // Snap vertex
     QMultiMap<double, QgsSnappingResult> snapResults;
     vlayer->snapWithContext( vertexEntry->pointV1(), ZERO_TOLERANCE, snapResults, QgsSnapper::SnapToVertex );
-    Q_FOREACH ( const QgsSnappingResult& snapResult, snapResults.values() )
+    Q_FOREACH ( const QgsSnappingResult& snapResult, snapResults )
     {
       // Get geometry of snapped feature
       QgsFeatureId snapFeatureId = snapResult.snappedAtGeometry;
@@ -77,25 +79,32 @@ void QgsMapToolNodeTool::createTopologyRubberBands()
       }
       // Get VertexId of snapped vertex
       QgsVertexId vid;
-      if ( !feature.geometry()->vertexIdFromVertexNr( snapResult.snappedVertexNr, vid ) )
+      if ( !feature.geometry().vertexIdFromVertexNr( snapResult.snappedVertexNr, vid ) )
       {
         continue;
       }
       // Add rubberband if not already added
       if ( !mMoveRubberBands.contains( snapFeatureId ) )
       {
-        QgsGeometryRubberBand* rb = new QgsGeometryRubberBand( mCanvas, feature.geometry()->type() );
-        rb->setOutlineColor( Qt::blue );
+        QgsGeometryRubberBand* rb = new QgsGeometryRubberBand( mCanvas, feature.geometry().type() );
+        QSettings settings;
+        QColor color(
+          settings.value( QStringLiteral( "/qgis/digitizing/line_color_red" ), 255 ).toInt(),
+          settings.value( QStringLiteral( "/qgis/digitizing/line_color_green" ), 0 ).toInt(),
+          settings.value( QStringLiteral( "/qgis/digitizing/line_color_blue" ), 0 ).toInt() );
+        double myAlpha = settings.value( QStringLiteral( "/qgis/digitizing/line_color_alpha" ), 30 ).toInt() / 255.0 ;
+        color.setAlphaF( myAlpha );
+        rb->setOutlineColor( color );
         rb->setBrushStyle( Qt::NoBrush );
-        rb->setOutlineWidth( 2 );
-        QgsAbstractGeometryV2* rbGeom = feature.geometry()->geometry()->clone();
-        if ( mCanvas->mapSettings().layerTransform( vlayer ) )
-          rbGeom->transform( *mCanvas->mapSettings().layerTransform( vlayer ) );
+        rb->setOutlineWidth( settings.value( QStringLiteral( "/qgis/digitizing/line_width" ), 1 ).toInt() );
+        QgsAbstractGeometry* rbGeom = feature.geometry().geometry()->clone();
+        if ( mCanvas->mapSettings().layerTransform( vlayer ).isValid() )
+          rbGeom->transform( mCanvas->mapSettings().layerTransform( vlayer ) );
         rb->setGeometry( rbGeom );
         mMoveRubberBands.insert( snapFeatureId, rb );
       }
       // Add to list of vertices to be moved
-      mMoveVertices[snapFeatureId].append( qMakePair( vid, toMapCoordinates( vlayer, feature.geometry()->geometry()->vertexAt( vid ) ) ) );
+      mMoveVertices[snapFeatureId].append( qMakePair( vid, toMapCoordinates( vlayer, feature.geometry().geometry()->vertexAt( vid ) ) ) );
     }
   }
 }
@@ -114,13 +123,26 @@ void QgsMapToolNodeTool::canvasMoveEvent( QgsMapMouseEvent* e )
   {
     if ( mMoveRubberBands.empty() )
     {
+      QSettings settings;
+      bool ghostLine = settings.value( QStringLiteral( "/qgis/digitizing/line_ghost" ), false ).toBool();
+      if ( !ghostLine )
+      {
+        delete mSelectRubberBand;
+        mSelectRubberBand = nullptr;
+      }
       QgsGeometryRubberBand* rb = new QgsGeometryRubberBand( mCanvas, mSelectedFeature->geometry()->type() );
-      rb->setOutlineColor( Qt::blue );
+      QColor color(
+        settings.value( QStringLiteral( "/qgis/digitizing/line_color_red" ), 255 ).toInt(),
+        settings.value( QStringLiteral( "/qgis/digitizing/line_color_green" ), 0 ).toInt(),
+        settings.value( QStringLiteral( "/qgis/digitizing/line_color_blue" ), 0 ).toInt() );
+      double myAlpha = settings.value( QStringLiteral( "/qgis/digitizing/line_color_alpha" ), 30 ).toInt() / 255.0 ;
+      color.setAlphaF( myAlpha );
+      rb->setOutlineColor( color );
       rb->setBrushStyle( Qt::NoBrush );
-      rb->setOutlineWidth( 2 );
-      QgsAbstractGeometryV2* rbGeom = mSelectedFeature->geometry()->geometry()->clone();
-      if ( mCanvas->mapSettings().layerTransform( vlayer ) )
-        rbGeom->transform( *mCanvas->mapSettings().layerTransform( vlayer ) );
+      rb->setOutlineWidth( settings.value( QStringLiteral( "/qgis/digitizing/line_width" ), 1 ).toInt() );
+      QgsAbstractGeometry* rbGeom = mSelectedFeature->geometry()->geometry()->clone();
+      if ( mCanvas->mapSettings().layerTransform( vlayer ).isValid() )
+        rbGeom->transform( mCanvas->mapSettings().layerTransform( vlayer ) );
       rb->setGeometry( rbGeom );
       mMoveRubberBands.insert( mSelectedFeature->featureId(), rb );
       Q_FOREACH ( const QgsVertexEntry* vertexEntry, mSelectedFeature->vertexMap() )
@@ -128,7 +150,7 @@ void QgsMapToolNodeTool::canvasMoveEvent( QgsMapMouseEvent* e )
         if ( vertexEntry->isSelected() )
           mMoveVertices[mSelectedFeature->featureId()].append( qMakePair( vertexEntry->vertexId(), toMapCoordinates( vlayer, vertexEntry->point() ) ) );
       }
-      if ( QgsProject::instance()->readNumEntry( "Digitizing", "/TopologicalEditing", 0 ) )
+      if ( QgsProject::instance()->topologicalEditing() )
       {
         createTopologyRubberBands();
       }
@@ -140,17 +162,18 @@ void QgsMapToolNodeTool::canvasMoveEvent( QgsMapMouseEvent* e )
       mSnapper.snapToBackgroundLayers( e->pos(), snapResults, QList<QgsPoint>() << mClosestMapVertex );
 
       QgsPoint curPos = snapPointFromResults( snapResults, e->pos() );
-      QgsPoint pressPos = snapResults.size() > 0 ? mClosestMapVertex : toMapCoordinates( mPressCoordinates );
+      QgsPoint pressPos = !snapResults.isEmpty() ? mClosestMapVertex : toMapCoordinates( mPressCoordinates );
       double deltaX = curPos.x() - pressPos.x();
       double deltaY = curPos.y() - pressPos.y();
 
-      Q_FOREACH ( const QgsFeatureId& fid, mMoveRubberBands.keys() )
+      QMap<QgsFeatureId, QgsGeometryRubberBand*>::const_iterator moveBandsIt = mMoveRubberBands.constBegin();
+      for ( ; moveBandsIt != mMoveRubberBands.constEnd(); ++moveBandsIt )
       {
         typedef QPair<QgsVertexId, QgsPointV2> MoveVertex;
-        Q_FOREACH ( const MoveVertex& pair, mMoveVertices[fid] )
+        Q_FOREACH ( const MoveVertex& pair, mMoveVertices[ moveBandsIt.key()] )
         {
           QgsPointV2 newPos( pair.second.x() + deltaX, pair.second.y() + deltaY );
-          mMoveRubberBands.value( fid )->moveVertex( pair.first, newPos );
+          moveBandsIt.value()->moveVertex( pair.first, newPos );
         }
       }
     }
@@ -180,6 +203,7 @@ QgsFeature QgsMapToolNodeTool::getFeatureAtPoint( QgsMapMouseEvent* e )
 
   QgsFeatureRequest request;
   request.setFilterRect( QgsRectangle( e->mapPoint().x(), e->mapPoint().y(), e->mapPoint().x(), e->mapPoint().y() ) );
+  request.setFlags( QgsFeatureRequest::ExactIntersect );
   QgsFeatureIterator features = vlayer->getFeatures( request );
   features.nextFeature( feature );
 
@@ -205,9 +229,9 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
     if ( snapResults.size() < 1 )
     {
       QgsFeature feature = getFeatureAtPoint( e );
-      if ( !feature.geometry() )
+      if ( !feature.hasGeometry() )
       {
-        emit messageEmitted( tr( "could not snap to a segment on the current layer." ) );
+        emit messageEmitted( tr( "Could not snap to a feature in the current layer." ) );
         return;
       }
       else
@@ -228,10 +252,12 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
     }
     connect( QgisApp::instance()->layerTreeView(), SIGNAL( currentLayerChanged( QgsMapLayer* ) ), this, SLOT( currentLayerChanged( QgsMapLayer* ) ) );
     connect( mSelectedFeature, SIGNAL( destroyed() ), this, SLOT( selectedFeatureDestroyed() ) );
+    connect( vlayer, SIGNAL( geometryChanged( QgsFeatureId, const QgsGeometry & ) ), this, SLOT( geometryChanged( QgsFeatureId, QgsGeometry & ) ) );
     connect( vlayer, SIGNAL( editingStopped() ), this, SLOT( editingToggled() ) );
-    mIsPoint = vlayer->geometryType() == QGis::Point;
+    mIsPoint = vlayer->geometryType() == QgsWkbTypes::PointGeometry;
     mNodeEditor = new QgsNodeEditor( vlayer, mSelectedFeature, mCanvas );
     QgisApp::instance()->addDockWidget( Qt::LeftDockWidgetArea, mNodeEditor );
+    connect( mNodeEditor, SIGNAL( deleteSelectedRequested() ), this, SLOT( deleteNodeSelection() ) );
   }
   else
   {
@@ -248,12 +274,11 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
 
     // get geometry and find if snapping is near it
     int atVertex, beforeVertex, afterVertex;
-    double dist;
-    QgsPoint closestLayerVertex = mSelectedFeature->geometry()->closestVertex( layerCoordPoint, atVertex, beforeVertex, afterVertex, dist );
-    dist = sqrt( dist );
+    double sqrDist; // will be negative on error
+    QgsPoint closestLayerVertex = mSelectedFeature->geometry()->closestVertex( layerCoordPoint, atVertex, beforeVertex, afterVertex, sqrDist );
 
     mSnapper.snapToCurrentLayer( e->pos(), snapResults, QgsSnapper::SnapToVertex, tol );
-    if ( dist <= tol )
+    if ( sqrDist >= 0 && sqrt( sqrDist ) <= tol )
     {
       // some vertex selected
       mMoving = true;
@@ -288,7 +313,7 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
       if ( !mIsPoint )
         mSnapper.snapToCurrentLayer( e->pos(), snapResults, QgsSnapper::SnapToSegment, tol, QList<QgsPoint>(), true );
 
-      if ( snapResults.size() > 0 )
+      if ( !snapResults.isEmpty() )
       {
         // need to check all if there is a point in the feature
         mAnother = snapResults.first().snappedAtGeometry;
@@ -344,7 +369,7 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
         mSelectedFeature->deselectAllVertexes();
 
         QgsFeature feature = getFeatureAtPoint( e );
-        if ( !feature.geometry() )
+        if ( !feature.hasGeometry() )
           return;
 
         mAnother = feature.id();
@@ -356,22 +381,53 @@ void QgsMapToolNodeTool::canvasPressEvent( QgsMapMouseEvent* e )
 
 void QgsMapToolNodeTool::updateSelectFeature()
 {
+  updateSelectFeature( *mSelectedFeature->geometry() );
+}
+
+void QgsMapToolNodeTool::updateSelectFeature( const QgsGeometry &geom )
+{
   delete mSelectRubberBand;
 
-  mSelectRubberBand = new QgsGeometryRubberBand( mCanvas, mSelectedFeature->geometry()->type() );
-  mSelectRubberBand->setBrushStyle( Qt::SolidPattern );
-  mSelectRubberBand->setFillColor( QColor( 255, 0, 0, 50 ) );
-  QgsAbstractGeometryV2* rbGeom = mSelectedFeature->geometry()->geometry()->clone();
-  QgsVectorLayer *vlayer = mSelectedFeature->vlayer();
-  if ( mCanvas->mapSettings().layerTransform( vlayer ) )
-    rbGeom->transform( *mCanvas->mapSettings().layerTransform( vlayer ) );
-  mSelectRubberBand->setGeometry( rbGeom );
+  if ( geom.geometry() )
+  {
+    mSelectRubberBand = new QgsGeometryRubberBand( mCanvas, mSelectedFeature->geometry()->type() );
+    mSelectRubberBand->setBrushStyle( Qt::SolidPattern );
+
+    QSettings settings;
+    QColor color(
+      settings.value( QStringLiteral( "/qgis/digitizing/fill_color_red" ), 255 ).toInt(),
+      settings.value( QStringLiteral( "/qgis/digitizing/fill_color_green" ), 0 ).toInt(),
+      settings.value( QStringLiteral( "/qgis/digitizing/fill_color_blue" ), 0 ).toInt() );
+    double myAlpha = settings.value( QStringLiteral( "/qgis/digitizing/fill_color_alpha" ), 30 ).toInt() / 255.0 ;
+    color.setAlphaF( myAlpha );
+    mSelectRubberBand->setFillColor( color );
+
+    QgsAbstractGeometry* rbGeom = geom.geometry()->clone();
+    QgsVectorLayer *vlayer = mSelectedFeature->vlayer();
+    if ( mCanvas->mapSettings().layerTransform( vlayer ).isValid() )
+      rbGeom->transform( mCanvas->mapSettings().layerTransform( vlayer ) );
+    mSelectRubberBand->setGeometry( rbGeom );
+  }
+  else
+  {
+    mSelectRubberBand = nullptr;
+  }
 }
 
 void QgsMapToolNodeTool::selectedFeatureDestroyed()
 {
   QgsDebugCall;
   cleanTool( false );
+}
+
+void QgsMapToolNodeTool::geometryChanged( QgsFeatureId fid, const QgsGeometry &geom )
+{
+  QSettings settings;
+  bool ghostLine = settings.value( QStringLiteral( "/qgis/digitizing/line_ghost" ), false ).toBool();
+  if ( !ghostLine && mSelectedFeature && ( mSelectedFeature->featureId() == fid ) )
+  {
+    updateSelectFeature( geom );
+  }
 }
 
 void QgsMapToolNodeTool::currentLayerChanged( QgsMapLayer *layer )
@@ -403,9 +459,9 @@ void QgsMapToolNodeTool::canvasReleaseEvent( QgsMapMouseEvent* e )
   if ( mRect )
   {
     delete mSelectionRubberBand;
-    mSelectionRubberBand = 0;
+    mSelectionRubberBand = nullptr;
     delete mRect;
-    mRect = 0;
+    mRect = nullptr;
   }
 
   if ( mPressCoordinates == e->pos() )
@@ -415,7 +471,7 @@ void QgsMapToolNodeTool::canvasReleaseEvent( QgsMapMouseEvent* e )
       // select another feature
       mSelectedFeature->setSelectedFeature( mAnother, vlayer, mCanvas );
       updateSelectFeature();
-      mIsPoint = vlayer->geometryType() == QGis::Point;
+      mIsPoint = vlayer->geometryType() == QgsWkbTypes::PointGeometry;
       mSelectAnother = false;
     }
   }
@@ -431,14 +487,13 @@ void QgsMapToolNodeTool::canvasReleaseEvent( QgsMapMouseEvent* e )
       QgsPoint releaseLayerCoords = toLayerCoordinates( vlayer, snapPointFromResults( snapResults, e->pos() ) );
 
       QgsPoint pressLayerCoords;
-      if ( snapResults.size() > 0 )
+      if ( !snapResults.isEmpty() )
       {
         pressLayerCoords = toLayerCoordinates( vlayer, mClosestMapVertex );
 
-        int topologicalEditing = QgsProject::instance()->readNumEntry( "Digitizing", "/TopologicalEditing", 0 );
-        if ( topologicalEditing )
+        if ( QgsProject::instance()->topologicalEditing() )
         {
-          //insert vertices for snap, but don't add them to features which already has a vertex being moved
+          //insert vertices for snap, but don't add them to features which already have a vertex being moved
           insertSegmentVerticesForSnap( snapResults, vlayer, movedFids );
         }
       }
@@ -448,7 +503,7 @@ void QgsMapToolNodeTool::canvasReleaseEvent( QgsMapMouseEvent* e )
       }
 
       mSelectedFeature->moveSelectedVertexes( releaseLayerCoords - pressLayerCoords );
-      mCanvas->refresh();
+      vlayer->triggerRepaint();
     }
     else // selecting vertexes by rubberband
     {
@@ -462,14 +517,16 @@ void QgsMapToolNodeTool::canvasReleaseEvent( QgsMapMouseEvent* e )
         mSelectedFeature->deselectAllVertexes();
       }
 
+      QVector< int > toSelect;
       for ( int i = 0; i < vertexMap.size(); i++ )
       {
-        if ( r.contains( vertexMap[i]->pointV1() ) )
+        if ( r.contains( vertexMap.at( i )->pointV1() ) )
         {
-          // inverting selection is enough because all were deselected if ctrl is not pressed
-          mSelectedFeature->invertVertexSelection( i );
+          toSelect << i;
         }
       }
+      // inverting selection is enough because all were deselected if ctrl is not pressed
+      mSelectedFeature->invertVertexSelection( toSelect );
     }
   }
 
@@ -495,7 +552,7 @@ void QgsMapToolNodeTool::deactivate()
 {
   cleanTool();
 
-  mSelectionRubberBand = 0;
+  mSelectionRubberBand = nullptr;
   mSelectAnother = false;
   mMoving = true;
 
@@ -516,7 +573,7 @@ void QgsMapToolNodeTool::cleanTool( bool deleteSelectedFeature )
   if ( mSelectRubberBand )
   {
     delete mSelectRubberBand;
-    mSelectRubberBand = 0;
+    mSelectRubberBand = nullptr;
   }
 
   if ( mSelectedFeature )
@@ -531,13 +588,13 @@ void QgsMapToolNodeTool::cleanTool( bool deleteSelectedFeature )
     if ( deleteSelectedFeature )
       delete mSelectedFeature;
 
-    mSelectedFeature = 0;
+    mSelectedFeature = nullptr;
   }
 
   if ( mNodeEditor )
   {
     delete mNodeEditor;
-    mNodeEditor = 0;
+    mNodeEditor = nullptr;
   }
 }
 
@@ -549,7 +606,7 @@ void QgsMapToolNodeTool::canvasDoubleClickEvent( QgsMapMouseEvent* e )
   QgsVectorLayer *vlayer = mSelectedFeature->vlayer();
   Q_ASSERT( vlayer );
 
-  int topologicalEditing = QgsProject::instance()->readNumEntry( "Digitizing", "/TopologicalEditing", 0 );
+  bool topologicalEditing = QgsProject::instance()->topologicalEditing();
   QMultiMap<double, QgsSnappingResult> currentResultList;
 
   QList<QgsSnappingResult> snapResults;
@@ -590,12 +647,12 @@ void QgsMapToolNodeTool::canvasDoubleClickEvent( QgsMapMouseEvent* e )
   vlayer->endEditCommand();
 
   // make sure that new node gets its vertex marker
-  mCanvas->refresh();
+  vlayer->triggerRepaint();
 }
 
-void QgsMapToolNodeTool::keyPressEvent( QKeyEvent* e )
+void QgsMapToolNodeTool::deleteNodeSelection()
 {
-  if ( mSelectedFeature && ( e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Delete ) )
+  if ( mSelectedFeature )
   {
     int firstSelectedIndex = firstSelectedVertex();
     if ( firstSelectedIndex == -1 )
@@ -610,7 +667,7 @@ void QgsMapToolNodeTool::keyPressEvent( QKeyEvent* e )
     else
     {
       int nextVertexToSelect = firstSelectedIndex;
-      if ( mSelectedFeature->geometry()->type() == QGis::Line )
+      if ( mSelectedFeature->geometry()->type() == QgsWkbTypes::LineGeometry )
       {
         // for lines we don't wrap around vertex selection when deleting nodes from end of line
         nextVertexToSelect = qMin( nextVertexToSelect, mSelectedFeature->geometry()->geometry()->nCoordinates() - 1 );
@@ -618,34 +675,45 @@ void QgsMapToolNodeTool::keyPressEvent( QKeyEvent* e )
 
       safeSelectVertex( nextVertexToSelect );
     }
-    mCanvas->refresh();
-
-    // Override default shortcut management in MapCanvas
-    e->ignore();
-  }
-  else if ( mSelectedFeature && ( e->key() == Qt::Key_Less || e->key() == Qt::Key_Comma ) )
-  {
-    int firstSelectedIndex = firstSelectedVertex();
-    if ( firstSelectedIndex == -1 )
-      return;
-
-    mSelectedFeature->deselectAllVertexes();
-    safeSelectVertex( firstSelectedIndex - 1 );
-    e->ignore();
-  }
-  else if ( mSelectedFeature && ( e->key() == Qt::Key_Greater || e->key() == Qt::Key_Period ) )
-  {
-    int firstSelectedIndex = firstSelectedVertex();
-    if ( firstSelectedIndex == -1 )
-      return;
-
-    mSelectedFeature->deselectAllVertexes();
-    safeSelectVertex( firstSelectedIndex + 1 );
-    e->ignore();
+    mSelectedFeature->vlayer()->triggerRepaint();
   }
 }
 
-int QgsMapToolNodeTool::firstSelectedVertex( )
+void QgsMapToolNodeTool::keyPressEvent( QKeyEvent* e )
+{
+  if ( mSelectedFeature )
+  {
+    if ( e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Delete )
+    {
+      this->deleteNodeSelection();
+
+      // Override default shortcut management in MapCanvas
+      e->ignore();
+    }
+    else if ( e->key() == Qt::Key_Less || e->key() == Qt::Key_Comma )
+    {
+      int firstSelectedIndex = firstSelectedVertex();
+      if ( firstSelectedIndex == -1 )
+        return;
+
+      mSelectedFeature->deselectAllVertexes();
+      safeSelectVertex( firstSelectedIndex - 1 );
+      e->ignore();
+    }
+    else if ( e->key() == Qt::Key_Greater || e->key() == Qt::Key_Period )
+    {
+      int firstSelectedIndex = firstSelectedVertex();
+      if ( firstSelectedIndex == -1 )
+        return;
+
+      mSelectedFeature->deselectAllVertexes();
+      safeSelectVertex( firstSelectedIndex + 1 );
+      e->ignore();
+    }
+  }
+}
+
+int QgsMapToolNodeTool::firstSelectedVertex()
 {
   if ( mSelectedFeature )
   {
@@ -670,7 +738,7 @@ void QgsMapToolNodeTool::safeSelectVertex( int vertexNr )
   }
 }
 
-QgsPoint QgsMapToolNodeTool::snapPointFromResults( const QList<QgsSnappingResult>& snapResults, const QPoint& screenCoords )
+QgsPoint QgsMapToolNodeTool::snapPointFromResults( const QList<QgsSnappingResult>& snapResults, QPoint screenCoords )
 {
   if ( snapResults.size() < 1 )
   {
@@ -695,6 +763,11 @@ int QgsMapToolNodeTool::insertSegmentVerticesForSnap( const QList<QgsSnappingRes
   QList<QgsSnappingResult>::const_iterator it = snapResults.constBegin();
   for ( ; it != snapResults.constEnd(); ++it )
   {
+    //skip if snappingResult is in a different layer
+    //See http://hub.qgis.org/issues/13952#note-29
+    if ( it->layer != editedLayer )
+      continue;
+
     //skip if id is in skip list or we have already added a vertex to a feature
     if ( skipFids.contains( it->snappedAtGeometry ) || addedFeatures.contains( it->snappedAtGeometry ) )
       continue;

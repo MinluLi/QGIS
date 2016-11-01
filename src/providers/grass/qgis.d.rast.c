@@ -60,6 +60,7 @@
 #define G_read_colors Rast_read_colors
 #define G_window_cols Rast_window_cols
 #define G_window_rows Rast_window_rows
+#define G_suppress_masking Rast_suppress_masking
 #endif
 
 int display( char *name, char *mapset, RASTER_MAP_TYPE data_type, char *format );
@@ -104,7 +105,7 @@ int main( int argc, char **argv )
   /* Make sure map is available */
 #if GRASS_VERSION_MAJOR < 7
   mapset = G_find_cell2( name, "" );
-  if ( mapset == NULL )
+  if ( !mapset )
     G_fatal_error(( "Raster map <%s> not found" ), name );
 #else
   mapset = "";
@@ -122,6 +123,8 @@ int main( int argc, char **argv )
   window.rows = atoi( win->answers[5] );
   G_adjust_Cell_head( &window, 1, 1 );
   G_set_window( &window );
+
+  G_suppress_masking(); // must be after G_set_window()
 
   raster_type = G_raster_map_type( name, "" );
 
@@ -172,7 +175,7 @@ static int cell_draw( char *name,
   size_t raster_size;
 #ifdef NAN
   double dnul = NAN;
-  float fnul = NAN;
+  float fnul = ( float )( NAN );
 #else
   double dnul = strtod( "NAN", 0 );
   float fnul = strtof( "NAN", 0 );

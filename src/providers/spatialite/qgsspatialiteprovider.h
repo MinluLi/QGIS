@@ -28,6 +28,7 @@ extern "C"
 #include "qgsvectordataprovider.h"
 #include "qgsrectangle.h"
 #include "qgsvectorlayerimport.h"
+#include "qgsfields.h"
 #include <list>
 #include <queue>
 #include <fstream>
@@ -51,18 +52,19 @@ class QgsSpatiaLiteFeatureIterator;
   */
 class QgsSpatiaLiteProvider: public QgsVectorDataProvider
 {
-  Q_OBJECT public:
+    Q_OBJECT
 
-    /** Import a vector layer into the database */
+  public:
+    //! Import a vector layer into the database
     static QgsVectorLayerImport::ImportError createEmptyLayer(
       const QString& uri,
       const QgsFields &fields,
-      QGis::WkbType wkbType,
-      const QgsCoordinateReferenceSystem *srs,
+      QgsWkbTypes::Type wkbType,
+      const QgsCoordinateReferenceSystem& srs,
       bool overwrite,
       QMap<int, int> *oldToNewAttrIdxMap,
-      QString *errorMessage = 0,
-      const QMap<QString, QVariant> *options = 0
+      QString *errorMessage = nullptr,
+      const QMap<QString, QVariant> *options = nullptr
     );
 
     /**
@@ -76,9 +78,7 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
 
     virtual QgsAbstractFeatureSource* featureSource() const override;
 
-    /**
-        *   Returns the permanent storage type for this layer as a friendly name.
-        */
+    //! Returns the permanent storage type for this layer as a friendly name.
     virtual QString storageType() const override;
 
     /** Get the QgsCoordinateReferenceSystem for this layer
@@ -86,17 +86,16 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
      * If the provider isn't capable of returning
      * its projection an empty srs will be return, ti will return 0
      */
-    virtual QgsCoordinateReferenceSystem crs() override;
+    virtual QgsCoordinateReferenceSystem crs() const override;
 
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) override;
+    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) const override;
 
-    /** Accessor for sql where clause used to limit dataset */
-    virtual QString subsetString() override;
+    virtual QString subsetString() const override;
 
-    /** Mutator for sql where clause used to limit dataset size */
+    //! Mutator for sql where clause used to limit dataset size
     virtual bool setSubsetString( const QString& theSQL, bool updateFeatureCount = true ) override;
 
-    virtual bool supportsSubsetString() override { return true; }
+    virtual bool supportsSubsetString() const override { return true; }
 
     /** Get the feature type. This corresponds to
      * WKBPoint,
@@ -107,14 +106,12 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
      * WKBMultiPolygon
      * as defined in qgis.h
      */
-    QGis::WkbType geometryType() const override;
+    QgsWkbTypes::Type wkbType() const override;
 
     /** Return the number of layers for the current data source
-
-    @note
-
-    Should this be subLayerCount() instead?
-    */
+     *
+     * @note Should this be subLayerCount() instead?
+     */
     size_t layerCount() const;
 
     /**
@@ -122,41 +119,20 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
      */
     long featureCount() const override;
 
-    /** Return the extent for this data layer
-    */
-    virtual QgsRectangle extent() override;
+    virtual QgsRectangle extent() const override;
 
     /** Update the extent for this data layer
-    */
+     */
     virtual void updateExtents() override;
 
-    /**
-      * Get the field information for the layer
-      * @return vector of QgsField objects
-      */
-    const QgsFields & fields() const override;
+    QgsFields fields() const override;
 
-    /** Returns the minimum value of an attribute
-     *  @param index the index of the attribute */
-    QVariant minimumValue( int index ) override;
+    QVariant minimumValue( int index ) const override;
+    QVariant maximumValue( int index ) const override;
+    virtual void uniqueValues( int index, QList < QVariant > &uniqueValues, int limit = -1 ) const override;
 
-    /** Returns the maximum value of an attribute
-     *  @param index the index of the attribute */
-    QVariant maximumValue( int index ) override;
-
-    /** Return the unique values of an attribute
-     *  @param index the index of the attribute
-     *  @param values reference to the list of unique values
-     *  @param limit maximum number of values */
-    virtual void uniqueValues( int index, QList < QVariant > &uniqueValues, int limit = -1 ) override;
-
-    /** Returns true if layer is valid
-    */
-    bool isValid() override;
-
-    /** Describes if provider has save and load style support
-       @return true in case saving style to db is supported by this provider*/
-    virtual bool isSaveAndLoadStyleToDBSupported() override { return true; }
+    bool isValid() const override;
+    virtual bool isSaveAndLoadStyleToDBSupported() const override { return true; }
 
     /** Adds a list of features
       @return true in case of success and false in case of failure*/
@@ -176,18 +152,18 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
       @param attr_map a map containing the new attributes. The integer is the feature id,
       the first QString is the attribute name and the second one is the new attribute value
       @return true in case of success and false in case of failure*/
-    bool changeAttributeValues( const QgsChangedAttributesMap & attr_map ) override;
+    bool changeAttributeValues( const QgsChangedAttributesMap &attr_map ) override;
 
     /**
        Changes geometries of existing features
-       @param geometry_map   A std::map containing the feature IDs to change the geometries of.
+       @param geometry_map   A map containing the feature IDs to change the geometries of.
                              the second map parameter being the new geometries themselves
        @return               true in case of success and false in case of failure
      */
-    bool changeGeometryValues( QgsGeometryMap & geometry_map ) override;
+    bool changeGeometryValues( const QgsGeometryMap &geometry_map ) override;
 
-    /** Returns a bitmask containing the supported capabilities*/
-    int capabilities() const override;
+    //! Returns a bitmask containing the supported capabilities
+    QgsVectorDataProvider::Capabilities capabilities() const override;
 
     /** The SpatiaLite provider does its own transforms so we return
      * true for the following three functions to indicate that transforms
@@ -202,38 +178,80 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     }
 
     /** Return a provider name
-
-    Essentially just returns the provider key.  Should be used to build file
-    dialogs so that providers can be shown with their supported types. Thus
-    if more than one provider supports a given format, the user is able to
-    select a specific provider to open that file.
-
-    @note
-
-    Instead of being pure virtual, might be better to generalize this
-    behavior and presume that none of the sub-classes are going to do
-    anything strange with regards to their name or description?
-
-    */
+     *
+     * Essentially just returns the provider key.  Should be used to build file
+     * dialogs so that providers can be shown with their supported types. Thus
+     * if more than one provider supports a given format, the user is able to
+     * select a specific provider to open that file.
+     *
+     * @note
+     *
+     * Instead of being pure virtual, might be better to generalize this
+     * behavior and presume that none of the sub-classes are going to do
+     * anything strange with regards to their name or description?
+     *
+     */
     QString name() const override;
 
     /** Return description
-
-    Return a terse string describing what the provider is.
-
-    @note
-
-    Instead of being pure virtual, might be better to generalize this
-    behavior and presume that none of the sub-classes are going to do
-    anything strange with regards to their name or description?
-
-    */
+     *
+     * Return a terse string describing what the provider is.
+     *
+     * @note
+     *
+     * Instead of being pure virtual, might be better to generalize this
+     * behavior and presume that none of the sub-classes are going to do
+     * anything strange with regards to their name or description?
+     *
+     */
     QString description() const override;
+    QgsAttributeList pkAttributeIndexes() const override;
+
+    void invalidateConnections( const QString& connection ) override;
+
+    QList<QgsRelation> discoverRelations( const QgsVectorLayer* self, const QList<QgsVectorLayer*>& layers ) const override;
+
+    // static functions
+    static void convertToGeosWKB( const unsigned char *blob, int blob_size,
+                                  unsigned char **wkb, int *geom_size );
+    static int computeMultiWKB3Dsize( const unsigned char *p_in, int little_endian,
+                                      int endian_arch );
+    static QString quotedIdentifier( QString id );
+    static QString quotedValue( QString value );
+
+    struct SLFieldNotFound {}; //! Exception to throw
+
+    struct SLException
+    {
+      explicit SLException( char *msg ) : errMsg( msg )
+      {
+      }
+
+      SLException( const SLException &e ) : errMsg( e.errMsg )
+      {
+      }
+
+      ~SLException()
+      {
+        if ( errMsg )
+          sqlite3_free( errMsg );
+      }
+
+      QString errorMessage() const
+      {
+        return errMsg ? QString::fromUtf8( errMsg ) : QStringLiteral( "unknown cause" );
+      }
+
+    private:
+      char *errMsg;
+
+      SLException& operator=( const SLException& other );
+    };
 
     /**
-     * Return list of indexes of fields that make up the primary key
+     * sqlite3 handles pointer
      */
-    QgsAttributeList pkAttributeIndexes() override;
+    QgsSqliteHandle *mHandle;
 
   signals:
     /**
@@ -257,13 +275,19 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
 
   private:
 
-    /** Loads fields from input file to member attributeFields */
+    //! Loads fields from input file to member mAttributeFields
     void loadFields();
 
-    /** Check if a table/view has any triggers.  Triggers can be used on views to make them editable.*/
+    //! For views, try to get primary key from a dedicated meta table
+    void determineViewPrimaryKey();
+
+    //! Check if a table/view has any triggers.  Triggers can be used on views to make them editable.
     bool hasTriggers();
 
-    /** Convert a QgsField to work with SL */
+    //! Check if a table has a row id (internal primary key)
+    bool hasRowid();
+
+    //! Convert a QgsField to work with SL
     static bool convertField( QgsField &field );
 
     QString geomParam() const;
@@ -271,112 +295,91 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     //! get SpatiaLite version string
     QString spatialiteVersion();
 
-    QgsFields attributeFields;
     /**
-       * Flag indicating if the layer data source is a valid SpatiaLite layer
-       */
-    bool valid;
-    /**
-       * Flag indicating if the layer data source is based on a query
-       */
-    bool isQuery;
-    /**
-       * Flag indicating if the layer data source is based on a plain Table
-       */
+     * Search all the layers using the given table.
+     */
+    static QList<QgsVectorLayer*> searchLayers( const QList<QgsVectorLayer*>& layers, const QString& connectionInfo, const QString& tableName );
+
+    QgsFields mAttributeFields;
+
+    //! Flag indicating if the layer data source is a valid SpatiaLite layer
+    bool mValid;
+
+    //! Flag indicating if the layer data source is based on a query
+    bool mIsQuery;
+
+    //! Flag indicating if the layer data source is based on a plain Table
     bool mTableBased;
-    /**
-       * Flag indicating if the layer data source is based on a View
-       */
+
+    //! Flag indicating if the layer data source is based on a View
     bool mViewBased;
-    /**
-       * Flag indicating if the layer data source is based on a VirtualShape
-       */
+
+    //! Flag indicating if the layer data source is based on a VirtualShape
     bool mVShapeBased;
-    /**
-       * Flag indicating if the layer data source has ReadOnly restrictions
-       */
+
+    //! Flag indicating if the layer data source has ReadOnly restrictions
     bool mReadOnly;
-    /**
-       * DB full path
-       */
+
+    //! DB full path
     QString mSqlitePath;
-    /**
-     * Name of the table with no schema
-     */
+
+    //! Name of the table with no schema
     QString mTableName;
-    /**
-       * Name of the table or subquery
-       */
+
+    //! Name of the table or subquery
     QString mQuery;
-    /**
-       * Name of the primary key column in the table
-       */
+
+    //! Name of the primary key column in the table
     QString mPrimaryKey;
-    /**
-       * List of primary key columns in the table
-       */
+
+    //! List of primary key columns in the table
     QgsAttributeList mPrimaryKeyAttrs;
-    /**
-       * Name of the geometry column in the table
-       */
+
+    //! Name of the geometry column in the table
     QString mGeometryColumn;
-    /**
-     * Name of the SpatialIndex table
-     */
+
+    //! Name of the SpatialIndex table
     QString mIndexTable;
-    /**
-       * Name of the SpatialIndex geometry column
-       */
+
+    //! Name of the SpatialIndex geometry column
     QString mIndexGeometry;
-    /**
-     * Geometry type
-     */
-    QGis::WkbType geomType;
-    /**
-     * SQLite handle
-     */
-    sqlite3 *sqliteHandle;
-    /**
-     * String used to define a subset of the layer
-     */
+
+    //! Geometry type
+    QgsWkbTypes::Type mGeomType;
+
+    //! SQLite handle
+    sqlite3 *mSqliteHandle;
+
+    //! String used to define a subset of the layer
     QString mSubsetString;
-    /**
-       * CoodDimensions of the layer
-       */
+
+    //! CoordDimensions of the layer
     int nDims;
-    /**
-       * Spatial reference id of the layer
-       */
+
+    //! Spatial reference id of the layer
     int mSrid;
-    /**
-      * auth id
-     */
+
+    //! auth id
     QString mAuthId;
-    /**
-      * proj4text
-     */
+
+    //! proj4text
     QString mProj4text;
-    /**
-     * Rectangle that contains the extent (bounding box) of the layer
-     */
-    QgsRectangle layerExtent;
 
-    /**
-     * Number of features in the layer
-     */
-    long numberFeatures;
-    /**
-     * this Geometry is supported by an R*Tree spatial index
-     */
-    bool spatialIndexRTree;
-    /**
-    * this Geometry is supported by an MBR cache spatial index
-    */
-    bool spatialIndexMbrCache;
+    //! Rectangle that contains the extent (bounding box) of the layer
+    QgsRectangle mLayerExtent;
 
-    int enabledCapabilities;
+    //! Number of features in the layer
+    long mNumberFeatures;
 
-    const QgsField & field( int index ) const;
+    //! this Geometry is supported by an R*Tree spatial index
+    bool mSpatialIndexRTree;
+
+    //! this Geometry is supported by an MBR cache spatial index
+    bool mSpatialIndexMbrCache;
+
+    QgsVectorDataProvider::Capabilities mEnabledCapabilities;
+
+    QgsField field( int index ) const;
 
     //! SpatiaLite version string
     QString mSpatialiteVersionInfo;
@@ -391,8 +394,8 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     int mSpatialiteVersionMinor;
 
     /**
-    * internal utility functions used to handle common SQLite tasks
-    */
+     * internal utility functions used to handle common SQLite tasks
+     */
     //void sqliteOpen();
     void closeDb();
     bool checkLayerType();
@@ -418,33 +421,28 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     bool getFeature( sqlite3_stmt *stmt, bool fetchGeometry,
                      QgsFeature &feature,
                      const QgsAttributeList &fetchAttributes );
-  public:
-    // static functions
 
-    static void convertToGeosWKB( const unsigned char *blob, size_t blob_size,
-                                  unsigned char **wkb, size_t *geom_size );
-    static int computeMultiWKB3Dsize( const unsigned char *p_in, int little_endian,
-                                      int endian_arch );
-  private:
+    void updatePrimaryKeyCapabilities();
+
     int computeSizeFromMultiWKB2D( const unsigned char *p_in, int nDims,
                                    int little_endian,
                                    int endian_arch );
     int computeSizeFromMultiWKB3D( const unsigned char *p_in, int nDims,
                                    int little_endian,
                                    int endian_arch );
-    void convertFromGeosWKB2D( const unsigned char *blob, size_t blob_size,
-                               unsigned char *wkb, size_t geom_size,
+    void convertFromGeosWKB2D( const unsigned char *blob, int blob_size,
+                               unsigned char *wkb, int geom_size,
                                int nDims, int little_endian, int endian_arch );
-    void convertFromGeosWKB3D( const unsigned char *blob, size_t blob_size,
-                               unsigned char *wkb, size_t geom_size,
+    void convertFromGeosWKB3D( const unsigned char *blob, int blob_size,
+                               unsigned char *wkb, int geom_size,
                                int nDims, int little_endian, int endian_arch );
-    void convertFromGeosWKB( const unsigned char *blob, size_t blob_size,
-                             unsigned char **wkb, size_t *geom_size,
+    void convertFromGeosWKB( const unsigned char *blob, int blob_size,
+                             unsigned char **wkb, int *geom_size,
                              int dims );
-    int computeSizeFromGeosWKB3D( const unsigned char *blob, size_t size,
+    int computeSizeFromGeosWKB3D( const unsigned char *blob, int size,
                                   int type, int nDims, int little_endian,
                                   int endian_arch );
-    int computeSizeFromGeosWKB2D( const unsigned char *blob, size_t size,
+    int computeSizeFromGeosWKB2D( const unsigned char *blob, int size,
                                   int type, int nDims, int little_endian,
                                   int endian_arch );
 
@@ -459,43 +457,8 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
       GEOS_3D_GEOMETRYCOLLECTION = -2147483641,
     };
 
-  public:
-    static QString quotedIdentifier( QString id );
-    static QString quotedValue( QString value );
-
-    struct SLFieldNotFound {}; //! Exception to throw
-
-    struct SLException
-    {
-      explicit SLException( char *msg ) : errMsg( msg )
-      {
-      }
-
-      SLException( const SLException &e ) : errMsg( e.errMsg )
-      {
-      }
-
-      ~SLException()
-      {
-        if ( errMsg )
-          sqlite3_free( errMsg );
-      }
-
-      QString errorMessage() const
-      {
-        return errMsg ? QString::fromUtf8( errMsg ) : "unknown cause";
-      }
-
-    private:
-      char *errMsg;
-    };
-
-    /**
-     * sqlite3 handles pointer
-     */
-    QgsSqliteHandle *handle;
-
     friend class QgsSpatiaLiteFeatureSource;
+
 };
 
 #endif

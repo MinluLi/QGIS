@@ -19,9 +19,12 @@ email                : brush.tyler@gmail.com
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import range
 
-from PyQt4.QtCore import Qt, QObject, QSettings, SIGNAL
-from PyQt4.QtGui import QApplication, QAction, QKeySequence, QIcon, QMenu, QInputDialog, QMessageBox
+from qgis.PyQt.QtCore import Qt, QObject, QSettings, pyqtSignal
+from qgis.PyQt.QtWidgets import QApplication, QAction, QMenu, QInputDialog, QMessageBox
+from qgis.PyQt.QtGui import QKeySequence, QIcon
 
 from qgis.gui import QgsMessageBar
 from ..db_plugins import createDbPlugin
@@ -37,8 +40,8 @@ class BaseError(Exception):
         else:
             msg = e
 
-        if not isinstance(msg, unicode):
-            msg = unicode(msg, 'utf-8', 'replace') # convert from utf8 and replace errors (if any)
+        if not isinstance(msg, str):
+            msg = str(msg, 'utf-8', 'replace')  # convert from utf8 and replace errors (if any)
 
         self.msg = msg
         Exception.__init__(self, msg)
@@ -47,7 +50,7 @@ class BaseError(Exception):
         return self.msg
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return str(self).encode('utf-8')
 
 
 class InvalidDataException(BaseError):
@@ -62,7 +65,7 @@ class DbError(BaseError):
 
     def __init__(self, e, query=None):
         BaseError.__init__(self, e)
-        self.query = unicode(query) if query is not None else None
+        self.query = str(query) if query is not None else None
 
     def __unicode__(self):
         if self.query is None:
@@ -75,6 +78,9 @@ class DbError(BaseError):
 
 
 class DBPlugin(QObject):
+    deleted = pyqtSignal()
+    changed = pyqtSignal()
+    aboutToChange = pyqtSignal()
 
     def __init__(self, conn_name, parent=None):
         QObject.__init__(self, parent)
@@ -116,7 +122,7 @@ class DBPlugin(QObject):
         settings = QSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), self.connectionName()))
         settings.remove("")
-        self.emit(SIGNAL('deleted'))
+        self.deleted.emit()
         return True
 
     @classmethod
@@ -181,6 +187,9 @@ class DBPlugin(QObject):
 
 
 class DbItemObject(QObject):
+    changed = pyqtSignal()
+    aboutToChange = pyqtSignal()
+    deleted = pyqtSignal()
 
     def __init__(self, parent=None):
         QObject.__init__(self, parent)
@@ -189,10 +198,7 @@ class DbItemObject(QObject):
         return None
 
     def refresh(self):
-        self.emit(SIGNAL('changed'))  # refresh the item data reading them from the db
-
-    def aboutToChange(self):
-        self.emit(SIGNAL('aboutToChange'))
+        self.changed.emit()  # refresh the item data reading them from the db
 
     def info(self):
         pass
@@ -233,10 +239,10 @@ class Database(DbItemObject):
         return self.connector.publicUri()
 
     def delete(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.connection().remove()
         if ret is not False:
-            self.emit(SIGNAL('deleted'))
+            self.deleted.emit()
         return ret
 
     def info(self):
@@ -260,7 +266,7 @@ class Database(DbItemObject):
         # may be overloaded by derived classes
         return "row_number() over ()"
 
-    def toSqlLayer(self, sql, geomCol, uniqueCol, layerName="QueryLayer", layerType=None, avoidSelectById=False):
+    def toSqlLayer(self, sql, geomCol, uniqueCol, layerName="QueryLayer", layerType=None, avoidSelectById=False, filter=""):
         from qgis.core import QgsMapLayer, QgsVectorLayer, QgsRasterLayer
 
         if uniqueCol is None:
@@ -274,13 +280,13 @@ class Database(DbItemObject):
                     uniqueCol = "_uid_"
 
         uri = self.uri()
-        uri.setDataSource("", u"(%s\n)" % sql, geomCol, "", uniqueCol)
+        uri.setDataSource("", u"(%s\n)" % sql, geomCol, filter, uniqueCol)
         if avoidSelectById:
             uri.disableSelectAtId(True)
         provider = self.dbplugin().providerName()
         if layerType == QgsMapLayer.RasterLayer:
-            return QgsRasterLayer(uri.uri(), layerName, provider)
-        return QgsVectorLayer(uri.uri(), layerName, provider)
+            return QgsRasterLayer(uri.uri(False), layerName, provider)
+        return QgsVectorLayer(uri.uri(False), layerName, provider)
 
     def registerAllActions(self, mainWindow):
         self.registerDatabaseActions(mainWindow)
@@ -289,11 +295,11 @@ class Database(DbItemObject):
     def registerSubPluginActions(self, mainWindow):
         # load plugins!
         try:
-            exec (u"from .%s.plugins import load" % self.dbplugin().typeName())
+            exec (u"from .%s.plugins import load" % self.dbplugin().typeName(), globals())
         except ImportError:
             pass
         else:
-            load(self, mainWindow)
+            load(self, mainWindow)  # NOQA
 
     def registerDatabaseActions(self, mainWindow):
         action = QAction(QApplication.translate("DBManagerPlugin", "&Re-connect"), self)
@@ -330,8 +336,11 @@ class Database(DbItemObject):
         if self.schemas() is not None:
             action = QAction(QApplication.translate("DBManagerPlugin", "&Move to schema"), self)
             action.setMenu(QMenu(mainWindow))
-            invoke_callback = lambda: mainWindow.invokeCallback(self.prepareMenuMoveTableToSchemaActionSlot)
-            QObject.connect(action.menu(), SIGNAL("aboutToShow()"), invoke_callback)
+
+            def invoke_callback():
+                return mainWindow.invokeCallback(self.prepareMenuMoveTableToSchemaActionSlot)
+
+            action.menu().aboutToShow.connect(invoke_callback)
             mainWindow.registerAction(action, QApplication.translate("DBManagerPlugin", "&Table"))
 
     def reconnectActionSlot(self, item, action, parent):
@@ -392,7 +401,7 @@ class Database(DbItemObject):
     def schemas(self):
         schemas = self.connector.getSchemas()
         if schemas is not None:
-            schemas = map(lambda x: self.schemasFactory(x, self), schemas)
+            schemas = [self.schemasFactory(x, self) for x in schemas]
         return schemas
 
     def createSchema(self, name):
@@ -463,7 +472,8 @@ class Database(DbItemObject):
 
     def prepareMenuMoveTableToSchemaActionSlot(self, item, menu, mainWindow):
         """ populate menu with schemas """
-        slot = lambda x: lambda: mainWindow.invokeCallback(self.moveTableToSchemaActionSlot, [x])
+        def slot(x):
+            return lambda: mainWindow.invokeCallback(self.moveTableToSchemaActionSlot, x)
 
         menu.clear()
         for schema in self.schemas():
@@ -501,12 +511,12 @@ class Database(DbItemObject):
     def tables(self, schema=None, sys_tables=False):
         tables = self.connector.getTables(schema.name if schema else None, sys_tables)
         if tables is not None:
-            tables = map(lambda x: self.tablesFactory(x, self, schema), tables)
+            tables = [self.tablesFactory(x, self, schema) for x in tables]
         return tables
 
     def createTable(self, table, fields, schema=None):
-        field_defs = map(lambda x: x.definition(), fields)
-        pkeys = filter(lambda x: x.primaryKey, fields)
+        field_defs = [x.definition() for x in fields]
+        pkeys = [x for x in fields if x.primaryKey]
         pk_name = pkeys[0].name if len(pkeys) > 0 else None
 
         ret = self.connector.createTable((schema, table), field_defs, pk_name)
@@ -542,6 +552,9 @@ class Database(DbItemObject):
     def spatialIndexClause(self, src_table, src_column, dest_table, dest_table_column):
         return None
 
+    def hasLowercaseFieldNamesOption(self):
+        return False
+
 
 class Schema(DbItemObject):
 
@@ -564,14 +577,14 @@ class Schema(DbItemObject):
         return self.database().tables(self)
 
     def delete(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.deleteSchema(self.name)
         if ret is not False:
-            self.emit(SIGNAL('deleted'))
+            self.deleted.emit()
         return ret
 
     def rename(self, new_name):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.renameSchema(self.name, new_name)
         if ret is not False:
             self.name = new_name
@@ -585,7 +598,7 @@ class Schema(DbItemObject):
 
 
 class Table(DbItemObject):
-    TableType, VectorType, RasterType = range(3)
+    TableType, VectorType, RasterType = list(range(3))
 
     def __init__(self, db, schema=None, parent=None):
         DbItemObject.__init__(self, db)
@@ -619,17 +632,17 @@ class Table(DbItemObject):
         return self.database().connector.quoteId((self.schemaName(), self.name))
 
     def delete(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         if self.isView:
             ret = self.database().connector.deleteView((self.schemaName(), self.name))
         else:
             ret = self.database().connector.deleteTable((self.schemaName(), self.name))
         if ret is not False:
-            self.emit(SIGNAL('deleted'))
+            self.deleted.emit()
         return ret
 
     def rename(self, new_name):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.renameTable((self.schemaName(), self.name), new_name)
         if ret is not False:
             self.name = new_name
@@ -637,14 +650,14 @@ class Table(DbItemObject):
         return ret
 
     def empty(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.emptyTable((self.schemaName(), self.name))
         if ret is not False:
             self.refreshRowCount()
         return ret
 
     def moveToSchema(self, schema):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         if self.schema() == schema:
             return True
         ret = self.database().connector.moveTableToSchema((self.schemaName(), self.name), schema.name)
@@ -662,32 +675,32 @@ class Table(DbItemObject):
         uri = self.database().uri()
         schema = self.schemaName() if self.schemaName() else ''
         geomCol = self.geomColumn if self.type in [Table.VectorType, Table.RasterType] else ""
-        uniqueCol = self.getValidQGisUniqueFields(True) if self.isView else None
+        uniqueCol = self.getValidQgisUniqueFields(True) if self.isView else None
         uri.setDataSource(schema, self.name, geomCol if geomCol else None, None, uniqueCol.name if uniqueCol else "")
         return uri
 
     def mimeUri(self):
         layerType = "raster" if self.type == Table.RasterType else "vector"
-        return u"%s:%s:%s:%s" % (layerType, self.database().dbplugin().providerName(), self.name, self.uri().uri())
+        return u"%s:%s:%s:%s" % (layerType, self.database().dbplugin().providerName(), self.name, self.uri().uri(False))
 
     def toMapLayer(self):
         from qgis.core import QgsVectorLayer, QgsRasterLayer
 
         provider = self.database().dbplugin().providerName()
-        uri = self.uri().uri()
+        uri = self.uri().uri(False)
         if self.type == Table.RasterType:
             return QgsRasterLayer(uri, self.name, provider)
         return QgsVectorLayer(uri, self.name, provider)
 
-    def getValidQGisUniqueFields(self, onlyOne=False):
-        """ list of fields valid to load the table as layer in QGis canvas.
-                QGis automatically search for a valid unique field, so it's
+    def getValidQgisUniqueFields(self, onlyOne=False):
+        """ list of fields valid to load the table as layer in Qgis canvas.
+                Qgis automatically search for a valid unique field, so it's
                 needed only for queries and views """
 
         ret = []
 
         # add the pk
-        pkcols = filter(lambda x: x.primaryKey, self.fields())
+        pkcols = [x for x in self.fields() if x.primaryKey]
         if len(pkcols) == 1:
             ret.append(pkcols[0])
 
@@ -719,7 +732,7 @@ class Table(DbItemObject):
         if self._fields is None:
             fields = self.database().connector.getTableFields((self.schemaName(), self.name))
             if fields is not None:
-                self._fields = map(lambda x: self.tableFieldsFactory(x, self), fields)
+                self._fields = [self.tableFieldsFactory(x, self) for x in fields]
         return self._fields
 
     def refreshFields(self):
@@ -727,14 +740,14 @@ class Table(DbItemObject):
         self.refresh()
 
     def addField(self, fld):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.addTableColumn((self.schemaName(), self.name), fld.definition())
         if ret is not False:
             self.refreshFields()
         return ret
 
     def deleteField(self, fld):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.deleteTableColumn((self.schemaName(), self.name), fld.name)
         if ret is not False:
             self.refreshFields()
@@ -743,7 +756,7 @@ class Table(DbItemObject):
         return ret
 
     def addGeometryColumn(self, geomCol, geomType, srid, dim, createSpatialIndex=False):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.addGeometryColumn((self.schemaName(), self.name), geomCol, geomType, srid, dim)
         if not ret:
             return False
@@ -765,7 +778,7 @@ class Table(DbItemObject):
         if self._constraints is None:
             constraints = self.database().connector.getTableConstraints((self.schemaName(), self.name))
             if constraints is not None:
-                self._constraints = map(lambda x: self.tableConstraintsFactory(x, self), constraints)
+                self._constraints = [self.tableConstraintsFactory(x, self) for x in constraints]
         return self._constraints
 
     def refreshConstraints(self):
@@ -773,7 +786,7 @@ class Table(DbItemObject):
         self.refresh()
 
     def addConstraint(self, constr):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         if constr.type == TableConstraint.TypePrimaryKey:
             ret = self.database().connector.addTablePrimaryKey((self.schemaName(), self.name),
                                                                constr.fields()[constr.columns[0]].name)
@@ -787,7 +800,7 @@ class Table(DbItemObject):
         return ret
 
     def deleteConstraint(self, constr):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.deleteTableConstraint((self.schemaName(), self.name), constr.name)
         if ret is not False:
             self.refreshConstraints()
@@ -800,7 +813,7 @@ class Table(DbItemObject):
         if self._indexes is None:
             indexes = self.database().connector.getTableIndexes((self.schemaName(), self.name))
             if indexes is not None:
-                self._indexes = map(lambda x: self.tableIndexesFactory(x, self), indexes)
+                self._indexes = [self.tableIndexesFactory(x, self) for x in indexes]
         return self._indexes
 
     def refreshIndexes(self):
@@ -808,7 +821,7 @@ class Table(DbItemObject):
         self.refresh()
 
     def addIndex(self, idx):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.createTableIndex((self.schemaName(), self.name), idx.name,
                                                          idx.fields()[idx.columns[0]].name)
         if ret is not False:
@@ -816,7 +829,7 @@ class Table(DbItemObject):
         return ret
 
     def deleteIndex(self, idx):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         ret = self.database().connector.deleteTableIndex((self.schemaName(), self.name), idx.name)
         if ret is not False:
             self.refreshIndexes()
@@ -829,7 +842,7 @@ class Table(DbItemObject):
         if self._triggers is None:
             triggers = self.database().connector.getTableTriggers((self.schemaName(), self.name))
             if triggers is not None:
-                self._triggers = map(lambda x: self.tableTriggersFactory(x, self), triggers)
+                self._triggers = [self.tableTriggersFactory(x, self) for x in triggers]
         return self._triggers
 
     def refreshTriggers(self):
@@ -843,7 +856,7 @@ class Table(DbItemObject):
         if self._rules is None:
             rules = self.database().connector.getTableRules((self.schemaName(), self.name))
             if rules is not None:
-                self._rules = map(lambda x: self.tableRulesFactory(x, self), rules)
+                self._rules = [self.tableRulesFactory(x, self) for x in rules]
         return self._rules
 
     def refreshRules(self):
@@ -851,7 +864,7 @@ class Table(DbItemObject):
         self.refresh()
 
     def refreshRowCount(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         prevRowCount = self.rowCount
         try:
             self.rowCount = self.database().connector.getTableRowCount((self.schemaName(), self.name))
@@ -862,7 +875,7 @@ class Table(DbItemObject):
             self.refresh()
 
     def runAction(self, action):
-        action = unicode(action)
+        action = str(action)
 
         if action.startswith("rows/"):
             if action == "rows/count":
@@ -884,7 +897,7 @@ class Table(DbItemObject):
 
             if trigger_action == "enable" or trigger_action == "disable":
                 enable = trigger_action == "enable"
-                self.aboutToChange()
+                self.aboutToChange.emit()
                 self.database().connector.enableAllTableTriggers(enable, (self.schemaName(), self.name))
                 self.refreshTriggers()
                 return True
@@ -905,14 +918,14 @@ class Table(DbItemObject):
                 QApplication.setOverrideCursor(Qt.WaitCursor)
 
             if trigger_action == "delete":
-                self.aboutToChange()
+                self.aboutToChange.emit()
                 self.database().connector.deleteTableTrigger(trigger_name, (self.schemaName(), self.name))
                 self.refreshTriggers()
                 return True
 
             elif trigger_action == "enable" or trigger_action == "disable":
                 enable = trigger_action == "enable"
-                self.aboutToChange()
+                self.aboutToChange.emit()
                 self.database().connector.enableTableTrigger(trigger_name, enable, (self.schemaName(), self.name))
                 self.refreshTriggers()
                 return True
@@ -949,7 +962,7 @@ class VectorTable(Table):
         return False
 
     def createSpatialIndex(self, geom_column=None):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         geom_column = geom_column if geom_column is not None else self.geomColumn
         ret = self.database().connector.createSpatialIndex((self.schemaName(), self.name), geom_column)
         if ret is not False:
@@ -957,7 +970,7 @@ class VectorTable(Table):
         return ret
 
     def deleteSpatialIndex(self, geom_column=None):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         geom_column = geom_column if geom_column is not None else self.geomColumn
         ret = self.database().connector.deleteSpatialIndex((self.schemaName(), self.name), geom_column)
         if ret is not False:
@@ -984,7 +997,7 @@ class VectorTable(Table):
             self.refresh()
 
     def runAction(self, action):
-        action = unicode(action)
+        action = str(action)
 
         if action.startswith("spatialindex/"):
             parts = action.split('/')
@@ -1083,7 +1096,7 @@ class TableField(TableSubItemObject):
         return self.update(new_name)
 
     def update(self, new_name, new_type_str=None, new_not_null=None, new_default_str=None):
-        self.table().aboutToChange()
+        self.table().aboutToChange.emit()
         if self.name == new_name:
             new_name = None
         if self.type2String() == new_type_str:
@@ -1105,7 +1118,7 @@ class TableConstraint(TableSubItemObject):
 
     """ class that represents a constraint of a table (relation) """
 
-    TypeCheck, TypeForeignKey, TypePrimaryKey, TypeUnique, TypeExclusion, TypeUnknown = range(6)
+    TypeCheck, TypeForeignKey, TypePrimaryKey, TypeUnique, TypeExclusion, TypeUnknown = list(range(6))
     types = {"c": TypeCheck, "f": TypeForeignKey, "p": TypePrimaryKey, "u": TypeUnique, "x": TypeExclusion}
 
     onAction = {"a": "NO ACTION", "r": "RESTRICT", "c": "CASCADE", "n": "SET NULL", "d": "SET DEFAULT"}

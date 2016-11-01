@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import next
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,7 +26,7 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from qgis.core import QGis, QgsFeatureRequest, QgsGeometry
+from qgis.core import QgsFeatureRequest
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterGeometryPredicate
@@ -46,11 +47,9 @@ class ExtractByLocation(GeoAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Extract by location')
         self.group, self.i18n_group = self.trAlgorithm('Vector selection tools')
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Layer to select from'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Layer to select from')))
         self.addParameter(ParameterVector(self.INTERSECT,
-                                          self.tr('Additional layer (intersection layer)'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Additional layer (intersection layer)')))
         self.addParameter(ParameterGeometryPredicate(self.PREDICATE,
                                                      self.tr('Geometric predicate'),
                                                      left=self.INPUT, right=self.INTERSECT))
@@ -70,27 +69,23 @@ class ExtractByLocation(GeoAlgorithm):
         index = vector.spatialindex(layer)
 
         output = self.getOutputFromName(self.OUTPUT)
-        writer = output.getVectorWriter(layer.pendingFields(),
-                                        layer.dataProvider().geometryType(), layer.crs())
+        writer = output.getVectorWriter(layer.fields(),
+                                        layer.wkbType(), layer.crs())
 
         if 'disjoint' in predicates:
             disjoinSet = []
             for feat in vector.features(layer):
                 disjoinSet.append(feat.id())
 
-        geom = QgsGeometry()
         selectedSet = []
-        current = 0
         features = vector.features(selectLayer)
-        featureCount = len(features)
-        total = 100.0 / float(len(features))
+        total = 100.0 / len(features)
         for current, f in enumerate(features):
             geom = vector.snapToPrecision(f.geometry(), precision)
             bbox = vector.bufferedBoundingBox(geom.boundingBox(), 0.51 * precision)
             intersects = index.intersects(bbox)
-            for i in intersects:
-                request = QgsFeatureRequest().setFilterFid(i)
-                feat = layer.getFeatures(request).next()
+            request = QgsFeatureRequest().setFilterFids(intersects).setSubsetOfAttributes([])
+            for feat in layer.getFeatures(request):
                 tmpGeom = vector.snapToPrecision(feat.geometry(), precision)
                 res = False
                 for predicate in predicates:
@@ -124,8 +119,10 @@ class ExtractByLocation(GeoAlgorithm):
         if 'disjoint' in predicates:
             selectedSet = selectedSet + disjoinSet
 
-        for i, f in enumerate(vector.features(layer)):
+        features = vector.features(layer)
+        total = 100.0 / len(features)
+        for current, f in enumerate(features):
             if f.id() in selectedSet:
                 writer.addFeature(f)
-            progress.setPercentage(100 * i / float(featureCount))
+            progress.setPercentage(int(current * total))
         del writer

@@ -17,7 +17,7 @@
 
 #include "qgsmaptooladdring.h"
 #include "qgsgeometry.h"
-#include "qgslinestringv2.h"
+#include "qgslinestring.h"
 #include "qgsmapcanvas.h"
 #include "qgsproject.h"
 #include "qgsvectordataprovider.h"
@@ -58,7 +58,7 @@ void QgsMapToolAddRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
   //add point to list and to rubber band
   if ( e->button() == Qt::LeftButton )
   {
-    int error = addVertex( e->mapPoint() );
+    int error = addVertex( e->mapPoint(), e->mapPointMatch() );
     if ( error == 1 )
     {
       //current layer is not a vector layer
@@ -89,7 +89,7 @@ void QgsMapToolAddRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
     bool hasCurvedSegments = captureCurve()->hasCurvedSegments();
     bool providerSupportsCurvedSegments = vlayer->dataProvider()->capabilities() & QgsVectorDataProvider::CircularGeometries;
 
-    QgsCurveV2* curveToAdd = 0;
+    QgsCurve* curveToAdd = nullptr;
     if ( hasCurvedSegments && providerSupportsCurvedSegments )
     {
       curveToAdd = captureCurve()->clone();
@@ -106,7 +106,7 @@ void QgsMapToolAddRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       //todo: open message box to communicate errors
       if ( addRingReturnCode == 1 )
       {
-        errorMessage = tr( "a problem with geometry type occured" );
+        errorMessage = tr( "a problem with geometry type occurred" );
       }
       else if ( addRingReturnCode == 2 )
       {
@@ -126,7 +126,7 @@ void QgsMapToolAddRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       }
       else
       {
-        errorMessage = tr( "an unknown error occured" );
+        errorMessage = tr( "an unknown error occurred" );
       }
       emit messageEmitted( tr( "could not add ring since %1." ).arg( errorMessage ), QgsMessageBar::CRITICAL );
       vlayer->destroyEditCommand();

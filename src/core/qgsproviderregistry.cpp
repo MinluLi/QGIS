@@ -69,15 +69,21 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
   QString mLibraryDirectory = baseDir + "/lib";
 #endif
   mLibraryDirectory = pluginPath;
+  init();
+}
+
+
+void QgsProviderRegistry::init()
+{
   mLibraryDirectory.setSorting( QDir::Name | QDir::IgnoreCase );
   mLibraryDirectory.setFilter( QDir::Files | QDir::NoSymLinks );
 
 #if defined(Q_OS_WIN) || defined(__CYGWIN__)
   mLibraryDirectory.setNameFilters( QStringList( "*.dll" ) );
-#elif ANDROID
+#elif defined(ANDROID)
   mLibraryDirectory.setNameFilters( QStringList( "*provider.so" ) );
 #else
-  mLibraryDirectory.setNameFilters( QStringList( "*.so" ) );
+  mLibraryDirectory.setNameFilters( QStringList( QStringLiteral( "*.so" ) ) );
 #endif
 
   QgsDebugMsg( QString( "Checking %1 for provider plugins" ).arg( mLibraryDirectory.path() ) );
@@ -102,11 +108,8 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
     fileRegexp.setPattern( filePattern );
   }
 
-  QListIterator<QFileInfo> it( mLibraryDirectory.entryInfoList() );
-  while ( it.hasNext() )
+  Q_FOREACH ( const QFileInfo& fi, mLibraryDirectory.entryInfoList() )
   {
-    QFileInfo fi( it.next() );
-
     if ( !fileRegexp.isEmpty() )
     {
       if ( fileRegexp.indexIn( fi.fileName() ) == -1 )
@@ -125,7 +128,7 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
 
     //MH: Added a further test to detect non-provider plugins linked to provider plugins.
     //Only pure provider plugins have 'type' not defined
-    isprovider_t *hasType = ( isprovider_t * ) cast_to_fptr( myLib.resolve( "type" ) );
+    isprovider_t *hasType = reinterpret_cast< isprovider_t * >( cast_to_fptr( myLib.resolve( "type" ) ) );
     if ( hasType )
     {
       QgsDebugMsg( QString( "Checking %1: ...invalid (has type method)" ).arg( myLib.fileName() ) );
@@ -133,7 +136,7 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
     }
 
     // get the description and the key for the provider plugin
-    isprovider_t *isProvider = ( isprovider_t * ) cast_to_fptr( myLib.resolve( "isProvider" ) );
+    isprovider_t *isProvider = reinterpret_cast< isprovider_t * >( cast_to_fptr( myLib.resolve( "isProvider" ) ) );
     if ( !isProvider )
     {
       QgsDebugMsg( QString( "Checking %1: ...invalid (no isProvider method)" ).arg( myLib.fileName() ) );
@@ -148,14 +151,14 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
     }
 
     // looks like a provider. get the key and description
-    description_t *pDesc = ( description_t * ) cast_to_fptr( myLib.resolve( "description" ) );
+    description_t *pDesc = reinterpret_cast< description_t * >( cast_to_fptr( myLib.resolve( "description" ) ) );
     if ( !pDesc )
     {
       QgsDebugMsg( QString( "Checking %1: ...invalid (no description method)" ).arg( myLib.fileName() ) );
       continue;
     }
 
-    providerkey_t *pKey = ( providerkey_t * ) cast_to_fptr( myLib.resolve( "providerKey" ) );
+    providerkey_t *pKey = reinterpret_cast< providerkey_t * >( cast_to_fptr( myLib.resolve( "providerKey" ) ) );
     if ( !pKey )
     {
       QgsDebugMsg( QString( "Checking %1: ...invalid (no providerKey method)" ).arg( myLib.fileName() ) );
@@ -166,28 +169,28 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
     mProviders[pKey()] = new QgsProviderMetadata( pKey(), pDesc(), myLib.fileName() );
 
     // load database drivers
-    databaseDrivers_t *pDatabaseDrivers = ( databaseDrivers_t * ) cast_to_fptr( myLib.resolve( "databaseDrivers" ) );
+    databaseDrivers_t *pDatabaseDrivers = reinterpret_cast< databaseDrivers_t * >( cast_to_fptr( myLib.resolve( "databaseDrivers" ) ) );
     if ( pDatabaseDrivers )
     {
       mDatabaseDrivers = pDatabaseDrivers();
     }
 
     // load directory drivers
-    directoryDrivers_t *pDirectoryDrivers = ( directoryDrivers_t * ) cast_to_fptr( myLib.resolve( "directoryDrivers" ) );
+    directoryDrivers_t *pDirectoryDrivers = reinterpret_cast< directoryDrivers_t * >( cast_to_fptr( myLib.resolve( "directoryDrivers" ) ) );
     if ( pDirectoryDrivers )
     {
       mDirectoryDrivers = pDirectoryDrivers();
     }
 
     // load protocol drivers
-    protocolDrivers_t *pProtocolDrivers = ( protocolDrivers_t * ) cast_to_fptr( myLib.resolve( "protocolDrivers" ) );
+    protocolDrivers_t *pProtocolDrivers = reinterpret_cast< protocolDrivers_t * >( cast_to_fptr( myLib.resolve( "protocolDrivers" ) ) );
     if ( pProtocolDrivers )
     {
       mProtocolDrivers = pProtocolDrivers();
     }
 
     // now get vector file filters, if any
-    fileVectorFilters_t *pFileVectorFilters = ( fileVectorFilters_t * ) cast_to_fptr( myLib.resolve( "fileVectorFilters" ) );
+    fileVectorFilters_t *pFileVectorFilters = reinterpret_cast< fileVectorFilters_t * >( cast_to_fptr( myLib.resolve( "fileVectorFilters" ) ) );
     if ( pFileVectorFilters )
     {
       QString fileVectorFilters = pFileVectorFilters();
@@ -201,7 +204,7 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
     // now get raster file filters, if any
     // this replaces deprecated QgsRasterLayer::buildSupportedRasterFileFilter
     buildsupportedrasterfilefilter_t *pBuild =
-      ( buildsupportedrasterfilefilter_t * ) cast_to_fptr( myLib.resolve( "buildSupportedRasterFileFilter" ) );
+      reinterpret_cast< buildsupportedrasterfilefilter_t * >( cast_to_fptr( myLib.resolve( "buildSupportedRasterFileFilter" ) ) );
     if ( pBuild )
     {
       QString fileRasterFilters;
@@ -220,7 +223,7 @@ QgsProviderRegistry::QgsProviderRegistry( const QString& pluginPath )
 // typedef for the unload dataprovider function
 typedef void cleanupProviderFunction_t();
 
-QgsProviderRegistry::~QgsProviderRegistry()
+void QgsProviderRegistry::clean()
 {
   QgsMapLayerRegistry::instance()->removeAllMapLayers();
 
@@ -233,13 +236,18 @@ QgsProviderRegistry::~QgsProviderRegistry()
     QLibrary myLib( lib );
     if ( myLib.isLoaded() )
     {
-      cleanupProviderFunction_t* cleanupFunc = ( cleanupProviderFunction_t* ) cast_to_fptr( myLib.resolve( "cleanupProvider" ) );
+      cleanupProviderFunction_t* cleanupFunc = reinterpret_cast< cleanupProviderFunction_t* >( cast_to_fptr( myLib.resolve( "cleanupProvider" ) ) );
       if ( cleanupFunc )
         cleanupFunc();
     }
     delete it->second;
     ++it;
   }
+}
+
+QgsProviderRegistry::~QgsProviderRegistry()
+{
+  clean();
 }
 
 
@@ -262,7 +270,7 @@ QgsProviderMetadata * findMetadata_( QgsProviderRegistry::Providers const & meta
     return i->second;
   }
 
-  return 0x0;
+  return nullptr;
 } // findMetadata_
 
 
@@ -290,12 +298,12 @@ QString QgsProviderRegistry::pluginList( bool asHTML ) const
   QString list;
 
   if ( asHTML )
-    list += "<ol>";
+    list += QLatin1String( "<ol>" );
 
   while ( it != mProviders.end() )
   {
     if ( asHTML )
-      list += "<li>";
+      list += QLatin1String( "<li>" );
 
     list += it->second->description();
 
@@ -308,17 +316,17 @@ QString QgsProviderRegistry::pluginList( bool asHTML ) const
   }
 
   if ( asHTML )
-    list += "</ol>";
+    list += QLatin1String( "</ol>" );
 
   return list;
 }
 
-
 void QgsProviderRegistry::setLibraryDirectory( QDir const & path )
 {
   mLibraryDirectory = path;
+  clean();
+  init();
 }
-
 
 QDir const & QgsProviderRegistry::libraryDirectory() const
 {
@@ -358,7 +366,7 @@ QgsDataProvider *QgsProviderRegistry::provider( QString const & providerKey, QSt
   }
   else
   {
-    QgsDebugMsg( "dlopen suceeded" );
+    QgsDebugMsg( "dlopen succeeded" );
     dlclose( handle );
   }
 
@@ -370,14 +378,14 @@ QgsDataProvider *QgsProviderRegistry::provider( QString const & providerKey, QSt
   if ( !myLib.load() )
   {
     QgsMessageLog::logMessage( QObject::tr( "Failed to load %1: %2" ).arg( lib, myLib.errorString() ) );
-    return 0;
+    return nullptr;
   }
 
-  classFactoryFunction_t *classFactory = ( classFactoryFunction_t * ) cast_to_fptr( myLib.resolve( "classFactory" ) );
+  classFactoryFunction_t *classFactory = reinterpret_cast< classFactoryFunction_t * >( cast_to_fptr( myLib.resolve( "classFactory" ) ) );
   if ( !classFactory )
   {
     QgsDebugMsg( QString( "Failed to load %1: no classFactory method" ).arg( lib ) );
-    return 0;
+    return nullptr;
   }
 
   QgsDataProvider *dataProvider = classFactory( &dataSource );
@@ -385,7 +393,7 @@ QgsDataProvider *QgsProviderRegistry::provider( QString const & providerKey, QSt
   {
     QgsMessageLog::logMessage( QObject::tr( "Unable to instantiate the data provider plugin %1" ).arg( lib ) );
     myLib.unload();
-    return 0;
+    return nullptr;
   }
 
   QgsDebugMsg( QString( "Instantiated the data provider plugin: %1" ).arg( dataProvider->name() ) );
@@ -400,7 +408,7 @@ int QgsProviderRegistry::providerCapabilities( const QString &providerKey ) cons
     return QgsDataProvider::NoDataCapabilities;
   }
 
-  dataCapabilities_t * dataCapabilities = ( dataCapabilities_t * ) cast_to_fptr( library->resolve( "dataCapabilities" ) );
+  dataCapabilities_t * dataCapabilities = reinterpret_cast< dataCapabilities_t *>( cast_to_fptr( library->resolve( "dataCapabilities" ) ) );
   if ( !dataCapabilities )
   {
     return QgsDataProvider::NoDataCapabilities;
@@ -413,18 +421,17 @@ int QgsProviderRegistry::providerCapabilities( const QString &providerKey ) cons
 typedef QWidget * selectFactoryFunction_t( QWidget * parent, Qt::WindowFlags fl );
 
 QWidget* QgsProviderRegistry::selectWidget( const QString & providerKey,
-    QWidget * parent, const Qt::WindowFlags& fl )
+    QWidget * parent, Qt::WindowFlags fl )
 {
   selectFactoryFunction_t * selectFactory =
-    ( selectFactoryFunction_t * ) cast_to_fptr( function( providerKey, "selectWidget" ) );
+    reinterpret_cast< selectFactoryFunction_t * >( cast_to_fptr( function( providerKey, "selectWidget" ) ) );
 
   if ( !selectFactory )
-    return 0;
+    return nullptr;
 
   return selectFactory( parent, fl );
 }
 
-#if QT_VERSION >= 0x050000
 QFunctionPointer QgsProviderRegistry::function( QString const & providerKey,
     QString const & functionName )
 {
@@ -434,7 +441,7 @@ QFunctionPointer QgsProviderRegistry::function( QString const & providerKey,
 
   if ( myLib.load() )
   {
-    return myLib.resolve( functionName.toAscii().data() );
+    return myLib.resolve( functionName.toLatin1().data() );
   }
   else
   {
@@ -442,25 +449,6 @@ QFunctionPointer QgsProviderRegistry::function( QString const & providerKey,
     return 0;
   }
 }
-#else
-void *QgsProviderRegistry::function( QString const & providerKey,
-                                     QString const & functionName )
-{
-  QLibrary myLib( library( providerKey ) );
-
-  QgsDebugMsg( "Library name is " + myLib.fileName() );
-
-  if ( myLib.load() )
-  {
-    return myLib.resolve( functionName.toAscii().data() );
-  }
-  else
-  {
-    QgsDebugMsg( "Cannot load library: " + myLib.errorString() );
-    return 0;
-  }
-}
-#endif
 
 QLibrary *QgsProviderRegistry::providerLibrary( QString const & providerKey ) const
 {
@@ -475,7 +463,7 @@ QLibrary *QgsProviderRegistry::providerLibrary( QString const & providerKey ) co
 
   delete myLib;
 
-  return 0;
+  return nullptr;
 }
 
 void QgsProviderRegistry::registerGuis( QWidget *parent )
@@ -484,7 +472,7 @@ void QgsProviderRegistry::registerGuis( QWidget *parent )
 
   Q_FOREACH ( const QString &provider, providerList() )
   {
-    registerGui_function *registerGui = ( registerGui_function * ) cast_to_fptr( function( provider, "registerGui" ) );
+    registerGui_function *registerGui = reinterpret_cast< registerGui_function * >( cast_to_fptr( function( provider, "registerGui" ) ) );
 
     if ( !registerGui )
       continue;

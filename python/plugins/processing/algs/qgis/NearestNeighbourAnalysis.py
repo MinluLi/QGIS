@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import next
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,33 +27,42 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 import math
+import codecs
+
+from qgis.PyQt.QtGui import QIcon
+
 from qgis.core import QgsFeatureRequest, QgsFeature, QgsDistanceArea
+
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.outputs import OutputHTML
 from processing.core.outputs import OutputNumber
 from processing.tools import dataobjects, vector
 
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
+
 
 class NearestNeighbourAnalysis(GeoAlgorithm):
 
     POINTS = 'POINTS'
-
     OUTPUT = 'OUTPUT'
-
     OBSERVED_MD = 'OBSERVED_MD'
     EXPECTED_MD = 'EXPECTED_MD'
     NN_INDEX = 'NN_INDEX'
     POINT_COUNT = 'POINT_COUNT'
     Z_SCORE = 'Z_SCORE'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'neighbour.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Nearest neighbour analysis')
         self.group, self.i18n_group = self.trAlgorithm('Vector analysis tools')
 
         self.addParameter(ParameterVector(self.POINTS,
-                                          self.tr('Points'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Points'), [dataobjects.TYPE_VECTOR_POINT]))
 
         self.addOutput(OutputHTML(self.OUTPUT, self.tr('Nearest neighbour')))
 
@@ -78,19 +89,17 @@ class NearestNeighbourAnalysis(GeoAlgorithm):
         A = layer.extent()
         A = float(A.width() * A.height())
 
-        current = 0
         features = vector.features(layer)
         count = len(features)
-        total = 100.0 / float(len(features))
-        for feat in features:
+        total = 100.0 / count
+        for current, feat in enumerate(features):
             neighbourID = spatialIndex.nearestNeighbor(
                 feat.geometry().asPoint(), 2)[1]
-            request = QgsFeatureRequest().setFilterFid(neighbourID)
-            neighbour = layer.getFeatures(request).next()
+            request = QgsFeatureRequest().setFilterFid(neighbourID).setSubsetOfAttributes([])
+            neighbour = next(layer.getFeatures(request))
             sumDist += distance.measureLine(neighbour.geometry().asPoint(),
                                             feat.geometry().asPoint())
 
-            current += 1
             progress.setPercentage(int(current * total))
 
         do = float(sumDist) / count
@@ -100,11 +109,11 @@ class NearestNeighbourAnalysis(GeoAlgorithm):
         zscore = float((do - de) / SE)
 
         data = []
-        data.append('Observed mean distance: ' + unicode(do))
-        data.append('Expected mean distance: ' + unicode(de))
-        data.append('Nearest neighbour index: ' + unicode(d))
-        data.append('Number of points: ' + unicode(count))
-        data.append('Z-Score: ' + unicode(zscore))
+        data.append('Observed mean distance: ' + str(do))
+        data.append('Expected mean distance: ' + str(de))
+        data.append('Nearest neighbour index: ' + str(d))
+        data.append('Number of points: ' + str(count))
+        data.append('Z-Score: ' + str(zscore))
 
         self.createHTML(output, data)
 
@@ -115,7 +124,11 @@ class NearestNeighbourAnalysis(GeoAlgorithm):
         self.setOutputValue(self.Z_SCORE, float(data[4].split(': ')[1]))
 
     def createHTML(self, outputFile, algData):
-        f = open(outputFile, 'w')
+        f = codecs.open(outputFile, 'w', encoding='utf-8')
+        f.write('<html><head>')
+        f.write('<meta http-equiv="Content-Type" content="text/html; \
+                charset=utf-8" /></head><body>')
         for s in algData:
-            f.write('<p>' + unicode(s) + '</p>')
+            f.write('<p>' + str(s) + '</p>')
+        f.write('</body></html>')
         f.close()

@@ -26,7 +26,7 @@
 class QgsCachedFeatureIterator;
 class QgsAbstractCacheIndex;
 
-/**
+/** \ingroup core
  * This class caches features of a given QgsVectorLayer.
  *
  * @brief
@@ -79,7 +79,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
     };
 
   public:
-    QgsVectorLayerCache( QgsVectorLayer* layer, int cacheSize, QObject* parent = NULL );
+    QgsVectorLayerCache( QgsVectorLayer* layer, int cacheSize, QObject* parent = nullptr );
     ~QgsVectorLayerCache();
 
     /**
@@ -154,6 +154,41 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * @return An iterator over the requested data.
      */
     QgsFeatureIterator getFeatures( const QgsFeatureRequest& featureRequest = QgsFeatureRequest() );
+
+    /**
+     * Query the layer for features matching a given expression.
+     */
+    inline QgsFeatureIterator getFeatures( const QString& expression )
+    {
+      return getFeatures( QgsFeatureRequest( expression ) );
+    }
+
+    /**
+     * Query the layer for the feature with the given id.
+     * If there is no such feature, the returned feature will be invalid.
+     */
+    inline QgsFeature getFeature( QgsFeatureId fid )
+    {
+      QgsFeature feature;
+      getFeatures( QgsFeatureRequest( fid ) ).nextFeature( feature );
+      return feature;
+    }
+
+    /**
+     * Query the layer for the features with the given ids.
+     */
+    inline QgsFeatureIterator getFeatures( const QgsFeatureIds& fids )
+    {
+      return getFeatures( QgsFeatureRequest( fids ) );
+    }
+
+    /**
+     * Query the layer for the features which intersect the specified rectangle.
+     */
+    inline QgsFeatureIterator getFeatures( const QgsRectangle& rectangle )
+    {
+      return getFeatures( QgsFeatureRequest( rectangle ) );
+    }
 
     /**
      * Check if a certain feature id is cached.
@@ -245,7 +280,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * @brief Is emitted when an attribute is changed. Is re-emitted after the layer itself emits this signal.
      *        You should connect to this signal, to be sure, to not get a cached value if querying the cache.
      */
-    void attributeValueChanged( const QgsFeatureId& fid, const int& field, const QVariant &value );
+    void attributeValueChanged( QgsFeatureId fid, int field, const QVariant &value );
 
     /**
      * Is emitted, when a new feature has been added to the layer and this cache.
@@ -267,7 +302,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
     void onFeatureAdded( QgsFeatureId fid );
     void attributeAdded( int field );
     void attributeDeleted( int field );
-    void geometryChanged( QgsFeatureId fid, QgsGeometry& geom );
+    void geometryChanged( QgsFeatureId fid, const QgsGeometry& geom );
     void layerDeleted();
     void invalidate();
 

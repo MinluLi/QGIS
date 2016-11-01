@@ -25,7 +25,7 @@ __copyright__ = '(C) 2010, Michael Minn'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant
 from qgis.core import QgsExpression, QgsFeatureRequest
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
@@ -34,7 +34,7 @@ from processing.core.parameters import ParameterTableField
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterString
 from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from processing.tools import dataobjects
 
 
 class ExtractByAttribute(GeoAlgorithm):
@@ -68,7 +68,7 @@ class ExtractByAttribute(GeoAlgorithm):
                                self.tr('contains')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input Layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input Layer')))
         self.addParameter(ParameterTableField(self.FIELD,
                                               self.tr('Selection attribute'), self.INPUT))
         self.addParameter(ParameterSelection(self.OPERATOR,
@@ -83,11 +83,11 @@ class ExtractByAttribute(GeoAlgorithm):
         operator = self.OPERATORS[self.getParameterValue(self.OPERATOR)]
         value = self.getParameterValue(self.VALUE)
 
-        fields = layer.pendingFields()
+        fields = layer.fields()
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(fields,
                                                                      layer.wkbType(), layer.crs())
 
-        idx = layer.fieldNameIndex(fieldName)
+        idx = layer.fields().lookupField(fieldName)
         fieldType = fields[idx].type()
 
         if fieldType != QVariant.String and operator in self.OPERATORS[-2:]:
@@ -95,23 +95,17 @@ class ExtractByAttribute(GeoAlgorithm):
             raise GeoAlgorithmExecutionException(
                 self.tr('Operators %s can be used only with string fields.' % op))
 
-        if fieldType in [QVariant.Int, QVariant.Double]:
-            progress.setInfo(self.tr('Numeric field'))
+        if fieldType in [QVariant.Int, QVariant.Double, QVariant.UInt, QVariant.LongLong, QVariant.ULongLong]:
             expr = '"%s" %s %s' % (fieldName, operator, value)
-            progress.setInfo(expr)
         elif fieldType == QVariant.String:
-            progress.setInfo(self.tr('String field'))
             if operator not in self.OPERATORS[-2:]:
                 expr = """"%s" %s '%s'""" % (fieldName, operator, value)
             elif operator == 'begins with':
                 expr = """"%s" LIKE '%s%%'""" % (fieldName, value)
             elif operator == 'contains':
                 expr = """"%s" LIKE '%%%s%%'""" % (fieldName, value)
-            progress.setInfo(expr)
         elif fieldType in [QVariant.Date, QVariant.DateTime]:
-            progress.setInfo(self.tr('Date field'))
             expr = """"%s" %s '%s'""" % (fieldName, operator, value)
-            progress.setInfo(expr)
         else:
             raise GeoAlgorithmExecutionException(
                 self.tr('Unsupported field type "%s"' % fields[idx].typeName()))

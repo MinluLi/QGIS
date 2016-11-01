@@ -1,58 +1,35 @@
+###########################################################################
+#    before_install.sh
+#    ---------------------
+#    Date                 : March 2016
+#    Copyright            : (C) 2016 by Matthias Kuhn
+#    Email                : matthias at opengis dot ch
+###########################################################################
+#                                                                         #
+#   This program is free software; you can redistribute it and/or modify  #
+#   it under the terms of the GNU General Public License as published by  #
+#   the Free Software Foundation; either version 2 of the License, or     #
+#   (at your option) any later version.                                   #
+#                                                                         #
+###########################################################################
+
 export DEBIAN_FRONTEND=noninteractive
-sudo add-apt-repository ppa:ubuntugis/ppa -y
-sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y # For postgresql-9.1-postgis-2.1
-sudo add-apt-repository ppa:grass/grass-stable -y
-sudo add-apt-repository ppa:smspillaz/cmake-3.0.2 -y
-sudo add-apt-repository ppa:kedazo/doxygen-updates-precise -y # For doxygen 1.8.8
-sudo apt-get update -qq
-sudo apt-get install --force-yes --no-install-recommends --no-install-suggests \
-        bison \
-        cmake \
-        cmake-data \
-        doxygen \
-        flex \
-        git \
-        graphviz \
-        grass-dev \
-        grass7-dev \
-        libexpat1-dev \
-        libfcgi-dev \
-        libgdal1-dev \
-        libgeos-dev \
-        libgsl0-dev \
-        libpq-dev \
-        libproj-dev \
-        libqca2-dev \
-        libqca2-plugin-ossl \
-        libqscintilla2-dev \
-        libqt4-dev \
-        libqt4-opengl-dev \
-        libqt4-sql-sqlite \
-        libqtwebkit-dev \
-        libqwt-dev \
-        libspatialindex-dev \
-        libspatialite-dev \
-        libsqlite3-dev \
-        lighttpd \
-        pkg-config \
-        poppler-utils \
-        pyqt4-dev-tools \
-        python \
-        python-dev \
-        python-qt4 \
-        python-qt4-dev \
-        python-qt4-sql \
-        python-sip \
-        python-sip-dev \
-        python-gdal \
-        spawn-fcgi \
-        txt2tags \
-        xauth \
-        xfonts-100dpi \
-        xfonts-75dpi \
-        xfonts-base \
-        xfonts-scalable \
-        xvfb \
-        postgresql-9.1-postgis-2.1/precise # from ubuntugis-unstable, not pgdg
-cmake --version
-clang --version
+export CORES=2
+
+##################################################
+#
+# Get precompiled dependencies
+#
+##################################################
+
+pushd ${HOME}
+
+curl -L https://github.com/opengisch/osgeo4travis/archive/qt5bin.tar.gz | tar -xzC /home/travis --strip-components=1
+curl -L https://cmake.org/files/v3.5/cmake-3.5.0-Linux-x86_64.tar.gz | tar --strip-components=1 -zxC /home/travis/osgeo4travis
+
+# Download OTB package for Processing tests
+wget https://www.orfeo-toolbox.org/packages/archives/OTB/OTB-5.6.0-Linux64.run -O /home/travis/OTB-5.6.0-Linux64.run && sh /home/travis/OTB-5.6.0-Linux64.run
+
+popd
+
+pip install psycopg2 numpy nose2 pyyaml mock future termcolor

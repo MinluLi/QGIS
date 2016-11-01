@@ -1,8 +1,16 @@
 /***************************************************************************
- *  qgsgeometrycontainedcheck.cpp                                          *
- *  -------------------                                                    *
- *  copyright            : (C) 2014 by Sandro Mani / Sourcepole AG         *
- *  email                : smani@sourcepole.ch                             *
+    qgsgeometrycontainedcheck.cpp
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2014 by Sandro Mani / Sourcepole AG
+    email                : smani at sourcepole dot ch
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
  ***************************************************************************/
 
 #include "qgsgeometryengine.h"
@@ -12,7 +20,7 @@
 void QgsGeometryContainedCheck::collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList &messages, QAtomicInt* progressCounter , const QgsFeatureIds &ids ) const
 {
   const QgsFeatureIds& featureIds = ids.isEmpty() ? mFeaturePool->getFeatureIds() : ids;
-  Q_FOREACH ( const QgsFeatureId& featureid, featureIds )
+  Q_FOREACH ( QgsFeatureId featureid, featureIds )
   {
     if ( progressCounter ) progressCounter->fetchAndAddRelaxed( 1 );
     QgsFeature feature;
@@ -21,10 +29,11 @@ void QgsGeometryContainedCheck::collectErrors( QList<QgsGeometryCheckError*>& er
       continue;
     }
 
-    QgsGeometryEngine* geomEngine = QgsGeomUtils::createGeomEngine( feature.geometry()->geometry(), QgsGeometryCheckPrecision::tolerance() );
+    QgsGeometry featureGeom = feature.geometry();
+    QgsGeometryEngine* geomEngine = QgsGeometryCheckerUtils::createGeomEngine( featureGeom.geometry(), QgsGeometryCheckPrecision::tolerance() );
 
-    QgsFeatureIds ids = mFeaturePool->getIntersects( feature.geometry()->geometry()->boundingBox() );
-    Q_FOREACH ( const QgsFeatureId& otherid, ids )
+    QgsFeatureIds ids = mFeaturePool->getIntersects( featureGeom.geometry()->boundingBox() );
+    Q_FOREACH ( QgsFeatureId otherid, ids )
     {
       if ( otherid == featureid )
       {
@@ -37,9 +46,9 @@ void QgsGeometryContainedCheck::collectErrors( QList<QgsGeometryCheckError*>& er
       }
 
       QString errMsg;
-      if ( geomEngine->within( *otherFeature.geometry()->geometry(), &errMsg ) )
+      if ( geomEngine->within( *otherFeature.geometry().geometry(), &errMsg ) )
       {
-        errors.append( new QgsGeometryContainedCheckError( this, featureid, feature.geometry()->geometry()->centroid(), otherid ) );
+        errors.append( new QgsGeometryContainedCheckError( this, featureid, feature.geometry().geometry()->centroid(), otherid ) );
       }
       else if ( !errMsg.isEmpty() )
       {
@@ -64,9 +73,10 @@ void QgsGeometryContainedCheck::fixError( QgsGeometryCheckError* error, int meth
   }
 
   // Check if error still applies
-  QgsGeometryEngine* geomEngine = QgsGeomUtils::createGeomEngine( feature.geometry()->geometry(), QgsGeometryCheckPrecision::tolerance() );
+  QgsGeometry featureGeom = feature.geometry();
+  QgsGeometryEngine* geomEngine = QgsGeometryCheckerUtils::createGeomEngine( featureGeom.geometry(), QgsGeometryCheckPrecision::tolerance() );
 
-  if ( !geomEngine->within( *otherFeature.geometry()->geometry() ) )
+  if ( !geomEngine->within( *otherFeature.geometry().geometry() ) )
   {
     delete geomEngine;
     error->setObsolete();

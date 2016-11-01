@@ -16,17 +16,19 @@
 #ifndef QGSEDITORWIDGETFACTORY_H
 #define QGSEDITORWIDGETFACTORY_H
 
-#include "qgseditorwidgetwrapper.h"
-#include "qgsapplication.h"
-#include "qgssearchwidgetwrapper.h"
-
 #include <QDomNode>
 #include <QMap>
 #include <QString>
+#include <QVariant>
+#include "qgseditorwidgetconfig.h"
 
 class QgsEditorConfigWidget;
+class QgsEditorWidgetWrapper;
+class QgsVectorLayer;
+class QWidget;
+class QgsSearchWidgetWrapper;
 
-/**
+/** \ingroup gui
  * Every attribute editor widget needs a factory, which inherits this class
  *
  * It provides metadata for the widgets such as the name (human readable), it serializes
@@ -111,9 +113,9 @@ class GUI_EXPORT QgsEditorWidgetFactory
      * @param fieldIdx  The field index
      * @return          True if the type is supported for this field
      *
-     * @see isFieldSupported( QgsVectorLayer* vl, ind fieldIdx )
+     * @see fieldScore( const QgsVectorLayer* vl, ind fieldIdx )
      */
-    inline bool supportsField( QgsVectorLayer* vl, int fieldIdx ) { return isFieldSupported( vl, fieldIdx ); }
+    inline bool supportsField( const QgsVectorLayer* vl, int fieldIdx ) { return fieldScore( vl, fieldIdx ) > 0; }
 
     /**
      * Returns a list of widget types which this editor widget supports.
@@ -121,8 +123,9 @@ class GUI_EXPORT QgsEditorWidgetFactory
      * will be used.
      *
      * @return A map of widget type names and weight values
+     * @note not available in Python bindings
      */
-    virtual QMap<const char*, int> supportedWidgetTypes() { return QMap<const char*, int>(); }
+    virtual QHash<const char*, int> supportedWidgetTypes() { return QHash<const char*, int>(); }
 
     /**
      * Create a pretty String representation of the value.
@@ -136,6 +139,31 @@ class GUI_EXPORT QgsEditorWidgetFactory
      * @return By default the string representation of the provided value as implied by the field definition is returned.
      */
     virtual QString representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const;
+
+    /**
+     * If the default sort order should be overwritten for this widget, you can transform the value in here.
+     *
+     * @param vl        The vector layer.
+     * @param fieldIdx  The index of the field.
+     * @param config    The editor widget config.
+     * @param cache     The editor widget cache.
+     * @param value     The value to represent.
+     *
+     * @return By default the value is returned unmodified.
+     *
+     * @note Added in 2.16
+     */
+    virtual QVariant sortValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const;
+
+    /**
+     * Return the alignment for a particular field. By default this will consider the field type but can be overwritten if mapped
+     * values are represented.
+     * @param vl       The vector layer.
+     * @param fieldIdx The index of the field.
+     * @param config   The editor widget config.
+     * @return The alignment flag, normally Qt::AlignRight or Qt::AlignLeft
+     */
+    virtual Qt::AlignmentFlag alignmentFlag( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config ) const;
 
     /**
      * Create a cache for a given field.
@@ -159,19 +187,25 @@ class GUI_EXPORT QgsEditorWidgetFactory
      */
     virtual QgsEditorWidgetConfig readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx );
 
-  private:
     /**
      * This method allows disabling this editor widget type for a certain field.
-     * By default, it returns true for all fields.
+     * By default, it returns 5 for every fields.
      * Reimplement this if you only support certain fields.
+     *
+     * Typical return values are:
+     *   * 0: not supported
+     *   * 5: maybe support (for example, Datetime support strings depending on their content)
+     *   * 10: basic support (this is what returns TextEdit for example, since it supports everything in a crude way)
+     *   * 20: specialised support
      *
      * @param vl
      * @param fieldIdx
-     * @return True if the field is supported.
+     * @return 0 if the field is not supported or a bigger number if it can (the widget with the biggest number will be
+     *      taken by default). The default implementation returns 5..
      *
      * @see supportsField( QgsVectorLayer* vl, fieldIdx )
      */
-    virtual bool isFieldSupported( QgsVectorLayer* vl, int fieldIdx );
+    virtual unsigned int fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const;
 
   private:
     QString mName;

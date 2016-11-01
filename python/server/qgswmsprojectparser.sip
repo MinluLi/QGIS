@@ -16,15 +16,15 @@
  ***************************************************************************/
 
 
-class QgsWMSProjectParser : public QgsWMSConfigParser
+class QgsWmsProjectParser : public QgsWmsConfigParser
 {
 %TypeHeaderCode
 #include "qgswmsprojectparser.h"
 
 %End
   public:
-    QgsWMSProjectParser( const QString& filePath, const QgsAccessControl* ac );
-    virtual ~QgsWMSProjectParser();
+    QgsWmsProjectParser( const QString& filePath, const QgsAccessControl* ac );
+    virtual ~QgsWmsProjectParser();
 
     /** Adds layer and style specific capabilities elements to the parent node. This includes the individual layers and styles, their description, native CRS, bounding boxes, etc.
         @param fullProjectInformation If true: add extended project information (does not validate against WMS schema)*/
@@ -52,7 +52,7 @@ class QgsWMSProjectParser : public QgsWMSConfigParser
     double maxWidth() const  /*override*/ ;
     double maxHeight() const  /*override*/ ;
     double imageQuality() const  /*override*/ ;
-    int WMSPrecision() const  /*override*/ ;
+    int wmsPrecision() const  /*override*/ ;
 
     //printing
     //QgsComposition* initComposition( const QString& composerTemplate, QgsMapRenderer* mapRenderer, QList< QgsComposerMap* >& mapList, //QList< QgsComposerLegend* >& legendList, QList< QgsComposerLabel* >& labelList, QList<const QgsComposerHtml *>& htmlFrameList ) const  /*override*/ ;
@@ -83,6 +83,10 @@ class QgsWMSProjectParser : public QgsWMSConfigParser
     /** True if the feature info response should contain the wkt geometry for vector features*/
     bool featureInfoWithWktGeometry() const  /*override*/ ;
 
+    /** True if the feature info wkt geometry is delivered with segmentized curve types*/
+    bool segmentizeFeatureInfoWktGeometry() const /*override*/ ;
+
+
     /** Returns map with layer aliases for GetFeatureInfo (or 0 pointer if not supported). Key: layer name, Value: layer alias*/
     QHash<QString, QString> featureInfoLayerAliasMap() const  /*override*/ ;
 
@@ -105,7 +109,7 @@ class QgsWMSProjectParser : public QgsWMSConfigParser
 
     void serviceCapabilities( QDomElement& parentElement, QDomDocument& doc ) const  /*override*/ ;
 
-    bool useLayerIDs() const  /*override*/ ;
+    bool useLayerIds() const  /*override*/ ;
 
   private:
 
@@ -122,7 +126,7 @@ class QgsWMSProjectParser : public QgsWMSConfigParser
                     const QDomElement &legendElem,
                     const QMap<QString, QgsMapLayer *> &layerMap,
                     const QStringList &nonIdentifiableLayers,
-                    QString version, //1.1.1 or 1.3.0
+                    const QString& version, //1.1.1 or 1.3.0
                     bool fullProjectSettings,
                     QHash<QString, QString> &idNameMap,
                     QStringList &layerIDList ) const;

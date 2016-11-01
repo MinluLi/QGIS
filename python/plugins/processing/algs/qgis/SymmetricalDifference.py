@@ -25,12 +25,19 @@ __copyright__ = '(C) 2014, Alexander Bruy'
 
 __revision__ = '$Format:%H$'
 
-from qgis.core import QgsFeature, QgsGeometry, QgsFeatureRequest, NULL
+import os
+
+from qgis.PyQt.QtGui import QIcon
+
+from qgis.core import Qgis, QgsFeature, QgsGeometry, QgsFeatureRequest, NULL, QgsWkbTypes
 from processing.core.ProcessingLog import ProcessingLog
 from processing.core.GeoAlgorithm import GeoAlgorithm
+from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
 from processing.core.parameters import ParameterVector
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class SymmetricalDifference(GeoAlgorithm):
@@ -39,13 +46,16 @@ class SymmetricalDifference(GeoAlgorithm):
     OVERLAY = 'OVERLAY'
     OUTPUT = 'OUTPUT'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'sym_difference.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Symmetrical difference')
         self.group, self.i18n_group = self.trAlgorithm('Vector overlay tools')
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterVector(self.OVERLAY,
-                                          self.tr('Difference layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Difference layer')))
         self.addOutput(OutputVector(self.OUTPUT,
                                     self.tr('Symmetrical difference')))
 
@@ -55,15 +65,10 @@ class SymmetricalDifference(GeoAlgorithm):
         layerB = dataobjects.getObjectFromUri(
             self.getParameterValue(self.OVERLAY))
 
-        providerA = layerA.dataProvider()
-        providerB = layerB.dataProvider()
-
-        GEOS_EXCEPT = True
-        FEATURE_EXCEPT = True
-
+        geomType = QgsWkbTypes.multiType(layerA.wkbType())
         fields = vector.combineVectorFields(layerA, layerB)
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, providerA.geometryType(), providerA.crs())
+            fields, geomType, layerA.crs())
 
         featB = QgsFeature()
         outFeat = QgsFeature()
@@ -79,68 +84,69 @@ class SymmetricalDifference(GeoAlgorithm):
 
         for featA in featuresA:
             add = True
-            geom = QgsGeometry(featA.geometry())
+            geom = featA.geometry()
             diffGeom = QgsGeometry(geom)
             attrs = featA.attributes()
             intersects = indexA.intersects(geom.boundingBox())
-            for i in intersects:
-                providerB.getFeatures(QgsFeatureRequest().setFilterFid(i)).nextFeature(featB)
-                tmpGeom = QgsGeometry(featB.geometry())
-                try:
-                    if diffGeom.intersects(tmpGeom):
-                        diffGeom = QgsGeometry(diffGeom.difference(tmpGeom))
-                except:
-                    add = False
-                    GEOS_EXCEPT = False
-                    break
+            request = QgsFeatureRequest().setFilterFids(intersects).setSubsetOfAttributes([])
+            for featB in layerB.getFeatures(request):
+                tmpGeom = featB.geometry()
+                if diffGeom.intersects(tmpGeom):
+                    diffGeom = QgsGeometry(diffGeom.difference(tmpGeom))
+                    if not diffGeom.isGeosValid():
+                        ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
+                                               self.tr('GEOS geoprocessing error: One or '
+                                                       'more input features have invalid '
+                                                       'geometry.'))
+                        add = False
+                        break
+
             if add:
                 try:
                     outFeat.setGeometry(diffGeom)
                     outFeat.setAttributes(attrs)
                     writer.addFeature(outFeat)
                 except:
-                    FEATURE_EXCEPT = False
+                    ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
+                                           self.tr('Feature geometry error: One or more output features ignored due to invalid geometry.'))
                     continue
 
             count += 1
             progress.setPercentage(int(count * total))
 
-        length = len(providerA.fields())
+        length = len(layerA.fields())
 
         for featA in featuresB:
             add = True
-            geom = QgsGeometry(featA.geometry())
+            geom = featA.geometry()
             diffGeom = QgsGeometry(geom)
             attrs = featA.attributes()
             attrs = [NULL] * length + attrs
             intersects = indexB.intersects(geom.boundingBox())
-            for i in intersects:
-                providerA.getFeatures(QgsFeatureRequest().setFilterFid(i)).nextFeature(featB)
-                tmpGeom = QgsGeometry(featB.geometry())
-                try:
-                    if diffGeom.intersects(tmpGeom):
-                        diffGeom = QgsGeometry(diffGeom.difference(tmpGeom))
-                except:
-                    add = False
-                    GEOS_EXCEPT = False
-                    break
+            request = QgsFeatureRequest().setFilterFids(intersects).setSubsetOfAttributes([])
+            for featB in layerA.getFeatures(request):
+                tmpGeom = featB.geometry()
+                if diffGeom.intersects(tmpGeom):
+                    diffGeom = QgsGeometry(diffGeom.difference(tmpGeom))
+                    if not diffGeom.isGeosValid():
+                        ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
+                                               self.tr('GEOS geoprocessing error: One or '
+                                                       'more input features have invalid '
+                                                       'geometry.'))
+                        add = False
+                        break
+
             if add:
                 try:
                     outFeat.setGeometry(diffGeom)
                     outFeat.setAttributes(attrs)
                     writer.addFeature(outFeat)
                 except:
-                    FEATURE_EXCEPT = False
+                    ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
+                                           self.tr('Feature geometry error: One or more output features ignored due to invalid geometry.'))
                     continue
 
             count += 1
             progress.setPercentage(int(count * total))
 
         del writer
-
-        if not GEOS_EXCEPT:
-            ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
-                                   self.tr('Geometry exception while computing symmetrical difference'))
-        if not FEATURE_EXCEPT:
-            ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
-                                   self.tr('Feature exception while computing symmetrical difference'))

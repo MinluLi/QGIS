@@ -1,6 +1,6 @@
 /***************************************************************************
-
-               ----------------------------------------------------
+              qgspostgresexpressioncompiler.h
+              ----------------------------------------------------
               date                 : 22.4.2015
               copyright            : (C) 2015 by Matthias Kuhn
               email                : matthias (at) opengis.ch
@@ -29,7 +29,7 @@ class QgsPostgresExpressionCompiler : public QgsSqlExpressionCompiler
   protected:
 
     virtual QString quotedIdentifier( const QString& identifier ) override;
-    virtual QString quotedValue( const QVariant& value ) override;
+    virtual QString quotedValue( const QVariant& value, bool& ok ) override;
 };
 
 #endif // QGSPOSTGRESEXPRESSIONCOMPILER_H

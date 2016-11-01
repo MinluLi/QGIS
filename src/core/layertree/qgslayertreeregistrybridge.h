@@ -24,7 +24,7 @@ class QgsLayerTreeNode;
 class QgsMapLayer;
 
 
-/**
+/** \ingroup core
  * Listens to the updates in map layer registry and does changes in layer tree.
  *
  * When connected to a layer tree, any layers added to the map layer registry
@@ -40,7 +40,7 @@ class CORE_EXPORT QgsLayerTreeRegistryBridge : public QObject
 {
     Q_OBJECT
   public:
-    explicit QgsLayerTreeRegistryBridge( QgsLayerTreeGroup* root, QObject *parent = 0 );
+    explicit QgsLayerTreeRegistryBridge( QgsLayerTreeGroup* root, QObject *parent = nullptr );
 
     void setEnabled( bool enabled ) { mEnabled = enabled; }
     bool isEnabled() const { return mEnabled; }

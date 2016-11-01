@@ -16,6 +16,7 @@
 
 #include "qgsmaptoolfillring.h"
 #include "qgsgeometry.h"
+#include "qgsfeatureiterator.h"
 #include "qgsmapcanvas.h"
 #include "qgsvectorlayer.h"
 #include "qgsattributedialog.h"
@@ -89,7 +90,7 @@ void QgsMapToolFillRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       //todo: open message box to communicate errors
       if ( addRingReturnCode == 1 )
       {
-        errorMessage = tr( "a problem with geometry type occured" );
+        errorMessage = tr( "a problem with geometry type occurred" );
       }
       else if ( addRingReturnCode == 2 )
       {
@@ -109,7 +110,7 @@ void QgsMapToolFillRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       }
       else
       {
-        errorMessage = tr( "an unknown error occured" );
+        errorMessage = tr( "an unknown error occurred" );
       }
       emit messageEmitted( tr( "could not add ring since %1." ).arg( errorMessage ), QgsMessageBar::CRITICAL );
       vlayer->destroyEditCommand();
@@ -141,23 +142,24 @@ void QgsMapToolFillRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setFilterFid( modifiedFid ) );
 
       QgsFeature f;
-      bool res = false;
       if ( fit.nextFeature( f ) )
       {
         //create QgsFeature with wkb representation
         QgsFeature* ft = new QgsFeature( vlayer->fields(), 0 );
 
-        ft->setGeometry( QgsGeometry::fromPolygon( QgsPolygon() << pointList.toVector() ) );
+        QgsGeometry g = QgsGeometry::fromPolygon( QgsPolygon() << pointList.toVector() );
+        ft->setGeometry( g );
         ft->setAttributes( f.attributes() );
 
+        bool res = false;
         if ( QApplication::keyboardModifiers() == Qt::ControlModifier )
         {
           res = vlayer->addFeature( *ft );
         }
         else
         {
-          QgsAttributeDialog *dialog = new QgsAttributeDialog( vlayer, ft, false, NULL, true );
-          dialog->setIsAddDialog( true );
+          QgsAttributeDialog *dialog = new QgsAttributeDialog( vlayer, ft, false, nullptr, true );
+          dialog->setMode( QgsAttributeForm::AddFeatureMode );
           res = dialog->exec(); // will also add the feature
         }
 
@@ -170,7 +172,6 @@ void QgsMapToolFillRing::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
           delete ft;
           vlayer->destroyEditCommand();
         }
-        res = false;
       }
     }
     stopCapturing();

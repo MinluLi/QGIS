@@ -43,6 +43,7 @@ namespace pal
 
 
   /**
+   * \ingroup core
    * \brief LabelPosition is a candidate feature label position
    * \class pal::LabelPosition
    * \note not available in Python bindings
@@ -89,7 +90,7 @@ namespace pal
                      double alpha, double cost,
                      FeaturePart *feature, bool isReversed = false, Quadrant quadrant = QuadrantOver );
 
-      /** Copy constructor */
+      //! Copy constructor
       LabelPosition( const LabelPosition& other );
 
       ~LabelPosition() { delete nextPart; }
@@ -123,16 +124,16 @@ namespace pal
        */
       bool isInConflict( LabelPosition *ls );
 
-      /** Return bounding box - amin: xmin,ymin - amax: xmax,ymax */
+      //! Return bounding box - amin: xmin,ymin - amax: xmax,ymax
       void getBoundingBox( double amin[2], double amax[2] ) const;
 
-      /** Get distance from this label to a point. If point lies inside, returns negative number. */
+      //! Get distance from this label to a point. If point lies inside, returns negative number.
       double getDistanceToPoint( double xp, double yp ) const;
 
-      /** Returns true if this label crosses the specified line */
+      //! Returns true if this label crosses the specified line
       bool crossesLine( PointSet* line ) const;
 
-      /** Returns true if this label crosses the boundary of the specified polygon */
+      //! Returns true if this label crosses the boundary of the specified polygon
       bool crossesBoundary( PointSet* polygon ) const;
 
       /** Returns cost of position intersection with polygon (testing area of intersection and center).
@@ -140,7 +141,11 @@ namespace pal
        */
       int polygonIntersectionCost( PointSet* polygon ) const;
 
-      /** Shift the label by specified offset */
+      /** Returns true if if any intersection between polygon and position exists.
+      */
+      bool intersectsWithPolygon( PointSet* polygon ) const;
+
+      //! Shift the label by specified offset
       void offsetPosition( double xOffset, double yOffset );
 
       /** \brief return id
@@ -154,7 +159,7 @@ namespace pal
        */
       FeaturePart * getFeaturePart();
 
-      double getNumOverlaps() const { return nbOverlap; }
+      int getNumOverlaps() const { return nbOverlap; }
       void resetNumOverlaps() { nbOverlap = 0; } // called from problem.cpp, pal.cpp
 
       int getProblemFeatureId() const { return probFeat; }
@@ -162,7 +167,8 @@ namespace pal
        *  called from pal.cpp during extraction */
       void setProblemIds( int probFid, int lpId )
       {
-        probFeat = probFid; id = lpId;
+        probFeat = probFid;
+        id = lpId;
         if ( nextPart ) nextPart->setProblemIds( probFid, lpId );
       }
 
@@ -189,7 +195,7 @@ namespace pal
        */
       bool conflictsWithObstacle() const { return mHasObstacleConflict; }
 
-      /** Make sure the cost is less than 1 */
+      //! Make sure the cost is less than 1
       void validateCost();
 
       /**
@@ -215,9 +221,6 @@ namespace pal
       bool getUpsideDown() const { return upsideDown; }
 
       Quadrant getQuadrant() const { return quadrant; }
-
-      void print();
-
       LabelPosition* getNextPart() const { return nextPart; }
       void setNextPart( LabelPosition* next ) { nextPart = next; }
 
@@ -225,6 +228,11 @@ namespace pal
       int getPartId() const { return partId; }
       void setPartId( int id ) { partId = id; }
 
+      //! Increases the count of upside down characters for this label position
+      int incrementUpsideDownCharCount() { return ++mUpsideDownCharCount; }
+
+      //! Returns the number of upside down characters for this label position
+      int upsideDownCharCount() const { return mUpsideDownCharCount; }
 
       void removeFromIndex( RTree<LabelPosition*, double, 2, double> *index );
       void insertIntoIndex( RTree<LabelPosition*, double, 2, double> *index );
@@ -235,12 +243,8 @@ namespace pal
         FeaturePart *obstacle;
       } PruneCtx;
 
-      /** Check whether the candidate in ctx overlap with obstacle feat */
-      static bool pruneCallback( LabelPosition *lp, void *ctx );
-
-      // for sorting
-      static bool costShrink( void *l, void *r );
-      static bool costGrow( void *l, void *r );
+      //! Check whether the candidate in ctx overlap with obstacle feat
+      static bool pruneCallback( LabelPosition *candidatePosition, void *ctx );
 
       // for counting number of overlaps
       typedef struct
@@ -297,6 +301,7 @@ namespace pal
     private:
       double mCost;
       bool mHasObstacleConflict;
+      int mUpsideDownCharCount;
 
       /** Calculates the total number of parts for this label position
        */

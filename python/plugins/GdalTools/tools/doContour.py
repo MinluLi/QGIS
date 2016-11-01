@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,12 +24,12 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL, QDir
-from PyQt4.QtGui import QWidget, QApplication
+from qgis.PyQt.QtCore import QDir
+from qgis.PyQt.QtWidgets import QWidget, QApplication
 
-from ui_widgetContour import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetContour import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -47,18 +48,20 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
 
         self.outSelector.setType(self.outSelector.FILE)
 
+        self.outputFormat = Utils.fillVectorOutputFormat()
+
         # set the default QSpinBoxes value
         self.intervalDSpinBox.setValue(10.0)
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.intervalDSpinBox, SIGNAL("valueChanged(double)")),
-            (self.attributeEdit, SIGNAL("textChanged(const QString &)"), self.attributeCheck)
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.intervalDSpinBox, "valueChanged"),
+            (self.attributeEdit, "textChanged", self.attributeCheck)
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getRasterLayers())
@@ -85,6 +88,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         if not self.useDirAsOutput:
             Utils.FileFilter.setLastUsedVectorFilter(lastUsedFilter)
 
+        self.outputFormat = Utils.fillVectorOutputFormat(lastUsedFilter, outputFile)
         self.outSelector.setFilename(outputFile)
         self.lastEncoding = encoding
 
@@ -93,11 +97,18 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         if self.attributeCheck.isChecked() and self.attributeEdit.text():
             arguments.append("-a")
             arguments.append(self.attributeEdit.text())
-        if True: # XXX in this moment the -i argument is not optional
+        if True:  # XXX in this moment the -i argument is not optional
             arguments.append("-i")
-            arguments.append(unicode(self.intervalDSpinBox.value()))
+            arguments.append(str(self.intervalDSpinBox.value()))
+
+        outputFn = self.getOutputFileName()
+        if outputFn:
+            arguments.append("-f")
+            arguments.append(self.outputFormat)
+
         arguments.append(self.getInputFileName())
         arguments.append(self.outSelector.filename())
+
         return arguments
 
     def getInputFileName(self):

@@ -26,10 +26,11 @@ class QgsOgrLayerItem : public QgsLayerItem
     QgsOgrLayerItem( QgsDataItem* parent, QString name, QString path, QString uri, LayerType layerType );
     ~QgsOgrLayerItem();
 
-    bool setCrs( QgsCoordinateReferenceSystem crs ) override;
-    Capability capabilities() override;
+    bool setCrs( const QgsCoordinateReferenceSystem& crs ) override;
+
     QString layerName() const override;
 };
+
 
 class QgsOgrDataCollectionItem : public QgsDataCollectionItem
 {

@@ -28,8 +28,9 @@ __revision__ = '$Format:%H$'
 import os
 import stat
 import subprocess
+import time
 
-from PyQt4.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import QgsApplication
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
@@ -47,7 +48,7 @@ def sagaBatchJobFilename():
     else:
         filename = 'saga_batch_job.sh'
 
-    batchfile = userFolder() + os.sep + filename
+    batchfile = os.path.join(userFolder(), filename)
 
     return batchfile
 
@@ -87,17 +88,20 @@ def createSagaBatchJobFileFromSagaCommands(commands):
     fout = open(sagaBatchJobFilename(), 'w')
     if isWindows():
         fout.write('set SAGA=' + sagaPath() + '\n')
-        fout.write('set SAGA_MLB=' + sagaPath() + os.sep
-                   + 'modules' + '\n')
-        fout.write('PATH=PATH;%SAGA%;%SAGA_MLB%\n')
+        fout.write('set SAGA_MLB=' + os.path.join(sagaPath(), 'modules') + '\n')
+        fout.write('PATH=%PATH%;%SAGA%;%SAGA_MLB%\n')
     elif isMac():
-        fout.write('export SAGA_MLB=' + sagaPath()
-                   + '/../lib/saga\n')
+        fout.write('export SAGA_MLB=' + os.path.join(sagaPath(), '../lib/saga') + '\n')
         fout.write('export PATH=' + sagaPath() + ':$PATH\n')
     else:
         pass
     for command in commands:
-        fout.write('saga_cmd ' + command.encode('utf8') + '\n')
+        try:
+            # Python 2
+            fout.write('saga_cmd ' + command.encode('utf8') + '\n')
+        except TypeError:
+            # Python 3
+            fout.write('saga_cmd ' + command + '\n')
 
     fout.write('exit')
     fout.close()
@@ -133,6 +137,8 @@ def getSagaInstalledVersion(runSaga=False):
             stderr=subprocess.STDOUT,
             universal_newlines=True,
         ).stdout
+        if isMac():  # This trick avoids having an uninterrupted system call exception if SAGA is not installed
+            time.sleep(1)
         try:
             lines = proc.readlines()
             for line in lines:

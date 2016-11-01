@@ -23,12 +23,12 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL, QFileInfo, QTextCodec
-from PyQt4.QtGui import QWidget, QMessageBox, QErrorMessage
+from qgis.PyQt.QtCore import QFileInfo, QTextCodec
+from qgis.PyQt.QtWidgets import QWidget, QMessageBox, QErrorMessage
 
-from ui_widgetRasterize import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetRasterize import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -51,18 +51,18 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.lastEncoding = Utils.getLastUsedEncoding()
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.attributeComboBox, SIGNAL("currentIndexChanged(int)")),
-            ([self.widthSpin, self.heightSpin], SIGNAL("valueChanged(int)")),
-            ([self.horizresSpin, self.vertresSpin], SIGNAL("valueChanged(double)"))
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.attributeComboBox, "currentIndexChanged"),
+            ([self.widthSpin, self.heightSpin], "valueChanged"),
+            ([self.horizresSpin, self.vertresSpin], "valueChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
-        self.connect(self.inSelector, SIGNAL("layerChanged()"), self.fillFieldsCombo)
-        self.connect(self.radioSetSize, SIGNAL("toggled(bool)"), self.someValueChanged)
-        self.connect(self.radioSetResolution, SIGNAL("toggled(bool)"), self.someValueChanged)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
+        self.inSelector.layerChanged.connect(self.fillFieldsCombo)
+        self.radioSetSize.toggled.connect(self.someValueChanged)
+        self.radioSetResolution.toggled.connect(self.someValueChanged)
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getVectorLayers())
@@ -153,6 +153,10 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
             self.inSelector.setLayer(None)
             return
 
-        ncodec = QTextCodec.codecForName(self.lastEncoding)
+        # GDAL Python3 bindings return fields as str and not bytes
+        # so no recoding is needed. But this assumes that the underlying
+        # OGR driver always return a Unicode string. hum...
+        #ncodec = QTextCodec.codecForName(self.lastEncoding)
         for name in names:
-            self.attributeComboBox.addItem(ncodec.toUnicode(name))
+            self.attributeComboBox.addItem(name)
+            #self.attributeComboBox.addItem(ncodec.toUnicode(name))

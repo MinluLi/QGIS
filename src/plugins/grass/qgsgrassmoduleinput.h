@@ -64,14 +64,14 @@ class QgsGrassModuleInputModel : public QStandardItemModel
     explicit QgsGrassModuleInputModel( QObject *parent = 0 );
     ~QgsGrassModuleInputModel();
 
-    /** Get singleton instance of this class. */
+    //! Get singleton instance of this class.
     static QgsGrassModuleInputModel* instance();
 
     QVariant data( const QModelIndex & index, int role = Qt::DisplayRole ) const override;
 
 
   public slots:
-    /** Reload current mapset */
+    //! Reload current mapset
     void reload();
 
     void onMapsetChanged();
@@ -87,7 +87,7 @@ class QgsGrassModuleInputModel : public QStandardItemModel
     void watch( const QString & path );
     QString mLocationPath;
     // mapset watched dirs
-    QStringList watchedDirs() { QStringList l; l << "cellhd" << "vector" << "tgis"; return l; }
+    QStringList watchedDirs() { QStringList l; l << QStringLiteral( "cellhd" ) << QStringLiteral( "vector" ) << QStringLiteral( "tgis" ); return l; }
     // names of
     QStringList locationDirNames();
     QFileSystemWatcher *mWatcher;
@@ -172,6 +172,15 @@ class QgsGrassModuleInputComboBox : public QComboBox
     virtual bool eventFilter( QObject * watched, QEvent * event ) override;
     virtual void showPopup() override;
     virtual void hidePopup() override;
+
+    // set current index
+    void setCurrent( const QModelIndex & proxyIndex );
+
+    // set current item to map/mapset if exists
+    bool setCurrent( const QString &map, const QString &mapset = QString() );
+
+    // set to first map if exists
+    bool setFirst();
 
   protected:
     QgsGrassObject::Type mType;

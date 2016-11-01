@@ -19,12 +19,13 @@
 #define QGSCOMPOSERATTRIBUTETABLEV2_H
 
 #include "qgscomposertablev2.h"
-#include "qgscomposerattributetable.h"
 
 class QgsComposerMap;
 class QgsVectorLayer;
 
-/** Helper class for sorting tables, takes into account sorting column and ascending / descending*/
+/** \ingroup core
+ * Helper class for sorting tables, takes into account sorting column and ascending / descending
+*/
 class CORE_EXPORT QgsComposerAttributeTableCompareV2
 {
   public:
@@ -47,7 +48,9 @@ class CORE_EXPORT QgsComposerAttributeTableCompareV2
 };
 
 
-/** A table that displays attributes from a vector layer*/
+/** \ingroup core
+ * A table that displays attributes from a vector layer
+*/
 class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
 {
     Q_OBJECT
@@ -58,9 +61,9 @@ class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
      */
     enum ContentSource
     {
-      LayerAttributes = 0, /*!< table shows attributes from features in a vector layer */
-      AtlasFeature, /*!< table shows attributes from the current atlas feature */
-      RelationChildren /*!< table shows attributes from related child features */
+      LayerAttributes = 0, //!< Table shows attributes from features in a vector layer
+      AtlasFeature, //!< Table shows attributes from the current atlas feature
+      RelationChildren //!< Table shows attributes from related child features
     };
 
     QgsComposerAttributeTableV2( QgsComposition* composition, bool createUndoCommands );
@@ -72,17 +75,17 @@ class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
      * @param elem an existing QDomElement in which to store the attribute table's properties.
      * @param doc QDomDocument for the destination xml.
      * @param ignoreFrames ignore frames
-     * @see readXML
+     * @see readXml
      */
-    virtual bool writeXML( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const override;
+    virtual bool writeXml( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const override;
 
     /** Reads the properties specific to an attribute table from xml.
      * @param itemElem a QDomElement holding the attribute table's desired properties.
      * @param doc QDomDocument for the source xml.
      * @param ignoreFrames ignore frames
-     * @see writeXML
+     * @see writeXml
      */
-    virtual bool readXML( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) override;
+    virtual bool readXml( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) override;
 
     virtual void addFrame( QgsComposerFrame* frame, bool recalcFrameSizes = true ) override;
 
@@ -253,14 +256,14 @@ class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
     void setFeatureFilter( const QString& expression );
 
     /** Sets the attributes to display in the table.
-     * @param attr QSet of integer values refering to the attributes from the vector layer to show.
-     * Set to an empty QSet to show all feature attributes.
+     * @param fields list of fields names from the vector layer to show.
+     * Set to an empty list to show all feature attributes.
      * @param refresh set to true to force the table to refetch features from its vector layer
      * and immediately update the display of the table. This may result in the table changing size
      * to accommodate the new displayed feature attributes.
-     * @see displayAttributes
+     * @note added in QGIS 2.16
      */
-    void setDisplayAttributes( const QSet<int>& attr, bool refresh = true );
+    void setDisplayedFields( const QStringList& fields, bool refresh = true );
 
     /** Returns the attributes used to sort the table's features.
      * @returns a QList of integer/bool pairs, where the integer refers to the attribute index and
@@ -293,37 +296,37 @@ class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
      */
     bool getTableContents( QgsComposerTableContents &contents ) override;
 
-    virtual QgsExpressionContext* createExpressionContext() const override;
+    virtual QgsExpressionContext createExpressionContext() const override;
 
   private:
 
-    /** Attribute source*/
+    //! Attribute source
     ContentSource mSource;
-    /** Associated vector layer*/
+    //! Associated vector layer
     QgsVectorLayer* mVectorLayer;
-    /** Relation id, if in relation children mode*/
+    //! Relation id, if in relation children mode
     QString mRelationId;
 
-    /** Current vector layer, if in atlas feature mode*/
+    //! Current vector layer, if in atlas feature mode
     QgsVectorLayer* mCurrentAtlasLayer;
 
-    /** Associated composer map (used to display the visible features)*/
+    //! Associated composer map (used to display the visible features)
     const QgsComposerMap* mComposerMap;
-    /** Maximum number of features that is displayed*/
+    //! Maximum number of features that is displayed
     int mMaximumNumberOfFeatures;
 
-    /** True if only unique rows should be shown*/
+    //! True if only unique rows should be shown
     bool mShowUniqueRowsOnly;
 
-    /** Shows only the features that are visible in the associated composer map (true by default)*/
+    //! Shows only the features that are visible in the associated composer map (true by default)
     bool mShowOnlyVisibleFeatures;
 
-    /** Shows only the features that intersect the current atlas feature*/
+    //! Shows only the features that intersect the current atlas feature
     bool mFilterToAtlasIntersection;
 
-    /** True if feature filtering enabled*/
+    //! True if feature filtering enabled
     bool mFilterFeatures;
-    /** Feature filter expression*/
+    //! Feature filter expression
     QString mFeatureFilter;
 
     QString mWrapString;
@@ -339,13 +342,13 @@ class CORE_EXPORT QgsComposerAttributeTableV2: public QgsComposerTableV2
      */
     void restoreFieldAliasMap( const QMap<int, QString>& map );
 
-    /** Replaces occurences of the wrap character with line breaks.
+    /** Replaces occurrences of the wrap character with line breaks.
      * @param variant input cell contents
      */
     QVariant replaceWrapChar( const QVariant &variant ) const;
 
   private slots:
-    /** Checks if this vector layer will be removed (and sets mVectorLayer to 0 if yes) */
+    //! Checks if this vector layer will be removed (and sets mVectorLayer to 0 if yes)
     void removeLayer( const QString& layerId );
 
     void atlasLayerChanged( QgsVectorLayer* layer );

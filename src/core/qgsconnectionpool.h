@@ -25,13 +25,13 @@
 #include <QTimer>
 #include <QThread>
 
-#include "qgslogger.h"
 
 #define CONN_POOL_MAX_CONCURRENT_CONNS      4
 #define CONN_POOL_EXPIRATION_TIME           60    // in seconds
 
 
-/** Template that stores data related to one server.
+/** \ingroup core
+ * Template that stores data related to one server.
  *
  * It is assumed that following functions exist:
  * - void qgsConnectionPool_ConnectionCreate(QString name, T& c)  ... create a new connection
@@ -48,6 +48,7 @@
  * - having startExpirationTimer(), stopExpirationTimer() slots to start/stop the expiration timer
  *
  * For an example on how to use the template class, have a look at the implementation in postgres/spatialite providers.
+ * \note not available in Python bindings
  */
 template <typename T>
 class QgsConnectionPoolGroup
@@ -65,7 +66,7 @@ class QgsConnectionPoolGroup
     QgsConnectionPoolGroup( const QString& ci )
         : connInfo( ci )
         , sem( CONN_POOL_MAX_CONCURRENT_CONNS )
-        , expirationTimer( 0 )
+        , expirationTimer( nullptr )
     {
     }
 
@@ -114,7 +115,7 @@ class QgsConnectionPoolGroup
       {
         // we didn't get connection for some reason, so release the lock
         sem.release();
-        return 0;
+        return nullptr;
       }
 
       connMutex.lock();
@@ -127,15 +128,22 @@ class QgsConnectionPoolGroup
     {
       connMutex.lock();
       acquiredConns.removeAll( conn );
-      Item i;
-      i.c = conn;
-      i.lastUsedTime = QTime::currentTime();
-      conns.push( i );
-
-      if ( !expirationTimer->isActive() )
+      if ( !qgsConnectionPool_ConnectionIsValid( conn ) )
       {
-        // will call the slot directly or queue the call (if the object lives in a different thread)
-        QMetaObject::invokeMethod( expirationTimer->parent(), "startExpirationTimer" );
+        qgsConnectionPool_ConnectionDestroy( conn );
+      }
+      else
+      {
+        Item i;
+        i.c = conn;
+        i.lastUsedTime = QTime::currentTime();
+        conns.push( i );
+
+        if ( !expirationTimer->isActive() )
+        {
+          // will call the slot directly or queue the call (if the object lives in a different thread)
+          QMetaObject::invokeMethod( expirationTimer->parent(), "startExpirationTimer" );
+        }
       }
 
       connMutex.unlock();
@@ -148,8 +156,9 @@ class QgsConnectionPoolGroup
       connMutex.lock();
       Q_FOREACH ( Item i, conns )
       {
-        qgsConnectionPool_InvalidateConnection( i.c );
+        qgsConnectionPool_ConnectionDestroy( i.c );
       }
+      conns.clear();
       Q_FOREACH ( T c, acquiredConns )
         qgsConnectionPool_InvalidateConnection( c );
       connMutex.unlock();
@@ -204,10 +213,16 @@ class QgsConnectionPoolGroup
     QMutex connMutex;
     QSemaphore sem;
     QTimer* expirationTimer;
+
+  private:
+
+    QgsConnectionPoolGroup( const QgsConnectionPoolGroup& other );
+    QgsConnectionPoolGroup& operator=( const QgsConnectionPoolGroup& other );
+
 };
 
 
-/**
+/** \ingroup core
  * Template class responsible for keeping a pool of open connections.
  * This is desired to avoid the overhead of creation of new connection everytime.
  *
@@ -220,7 +235,7 @@ class QgsConnectionPoolGroup
  *
  * When the connections are not used for some time, they will get closed automatically
  * to save resources.
- *
+ * \note not available in Python bindings
  */
 template <typename T, typename T_Group>
 class QgsConnectionPool

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,6 +26,9 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
 
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 
@@ -37,6 +41,8 @@ from processing.tools.system import isWindows
 
 from processing.algs.gdal.GdalUtils import GdalUtils
 
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
+
 
 class sieve(GdalAlgorithm):
 
@@ -46,6 +52,9 @@ class sieve(GdalAlgorithm):
     OUTPUT = 'OUTPUT'
 
     PIXEL_CONNECTIONS = ['4', '8']
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'sieve.png'))
 
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Sieve')
@@ -63,7 +72,7 @@ class sieve(GdalAlgorithm):
 
         arguments = []
         arguments.append('-st')
-        arguments.append(unicode(self.getParameterValue(self.THRESHOLD)))
+        arguments.append(str(self.getParameterValue(self.THRESHOLD)))
 
         arguments.append('-' +
                          self.PIXEL_CONNECTIONS[self.getParameterValue(

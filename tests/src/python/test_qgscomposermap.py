@@ -12,38 +12,35 @@ __copyright__ = 'Copyright 2012, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-import qgis
+import qgis  # NOQA
+
 import os
 
-from PyQt4.QtCore import QFileInfo
-from PyQt4.QtXml import QDomDocument
-from PyQt4.QtGui import QPainter
+from qgis.PyQt.QtCore import QFileInfo
+from qgis.PyQt.QtXml import QDomDocument
+from qgis.PyQt.QtGui import QPainter
 
 from qgis.core import (QgsComposerMap,
                        QgsRectangle,
                        QgsRasterLayer,
                        QgsComposition,
-                       QgsMapRenderer,
+                       QgsMapSettings,
                        QgsMapLayerRegistry,
                        QgsMultiBandColorRenderer,
                        )
 
-from utilities import (unitTestDataPath,
-                       getQgisTestApp,
-                       TestCase,
-                       unittest,
-                       expectedFailure
-                       )
+from qgis.testing import start_app, unittest
+from utilities import unitTestDataPath
 from qgscompositionchecker import QgsCompositionChecker
 
-QGISAPP, CANVAS, IFACE, PARENT = getQgisTestApp()
+start_app()
 TEST_DATA_DIR = unitTestDataPath()
 
 
-class TestQgsComposerMap(TestCase):
+class TestQgsComposerMap(unittest.TestCase):
 
     def __init__(self, methodName):
-        """Run once on class initialisation."""
+        """Run once on class initialization."""
         unittest.TestCase.__init__(self, methodName)
         myPath = os.path.join(TEST_DATA_DIR, 'rgb256x256.png')
         rasterFileInfo = QFileInfo(myPath)
@@ -57,12 +54,10 @@ class TestQgsComposerMap(TestCase):
         QgsMapLayerRegistry.instance().addMapLayers([mRasterLayer])
 
         # create composition with composer map
-        self.mMapRenderer = QgsMapRenderer()
-        layerStringList = []
-        layerStringList.append(mRasterLayer.id())
-        self.mMapRenderer.setLayerSet(layerStringList)
-        self.mMapRenderer.setProjectionsEnabled(False)
-        self.mComposition = QgsComposition(self.mMapRenderer)
+        self.mMapSettings = QgsMapSettings()
+        self.mMapSettings.setLayers([mRasterLayer.id()])
+        self.mMapSettings.setCrsTransformEnabled(False)
+        self.mComposition = QgsComposition(self.mMapSettings)
         self.mComposition.setPaperSize(297, 210)
         self.mComposerMap = QgsComposerMap(self.mComposition, 20, 20, 200, 100)
         self.mComposerMap.setFrameEnabled(True)
@@ -77,7 +72,7 @@ class TestQgsComposerMap(TestCase):
         self.mComposerMap.setNewExtent(myRectangle)
         myRectangle2 = QgsRectangle(0, -256, 256, 0)
         overviewMap.setNewExtent(myRectangle2)
-        overviewMap.setOverviewFrameMap(self.mComposerMap.id())
+        overviewMap.overview().setFrameMap(self.mComposerMap.id())
         checker = QgsCompositionChecker('composermap_overview', self.mComposition)
         checker.setControlPathPrefix("composer_mapoverview")
         myTestResult, myMessage = checker.testComposition()
@@ -93,8 +88,8 @@ class TestQgsComposerMap(TestCase):
         self.mComposerMap.setNewExtent(myRectangle)
         myRectangle2 = QgsRectangle(0, -256, 256, 0)
         overviewMap.setNewExtent(myRectangle2)
-        overviewMap.setOverviewFrameMap(self.mComposerMap.id())
-        overviewMap.setOverviewBlendMode(QPainter.CompositionMode_Multiply)
+        overviewMap.overview().setFrameMap(self.mComposerMap.id())
+        overviewMap.overview().setBlendMode(QPainter.CompositionMode_Multiply)
         checker = QgsCompositionChecker('composermap_overview_blending', self.mComposition)
         checker.setControlPathPrefix("composer_mapoverview")
         myTestResult, myMessage = checker.testComposition()
@@ -110,8 +105,8 @@ class TestQgsComposerMap(TestCase):
         self.mComposerMap.setNewExtent(myRectangle)
         myRectangle2 = QgsRectangle(0, -256, 256, 0)
         overviewMap.setNewExtent(myRectangle2)
-        overviewMap.setOverviewFrameMap(self.mComposerMap.id())
-        overviewMap.setOverviewInverted(True)
+        overviewMap.overview().setFrameMap(self.mComposerMap.id())
+        overviewMap.overview().setInverted(True)
         checker = QgsCompositionChecker('composermap_overview_invert', self.mComposition)
         checker.setControlPathPrefix("composer_mapoverview")
         myTestResult, myMessage = checker.testComposition()
@@ -127,24 +122,24 @@ class TestQgsComposerMap(TestCase):
         self.mComposerMap.setNewExtent(myRectangle)
         myRectangle2 = QgsRectangle(0, -256, 256, 0)
         overviewMap.setNewExtent(myRectangle2)
-        overviewMap.setOverviewFrameMap(self.mComposerMap.id())
-        overviewMap.setOverviewInverted(False)
-        overviewMap.setOverviewCentered(True)
+        overviewMap.overview().setFrameMap(self.mComposerMap.id())
+        overviewMap.overview().setInverted(False)
+        overviewMap.overview().setCentered(True)
         checker = QgsCompositionChecker('composermap_overview_center', self.mComposition)
         checker.setControlPathPrefix("composer_mapoverview")
         myTestResult, myMessage = checker.testComposition()
         self.mComposition.removeComposerItem(overviewMap)
         assert myTestResult, myMessage
 
-    # Fails because addItemsFromXML has been commented out in sip
-    @expectedFailure
+    # Fails because addItemsFromXml has been commented out in sip
+    @unittest.expectedFailure
     def testuniqueId(self):
         doc = QDomDocument()
         documentElement = doc.createElement('ComposerItemClipboard')
-        self.mComposition.writeXML(documentElement, doc)
-        self.mComposition.addItemsFromXML(documentElement, doc, 0, False)
+        self.mComposition.writeXml(documentElement, doc)
+        self.mComposition.addItemsFromXml(documentElement, doc, 0, False)
 
-        #test if both composer maps have different ids
+        # test if both composer maps have different ids
         newMap = QgsComposerMap()
         mapList = self.mComposition.composerMapItems()
 

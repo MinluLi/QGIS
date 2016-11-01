@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'September 2013'
@@ -27,18 +28,26 @@ __revision__ = '$Format:%H$'
 
 import os
 
+from qgis.PyQt.QtGui import QIcon
+
 from processing.core.parameters import ParameterVector
+from processing.core.parameters import ParameterExtent
 from processing.core.parameters import ParameterTableField
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterString
 from processing.core.outputs import OutputRaster
-from processing.algs.gdal.OgrAlgorithm import OgrAlgorithm
+
+from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.algs.gdal.GdalUtils import GdalUtils
 
+from processing.tools.vector import ogrConnectionString, ogrLayerName
 
-class rasterize(OgrAlgorithm):
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
+
+
+class rasterize(GdalAlgorithm):
 
     INPUT = 'INPUT'
     FIELD = 'FIELD'
@@ -59,6 +68,10 @@ class rasterize(OgrAlgorithm):
     BIGTIFFTYPE = ['', 'YES', 'NO', 'IF_NEEDED', 'IF_SAFER']
     COMPRESSTYPE = ['NONE', 'JPEG', 'LZW', 'PACKBITS', 'DEFLATE']
     TFW = 'TFW'
+    RAST_EXT = 'RAST_EXT'
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'rasterize.png'))
 
     def commandLineName(self):
         return "gdalogr:rasterize"
@@ -76,13 +89,14 @@ class rasterize(OgrAlgorithm):
                                           self.tr('Horizontal'), 0.0, 99999999.999999, 100.0))
         self.addParameter(ParameterNumber(self.HEIGHT,
                                           self.tr('Vertical'), 0.0, 99999999.999999, 100.0))
+        self.addParameter(ParameterExtent(self.RAST_EXT, self.tr('Raster extent')))
 
         params = []
         params.append(ParameterSelection(self.RTYPE, self.tr('Raster type'),
                                          self.TYPE, 5))
         params.append(ParameterString(self.NO_DATA,
                                       self.tr("Nodata value"),
-                                      '-9999'))
+                                      '', optional=True))
         params.append(ParameterSelection(self.COMPRESS,
                                          self.tr('GeoTIFF options. Compression type:'), self.COMPRESSTYPE, 4))
         params.append(ParameterNumber(self.JPEGCOMPRESSION,
@@ -112,37 +126,58 @@ class rasterize(OgrAlgorithm):
 
     def getConsoleCommands(self):
         inLayer = self.getParameterValue(self.INPUT)
-        ogrLayer = self.ogrConnectionString(inLayer)[1:-1]
-        noData = unicode(self.getParameterValue(self.NO_DATA))
-        jpegcompression = unicode(self.getParameterValue(self.JPEGCOMPRESSION))
-        predictor = unicode(self.getParameterValue(self.PREDICTOR))
-        zlevel = unicode(self.getParameterValue(self.ZLEVEL))
-        tiled = unicode(self.getParameterValue(self.TILED))
+        ogrLayer = ogrConnectionString(inLayer)[1:-1]
+        noData = self.getParameterValue(self.NO_DATA)
+        if noData is not None:
+            noData = str(noData)
+        jpegcompression = str(self.getParameterValue(self.JPEGCOMPRESSION))
+        predictor = str(self.getParameterValue(self.PREDICTOR))
+        zlevel = str(self.getParameterValue(self.ZLEVEL))
+        tiled = str(self.getParameterValue(self.TILED))
         compress = self.COMPRESSTYPE[self.getParameterValue(self.COMPRESS)]
         bigtiff = self.BIGTIFFTYPE[self.getParameterValue(self.BIGTIFF)]
-        tfw = unicode(self.getParameterValue(self.TFW))
+        tfw = str(self.getParameterValue(self.TFW))
         out = self.getOutputValue(self.OUTPUT)
-        extra = unicode(self.getParameterValue(self.EXTRA))
+        extra = self.getParameterValue(self.EXTRA)
+        if extra is not None:
+            extra = str(extra)
+        rastext = str(self.getParameterValue(self.RAST_EXT))
 
         arguments = []
         arguments.append('-a')
-        arguments.append(unicode(self.getParameterValue(self.FIELD)))
+        arguments.append(str(self.getParameterValue(self.FIELD)))
 
         arguments.append('-ot')
         arguments.append(self.TYPE[self.getParameterValue(self.RTYPE)])
         dimType = self.getParameterValue(self.DIMENSIONS)
+        arguments.append('-of')
+        arguments.append(GdalUtils.getFormatShortNameFromFilename(out))
+
+        regionCoords = rastext.split(',')
+        try:
+            rastext = []
+            rastext.append('-te')
+            rastext.append(regionCoords[0])
+            rastext.append(regionCoords[2])
+            rastext.append(regionCoords[1])
+            rastext.append(regionCoords[3])
+        except IndexError:
+            rastext = []
+        if rastext:
+            arguments.extend(rastext)
+
         if dimType == 0:
             # size in pixels
             arguments.append('-ts')
-            arguments.append(unicode(self.getParameterValue(self.WIDTH)))
-            arguments.append(unicode(self.getParameterValue(self.HEIGHT)))
+            arguments.append(str(self.getParameterValue(self.WIDTH)))
+            arguments.append(str(self.getParameterValue(self.HEIGHT)))
         else:
             # resolution in map units per pixel
             arguments.append('-tr')
-            arguments.append(unicode(self.getParameterValue(self.WIDTH)))
-            arguments.append(unicode(self.getParameterValue(self.HEIGHT)))
+            arguments.append(str(self.getParameterValue(self.WIDTH)))
+            arguments.append(str(self.getParameterValue(self.HEIGHT)))
 
-        if len(noData) > 0:
+        if noData and len(noData) > 0:
             arguments.append('-a_nodata')
             arguments.append(noData)
 
@@ -160,12 +195,12 @@ class rasterize(OgrAlgorithm):
                 arguments.append("-co TFW=YES")
             if len(bigtiff) > 0:
                 arguments.append("-co BIGTIFF=" + bigtiff)
-        if len(extra) > 0:
+        if extra and len(extra) > 0:
             arguments.append(extra)
         arguments.append('-l')
 
-        arguments.append(self.ogrLayerName(inLayer))
+        arguments.append(ogrLayerName(inLayer))
         arguments.append(ogrLayer)
 
-        arguments.append(unicode(self.getOutputValue(self.OUTPUT)))
+        arguments.append(str(self.getOutputValue(self.OUTPUT)))
         return ['gdal_rasterize', GdalUtils.escapeAndJoin(arguments)]

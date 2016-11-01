@@ -22,7 +22,7 @@
 #include <QColor>
 #include <QtCore/qmath.h>
 
-class QgsVectorColorRampV2;
+class QgsColorRamp;
 
 /** \ingroup core
  * \class QgsImageOperation
@@ -44,27 +44,27 @@ class CORE_EXPORT QgsImageOperation
   public:
 
     /** Modes for converting a QImage to grayscale
-    */
+     */
     enum GrayscaleMode
     {
-      GrayscaleLightness, /*!< keep the lightness of the color, drops the saturation */
-      GrayscaleLuminosity, /*!< grayscale by perceptual luminosity (weighted sum of color RGB components) */
-      GrayscaleAverage, /*!< grayscale by taking average of color RGB components */
-      GrayscaleOff /*!< no change */
+      GrayscaleLightness, //!< Keep the lightness of the color, drops the saturation
+      GrayscaleLuminosity, //!< Grayscale by perceptual luminosity (weighted sum of color RGB components)
+      GrayscaleAverage, //!< Grayscale by taking average of color RGB components
+      GrayscaleOff //!< No change
     };
 
     /** Flip operation types
-    */
+     */
     enum FlipType
     {
-      FlipHorizontal, /*!< flip the image horizontally */
-      FlipVertical /*!< flip the image vertically */
+      FlipHorizontal, //!< Flip the image horizontally
+      FlipVertical //!< Flip the image vertically
     };
 
     /** Convert a QImage to a grayscale image. Alpha channel is preserved.
      * @param image QImage to convert
      * @param mode mode to use during grayscale conversion
-    */
+     */
     static void convertToGrayscale( QImage &image, const GrayscaleMode mode = GrayscaleLuminosity );
 
     /** Alter the brightness or contrast of a QImage.
@@ -101,14 +101,14 @@ class CORE_EXPORT QgsImageOperation
      */
     static void overlayColor( QImage &image, const QColor& color );
 
-    /** Struct for storing properties of a distance transform operation*/
+    //! Struct for storing properties of a distance transform operation
     struct DistanceTransformProperties
     {
       DistanceTransformProperties()
           : shadeExterior( true )
           , useMaxDistance( true )
           , spread( 10.0 )
-          , ramp( NULL )
+          , ramp( nullptr )
       { }
 
       /** Set to true to perform the distance transform on transparent pixels
@@ -126,7 +126,7 @@ class CORE_EXPORT QgsImageOperation
       double spread;
       /** Color ramp to use for shading the distance transform
        */
-      QgsVectorColorRampV2* ramp;
+      QgsColorRamp* ramp;
     };
 
     /** Performs a distance transform on the source image and shades the result
@@ -171,7 +171,7 @@ class CORE_EXPORT QgsImageOperation
      * @note added in QGIS 2.9
      * @see cropTransparent
      */
-    static QRect nonTransparentImageRect( const QImage & image, const QSize& minSize = QSize(), bool center = false );
+    static QRect nonTransparentImageRect( const QImage & image, QSize minSize = QSize(), bool center = false );
 
     /** Crop any transparent border from around an image.
      * @param image source image
@@ -181,7 +181,7 @@ class CORE_EXPORT QgsImageOperation
      * @param center cropped image will be centered on the center of the original image if set to true
      * @note added in QGIS 2.9
      */
-    static QImage cropTransparent( const QImage & image, const QSize& minSize = QSize(), bool center = false );
+    static QImage cropTransparent( const QImage & image, QSize minSize = QSize(), bool center = false );
 
   private:
 
@@ -219,7 +219,7 @@ class CORE_EXPORT QgsImageOperation
       {
         for ( unsigned int y = block.beginLine; y < block.endLine; ++y )
         {
-          QRgb* ref = ( QRgb* )block.image->scanLine( y );
+          QRgb* ref = reinterpret_cast< QRgb* >( block.image->scanLine( y ) );
           for ( unsigned int x = 0; x < block.lineLength; ++x )
           {
             mOperation( ref[x], x, y );
@@ -249,7 +249,7 @@ class CORE_EXPORT QgsImageOperation
         {
           for ( unsigned int y = block.beginLine; y < block.endLine; ++y )
           {
-            QRgb* ref = ( QRgb* )block.image->scanLine( y );
+            QRgb* ref = reinterpret_cast< QRgb* >( block.image->scanLine( y ) );
             mOperation( ref, block.lineLength, bpl );
           }
         }
@@ -259,7 +259,7 @@ class CORE_EXPORT QgsImageOperation
           unsigned char* ref = block.image->scanLine( 0 ) + 4 * block.beginLine;
           for ( unsigned int x = block.beginLine; x < block.endLine; ++x, ref += 4 )
           {
-            mOperation(( QRgb* )ref, block.lineLength, bpl );
+            mOperation( reinterpret_cast< QRgb* >( ref ), block.lineLength, bpl );
           }
         }
       }

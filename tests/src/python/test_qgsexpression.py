@@ -12,13 +12,14 @@ __copyright__ = 'Copyright 2012, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-import qgis
-from utilities import unittest, TestCase
+import qgis  # NOQA
+
+from qgis.testing import unittest
 from qgis.utils import qgsfunction
-from qgis.core import QgsExpression
+from qgis.core import QgsExpression, QgsFeatureRequest
 
 
-class TestQgsExpressionCustomFunctions(TestCase):
+class TestQgsExpressionCustomFunctions(unittest.TestCase):
 
     @qgsfunction(1, 'testing', register=False)
     def testfun(values, feature, parent):
@@ -27,11 +28,11 @@ class TestQgsExpressionCustomFunctions(TestCase):
 
     @qgsfunction(args="auto", group='testing', register=False)
     def autocount(value1, value2, value3, feature, parent):
-                pass
+        pass
 
     @qgsfunction(args="auto", group='testing', register=False)
     def expandargs(value1, value2, value3, feature, parent):
-                return value1, value2, value3
+        return value1, value2, value3
 
     @qgsfunction(args=0, group='testing', register=False)
     def special(values, feature, parent):
@@ -44,6 +45,14 @@ class TestQgsExpressionCustomFunctions(TestCase):
     @qgsfunction(1, 'testing', register=False, usesgeometry=True)
     def geomtest(values, feature, parent):
         pass
+
+    @qgsfunction(args=0, group='testing', register=False)
+    def no_referenced_columns_set(values, feature, parent):
+        return 1
+
+    @qgsfunction(args=0, group='testing', register=False, referenced_columns=['a', 'b'])
+    def referenced_columns_set(values, feature, parent):
+        return 2
 
     def tearDown(self):
         QgsExpression.unregisterFunction('testfun')
@@ -117,6 +126,17 @@ class TestQgsExpressionCustomFunctions(TestCase):
         success = QgsExpression.registerFunction(self.geomtest)
         self.assertTrue(success)
 
+    def testReferencedColumnsNoSet(self):
+        success = QgsExpression.registerFunction(self.no_referenced_columns_set)
+        exp = QgsExpression('no_referenced_columns_set()')
+        self.assertEqual(exp.referencedColumns(),
+                         {QgsFeatureRequest.AllAttributes})
+
+    def testReferencedColumnsSet(self):
+        success = QgsExpression.registerFunction(self.referenced_columns_set)
+        exp = QgsExpression('referenced_columns_set()')
+        self.assertEqual(set(exp.referencedColumns()), set(['a', 'b']))
+
     def testCantOverrideBuiltinsWithUnregister(self):
         success = QgsExpression.unregisterFunction("sqrt")
         self.assertFalse(success)
@@ -124,7 +144,7 @@ class TestQgsExpressionCustomFunctions(TestCase):
     def testDump(self):
         for txt in [
             "id",
-            u"idä",
+            "idä",
             "\"id abc\"",
             "\"id	abc\"",
             "  abc   ",
@@ -149,7 +169,7 @@ class TestQgsExpressionCustomFunctions(TestCase):
             comment
             **/""": 'test*/'
         }
-        for e, exp_res in expressions.iteritems():
+        for e, exp_res in list(expressions.items()):
             exp = QgsExpression(e)
             result = exp.evaluate()
             self.assertEqual(exp_res, result)
@@ -163,10 +183,18 @@ class TestQgsExpressionCustomFunctions(TestCase):
             "'test--'": 'test--',
             "'--test'": '--test',
         }
-        for e, exp_res in expressions.iteritems():
+        for e, exp_res in list(expressions.items()):
             exp = QgsExpression(e)
             result = exp.evaluate()
             self.assertEqual(exp_res, result)
+
+    def testValid(self):
+        e = QgsExpression()
+        self.assertFalse(e.isValid())
+        e.setExpression('asdf||#@¼')
+        self.assertFalse(e.isValid())
+        e.setExpression('1')
+        self.assertTrue(e.isValid())
 
 if __name__ == "__main__":
     unittest.main()

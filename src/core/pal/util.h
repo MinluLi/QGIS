@@ -30,10 +30,7 @@
 #ifndef PAL_UTIL_H
 #define PAL_UTIL_H
 
-#include "pal.h"
-#include "rtree.hpp"
-#include "pointset.h"
-#include "qgsgeometry.h"
+#include <QList>
 
 namespace pal
 {
@@ -42,9 +39,8 @@ namespace pal
   class Layer;
   class FeaturePart;
 
-  QLinkedList<const GEOSGeometry*> * unmulti( const GEOSGeometry* the_geom );
-
   /**
+   * \ingroup core
    * \brief For usage in problem solving algorithm
    * \note not available in Python bindings
    */
@@ -52,8 +48,8 @@ namespace pal
   {
     public:
       Feats()
-          : feature( 0 )
-          , shape( 0 )
+          : feature( nullptr )
+          , shape( nullptr )
           , priority( 0 )
       {}
 
@@ -79,13 +75,27 @@ namespace pal
 #define EPSILON 1e-9
 
   /**
-   * \brief Sort an array of pointers
-   * \param items arays of pointers to sort
-   * \param N number of items
-   * \param greater function to compare two items
-   **/
-  void sort( void** items, int N, bool ( *greater )( void *l, void *r ) );
+   * \class pal::Util
+   * \note not available in Python bindings
+   * \ingroup core
+   */
+  class Util
+  {
+    public:
+      /**
+       * \brief Sort an array of pointers
+       * \param items arays of pointers to sort
+       * \param N number of items
+       * \param greater function to compare two items
+       **/
+      static void sort( void** items, int N, bool ( *greater )( void *l, void *r ) );
+
+      static QLinkedList<const GEOSGeometry*>* unmulti( const GEOSGeometry* the_geom );
+  };
+
 
 } // namespace
+
+Q_DECLARE_TYPEINFO( pal::Point, Q_PRIMITIVE_TYPE );
 
 #endif

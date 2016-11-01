@@ -28,22 +28,26 @@
 // QgsVector
 //
 
-QgsVector::QgsVector() : m_x( 0.0 ), m_y( 0.0 )
+QgsVector::QgsVector()
+    : mX( 0.0 )
+    , mY( 0.0 )
 {
 }
 
-QgsVector::QgsVector( double x, double y ) : m_x( x ), m_y( y )
+QgsVector::QgsVector( double x, double y )
+    : mX( x )
+    , mY( y )
 {
 }
 
-QgsVector QgsVector::operator-( void ) const
+QgsVector QgsVector::operator-() const
 {
-  return QgsVector( -m_x, -m_y );
+  return QgsVector( -mX, -mY );
 }
 
 QgsVector QgsVector::operator*( double scalar ) const
 {
-  return QgsVector( m_x * scalar, m_y * scalar );
+  return QgsVector( mX * scalar, mY * scalar );
 }
 
 QgsVector QgsVector::operator/( double scalar ) const
@@ -53,33 +57,32 @@ QgsVector QgsVector::operator/( double scalar ) const
 
 double QgsVector::operator*( QgsVector v ) const
 {
-  return m_x * v.m_x + m_y * v.m_y;
+  return mX * v.mX + mY * v.mY;
 }
 
 double QgsVector::length() const
 {
-  return sqrt( m_x * m_x + m_y * m_y );
+  return sqrt( mX * mX + mY * mY );
 }
 
 double QgsVector::x() const
 {
-  return m_x;
+  return mX;
 }
 
 double QgsVector::y() const
 {
-  return m_y;
+  return mY;
 }
 
-// perpendicular vector (rotated 90 degrees counter-clockwise)
 QgsVector QgsVector::perpVector() const
 {
-  return QgsVector( -m_y, m_x );
+  return QgsVector( -mY, mX );
 }
 
-double QgsVector::angle( void ) const
+double QgsVector::angle() const
 {
-  double ang = atan2( m_y, m_x );
+  double ang = atan2( mY, mX );
   return ang < 0.0 ? ang + 2.0 * M_PI : ang;
 }
 
@@ -90,18 +93,18 @@ double QgsVector::angle( QgsVector v ) const
 
 QgsVector QgsVector::rotateBy( double rot ) const
 {
-  double ang = atan2( m_y, m_x ) + rot;
+  double ang = atan2( mY, mX ) + rot;
   double len = length();
   return QgsVector( len * cos( ang ), len * sin( ang ) );
 }
 
-QgsVector QgsVector::normal() const
+QgsVector QgsVector::normalized() const
 {
   double len = length();
 
   if ( len == 0.0 )
   {
-    throw QgsException( "normal vector of null vector undefined" );
+    throw QgsException( QStringLiteral( "normalized vector of null vector undefined" ) );
   }
 
   return *this / len;
@@ -136,7 +139,7 @@ QString QgsPoint::toString( int thePrecision ) const
 {
   QString x = qIsFinite( m_x ) ? QString::number( m_x, 'f', thePrecision ) : QObject::tr( "infinite" );
   QString y = qIsFinite( m_y ) ? QString::number( m_y, 'f', thePrecision ) : QObject::tr( "infinite" );
-  return QString( "%1,%2" ).arg( x, y );
+  return QStringLiteral( "%1,%2" ).arg( x, y );
 }
 
 QString QgsPoint::toDegreesMinutesSeconds( int thePrecision, const bool useSuffix, const bool padded ) const
@@ -235,12 +238,12 @@ QString QgsPoint::toDegreesMinutesSeconds( int thePrecision, const bool useSuffi
     myXHemisphere = QString();
   }
   //pad minutes with leading digits if required
-  QString myMinutesX = padded ? QString( "%1" ).arg( myIntMinutesX, 2, 10, QChar( '0' ) ) : QString::number( myIntMinutesX );
-  QString myMinutesY = padded ? QString( "%1" ).arg( myIntMinutesY, 2, 10, QChar( '0' ) ) : QString::number( myIntMinutesY );
+  QString myMinutesX = padded ? QStringLiteral( "%1" ).arg( myIntMinutesX, 2, 10, QChar( '0' ) ) : QString::number( myIntMinutesX );
+  QString myMinutesY = padded ? QStringLiteral( "%1" ).arg( myIntMinutesY, 2, 10, QChar( '0' ) ) : QString::number( myIntMinutesY );
   //pad seconds with leading digits if required
   int digits = 2 + ( thePrecision == 0 ? 0 : 1 + thePrecision ); //1 for decimal place if required
-  QString myStrSecondsX = padded ? QString( "%1" ).arg( mySecondsX, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( mySecondsX, 'f', thePrecision );
-  QString myStrSecondsY = padded ? QString( "%1" ).arg( mySecondsY, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( mySecondsY, 'f', thePrecision );
+  QString myStrSecondsX = padded ? QStringLiteral( "%1" ).arg( mySecondsX, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( mySecondsX, 'f', thePrecision );
+  QString myStrSecondsY = padded ? QStringLiteral( "%1" ).arg( mySecondsY, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( mySecondsY, 'f', thePrecision );
 
   QString rep = myXSign + QString::number( myDegreesX ) + QChar( 176 ) +
                 myMinutesX + QChar( 0x2032 ) +
@@ -325,8 +328,8 @@ QString QgsPoint::toDegreesMinutes( int thePrecision, const bool useSuffix, cons
 
   //pad minutes with leading digits if required
   int digits = 2 + ( thePrecision == 0 ? 0 : 1 + thePrecision ); //1 for decimal place if required
-  QString myStrMinutesX = padded ? QString( "%1" ).arg( myFloatMinutesX, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( myFloatMinutesX, 'f', thePrecision );
-  QString myStrMinutesY = padded ? QString( "%1" ).arg( myFloatMinutesY, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( myFloatMinutesY, 'f', thePrecision );
+  QString myStrMinutesX = padded ? QStringLiteral( "%1" ).arg( myFloatMinutesX, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( myFloatMinutesX, 'f', thePrecision );
+  QString myStrMinutesY = padded ? QStringLiteral( "%1" ).arg( myFloatMinutesY, digits, 'f', thePrecision, QChar( '0' ) ) : QString::number( myFloatMinutesY, 'f', thePrecision );
 
   QString rep = myXSign + QString::number( myDegreesX ) + QChar( 176 ) +
                 myStrMinutesX + QChar( 0x2032 ) +
@@ -339,7 +342,7 @@ QString QgsPoint::toDegreesMinutes( int thePrecision, const bool useSuffix, cons
 
 QString QgsPoint::wellKnownText() const
 {
-  return QString( "POINT(%1 %2)" ).arg( qgsDoubleToString( m_x ), qgsDoubleToString( m_y ) );
+  return QStringLiteral( "POINT(%1 %2)" ).arg( qgsDoubleToString( m_x ), qgsDoubleToString( m_y ) );
 }
 
 double QgsPoint::sqrDist( double x, double y ) const
@@ -352,11 +355,29 @@ double QgsPoint::sqrDist( const QgsPoint& other ) const
   return sqrDist( other.x(), other.y() );
 }
 
-double QgsPoint::azimuth( const QgsPoint& other )
+double QgsPoint::distance( double x, double y ) const
+{
+  return sqrt( sqrDist( x, y ) );
+}
+
+double QgsPoint::distance( const QgsPoint& other ) const
+{
+  return sqrt( sqrDist( other ) );
+}
+
+double QgsPoint::azimuth( const QgsPoint& other ) const
 {
   double dx = other.x() - m_x;
   double dy = other.y() - m_y;
   return ( atan2( dx, dy ) * 180.0 / M_PI );
+}
+
+QgsPoint QgsPoint::project( double distance, double bearing ) const
+{
+  double rads = bearing * M_PI / 180.0;
+  double dx = distance * sin( rads );
+  double dy = distance * cos( rads );
+  return QgsPoint( m_x + dx, m_y + dy );
 }
 
 bool QgsPoint::compare( const QgsPoint &other, double epsilon ) const
@@ -367,7 +388,7 @@ bool QgsPoint::compare( const QgsPoint &other, double epsilon ) const
 // operators
 bool QgsPoint::operator==( const QgsPoint & other )
 {
-  if (( m_x == other.x() ) && ( m_y == other.y() ) )
+  if ( qgsDoubleNear( m_x, other.x() ) && qgsDoubleNear( m_y, other.y() ) )
     return true;
   else
     return false;
@@ -375,7 +396,7 @@ bool QgsPoint::operator==( const QgsPoint & other )
 
 bool QgsPoint::operator!=( const QgsPoint & other ) const
 {
-  if (( m_x == other.x() ) && ( m_y == other.y() ) )
+  if ( qgsDoubleNear( m_x, other.x() ) && qgsDoubleNear( m_y, other.y() ) )
     return false;
   else
     return true;
@@ -392,7 +413,7 @@ QgsPoint & QgsPoint::operator=( const QgsPoint & other )
   return *this;
 }
 
-void QgsPoint::multiply( const double& scalar )
+void QgsPoint::multiply( double scalar )
 {
   m_x *= scalar;
   m_y *= scalar;

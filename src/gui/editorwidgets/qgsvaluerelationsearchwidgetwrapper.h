@@ -17,7 +17,6 @@
 #define QGSVALUERELATIONSEARCHWIDGETWRAPPER_H
 
 #include "qgssearchwidgetwrapper.h"
-#include "qgsvaluerelationwidgetwrapper.h"
 
 #include <QComboBox>
 #include <QListWidget>
@@ -25,7 +24,7 @@
 
 class QgsValueRelationWidgetFactory;
 
-/**
+/** \ingroup gui
  * Wraps a value relation search  widget. This widget will offer a combobox with values from another layer
  * referenced by a foreign key (a constraint may be set but is not required on data level).
  * It will be used as a search widget and produces expression to look for in the layer.
@@ -40,18 +39,28 @@ class GUI_EXPORT QgsValueRelationSearchWidgetWrapper : public QgsSearchWidgetWra
     typedef QVector < ValueRelationItem > ValueRelationCache;
 
   public:
-    explicit QgsValueRelationSearchWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* parent = 0 );
+    explicit QgsValueRelationSearchWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* parent = nullptr );
     bool applyDirectly() override;
     QString expression() override;
-    bool valid() override;
+    bool valid() const override;
     QVariant value() const;
+    FilterFlags supportedFlags() const override;
+    FilterFlags defaultFlags() const override;
+    virtual QString createExpression( FilterFlags flags ) const override;
+
+  public slots:
+
+    virtual void clearWidget() override;
+    virtual void setEnabled( bool enabled ) override;
 
   protected:
     QWidget* createWidget( QWidget* parent ) override;
     void initWidget( QWidget* editor ) override;
 
   public slots:
-    void valueChanged();
+
+    //! Called when current value of search widget changes
+    void onValueChanged();
 
   protected slots:
     void setExpression( QString exp ) override;

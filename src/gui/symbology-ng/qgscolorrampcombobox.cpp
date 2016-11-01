@@ -14,20 +14,24 @@
  ***************************************************************************/
 #include "qgscolorrampcombobox.h"
 
-#include "qgssymbollayerv2utils.h"
-#include "qgsvectorcolorrampv2.h"
-#include "qgsstylev2.h"
-#include "qgsstylev2managerdialog.h"
+#include "qgssymbollayerutils.h"
+#include "qgscolorramp.h"
+#include "qgsstyle.h"
+#include "qgsstylemanagerdialog.h"
 
-#include "qgsvectorgradientcolorrampv2dialog.h"
-#include "qgsvectorrandomcolorrampv2dialog.h"
-#include "qgsvectorcolorbrewercolorrampv2dialog.h"
-#include "qgscptcitycolorrampv2dialog.h"
+#include "qgsgradientcolorrampdialog.h"
+#include "qgslimitedrandomcolorrampdialog.h"
+#include "qgscolorbrewercolorrampdialog.h"
+#include "qgscptcitycolorrampdialog.h"
+#include "qgspresetcolorrampdialog.h"
 
 QSize QgsColorRampComboBox::rampIconSize( 50, 16 );
 
-QgsColorRampComboBox::QgsColorRampComboBox( QWidget *parent ) :
-    QComboBox( parent ), mStyle( NULL ), mSourceColorRamp( NULL ), mShowGradientOnly( false )
+QgsColorRampComboBox::QgsColorRampComboBox( QWidget *parent )
+    : QComboBox( parent )
+    , mStyle( nullptr )
+    , mSourceColorRamp( nullptr )
+    , mShowGradientOnly( false )
 {
 }
 
@@ -36,7 +40,7 @@ QgsColorRampComboBox::~QgsColorRampComboBox()
   delete mSourceColorRamp;
 }
 
-void QgsColorRampComboBox::populate( QgsStyleV2* style )
+void QgsColorRampComboBox::populate( QgsStyle* style )
 {
   if ( count() != 0 )
     return; // already populated!
@@ -48,15 +52,14 @@ void QgsColorRampComboBox::populate( QgsStyleV2* style )
   QStringList rampNames = mStyle->colorRampNames();
   for ( QStringList::iterator it = rampNames.begin(); it != rampNames.end(); ++it )
   {
-    QgsVectorColorRampV2* ramp = style->colorRamp( *it );
+    QScopedPointer< QgsColorRamp > ramp( style->colorRamp( *it ) );
 
-    if ( !mShowGradientOnly || ramp->type() == "gradient" )
+    if ( !mShowGradientOnly || ramp->type() == QLatin1String( "gradient" ) )
     {
-      QIcon icon = QgsSymbolLayerV2Utils::colorRampPreviewIcon( ramp, rampIconSize );
+      QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.data(), rampIconSize );
 
       addItem( icon, *it );
     }
-    delete ramp;
   }
 
   if ( !mShowGradientOnly )
@@ -65,15 +68,15 @@ void QgsColorRampComboBox::populate( QgsStyleV2* style )
   connect( this, SIGNAL( activated( int ) ), SLOT( colorRampChanged( int ) ) );
 }
 
-QgsVectorColorRampV2* QgsColorRampComboBox::currentColorRamp()
+QgsColorRamp* QgsColorRampComboBox::currentColorRamp() const
 {
   QString rampName = currentText();
 
   if ( rampName == tr( "Random colors" ) )
   {
-    return new QgsRandomColorsV2();
+    return new QgsRandomColorRamp();
   }
-  else if ( rampName == "[source]" && mSourceColorRamp )
+  else if ( rampName == QLatin1String( "[source]" ) && mSourceColorRamp )
     return mSourceColorRamp->clone();
   else
     return mStyle->colorRamp( rampName );
@@ -85,16 +88,16 @@ bool QgsColorRampComboBox::createNewColorRampSelected() const
   return index == count() - 1; //create new ramp is last item in combobox
 }
 
-void QgsColorRampComboBox::setSourceColorRamp( QgsVectorColorRampV2* sourceRamp )
+void QgsColorRampComboBox::setSourceColorRamp( QgsColorRamp* sourceRamp )
 {
   delete mSourceColorRamp;
   mSourceColorRamp = sourceRamp->clone();
 
-  QIcon icon = QgsSymbolLayerV2Utils::colorRampPreviewIcon( mSourceColorRamp, rampIconSize );
-  if ( itemText( 0 ) == "[source]" )
+  QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( mSourceColorRamp, rampIconSize );
+  if ( itemText( 0 ) == QLatin1String( "[source]" ) )
     setItemIcon( 0, icon );
   else
-    insertItem( 0, icon, "[source]" );
+    insertItem( 0, icon, QStringLiteral( "[source]" ) );
   setCurrentIndex( 0 );
 }
 
@@ -107,24 +110,22 @@ void QgsColorRampComboBox::colorRampChanged( int index )
   QString rampName;
   if ( !mShowGradientOnly )
   {
-    rampName = QgsStyleV2ManagerDialog::addColorRampStatic( this, mStyle );
+    rampName = QgsStyleManagerDialog::addColorRampStatic( this, mStyle );
   }
   else
   {
-    rampName = QgsStyleV2ManagerDialog::addColorRampStatic( this, mStyle, "Gradient" );
+    rampName = QgsStyleManagerDialog::addColorRampStatic( this, mStyle, QStringLiteral( "Gradient" ) );
   }
   if ( rampName.isEmpty() )
     return;
 
   // put newly added ramp into the combo
-  QgsVectorColorRampV2* ramp = mStyle->colorRamp( rampName );
-  QIcon icon = QgsSymbolLayerV2Utils::colorRampPreviewIcon( ramp, rampIconSize );
+  QScopedPointer< QgsColorRamp > ramp( mStyle->colorRamp( rampName ) );
+  QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.data(), rampIconSize );
 
   blockSignals( true ); // avoid calling this method again!
   insertItem( index, icon, rampName );
   blockSignals( false );
-
-  delete ramp;
 
   // ... and set it as active
   setCurrentIndex( index );
@@ -135,50 +136,123 @@ void QgsColorRampComboBox::colorRampChanged( int index )
 
 void QgsColorRampComboBox::editSourceRamp()
 {
-  QgsVectorColorRampV2* currentRamp = currentColorRamp();
+  QgsPanelWidget* panel = QgsPanelWidget::findParentPanel( this );
+  bool panelMode = panel && panel->dockMode();
+
+  QScopedPointer< QgsColorRamp > currentRamp( currentColorRamp() );
   if ( !currentRamp )
     return;
 
-  QScopedPointer<QgsVectorColorRampV2> newRamp( currentRamp->clone() );
+  if ( currentRamp->type() == QLatin1String( "gradient" ) )
+  {
+    QgsGradientColorRamp* gradRamp = static_cast<QgsGradientColorRamp*>( currentRamp.data() );
+    QgsGradientColorRampDialog dlg( *gradRamp, this );
+    if ( dlg.exec() )
+    {
+      setSourceColorRamp( dlg.ramp().clone() );
+      emit sourceRampEdited();
+    }
+  }
+  else if ( currentRamp->type() == QLatin1String( "random" ) )
+  {
+    QgsLimitedRandomColorRamp* randRamp = static_cast<QgsLimitedRandomColorRamp*>( currentRamp.data() );
+    if ( panelMode )
+    {
+      QgsLimitedRandomColorRampWidget* widget = new QgsLimitedRandomColorRampWidget( *randRamp, this );
+      widget->setPanelTitle( tr( "Edit ramp" ) );
+      connect( widget, SIGNAL( changed() ), this, SLOT( rampWidgetUpdated() ) );
+      panel->openPanel( widget );
+    }
+    else
+    {
+      QgsLimitedRandomColorRampDialog dlg( *randRamp, this );
+      if ( dlg.exec() )
+      {
+        setSourceColorRamp( dlg.ramp().clone() );
+        emit sourceRampEdited();
+      }
+    }
+  }
+  else if ( currentRamp->type() == QLatin1String( "preset" ) )
+  {
+    QgsPresetSchemeColorRamp* presetRamp = static_cast<QgsPresetSchemeColorRamp*>( currentRamp.data() );
+    if ( panelMode )
+    {
+      QgsPresetColorRampWidget* widget = new QgsPresetColorRampWidget( *presetRamp, this );
+      widget->setPanelTitle( tr( "Edit ramp" ) );
+      connect( widget, SIGNAL( changed() ), this, SLOT( rampWidgetUpdated() ) );
+      panel->openPanel( widget );
+    }
+    else
+    {
+      QgsPresetColorRampDialog dlg( *presetRamp, this );
+      if ( dlg.exec() )
+      {
+        setSourceColorRamp( dlg.ramp().clone() );
+        emit sourceRampEdited();
+      }
+    }
+  }
+  else if ( currentRamp->type() == QLatin1String( "colorbrewer" ) )
+  {
+    QgsColorBrewerColorRamp* brewerRamp = static_cast<QgsColorBrewerColorRamp*>( currentRamp.data() );
+    if ( panelMode )
+    {
+      QgsColorBrewerColorRampWidget* widget = new QgsColorBrewerColorRampWidget( *brewerRamp, this );
+      widget->setPanelTitle( tr( "Edit ramp" ) );
+      connect( widget, SIGNAL( changed() ), this, SLOT( rampWidgetUpdated() ) );
+      panel->openPanel( widget );
+    }
+    else
+    {
+      QgsColorBrewerColorRampDialog dlg( *brewerRamp, this );
+      if ( dlg.exec() )
+      {
+        setSourceColorRamp( dlg.ramp().clone() );
+        emit sourceRampEdited();
+      }
+    }
+  }
+  else if ( currentRamp->type() == QLatin1String( "cpt-city" ) )
+  {
+    QgsCptCityColorRamp* cptCityRamp = static_cast<QgsCptCityColorRamp*>( currentRamp.data() );
+    QgsCptCityColorRampDialog dlg( *cptCityRamp, this );
+    if ( dlg.exec() )
+    {
+      if ( dlg.saveAsGradientRamp() )
+      {
+        setSourceColorRamp( dlg.ramp().cloneGradientRamp() );
+      }
+      else
+      {
+        setSourceColorRamp( dlg.ramp().clone() );
+      }
+      emit sourceRampEdited();
+    }
+  }
+}
 
-  if ( newRamp->type() == "gradient" )
+void QgsColorRampComboBox::rampWidgetUpdated()
+{
+  QgsLimitedRandomColorRampWidget* limitedRampWidget = qobject_cast< QgsLimitedRandomColorRampWidget* >( sender() );
+  if ( limitedRampWidget )
   {
-    QgsVectorGradientColorRampV2* gradRamp = static_cast<QgsVectorGradientColorRampV2*>( newRamp.data() );
-    QgsVectorGradientColorRampV2Dialog dlg( gradRamp, this );
-    if ( dlg.exec() && gradRamp )
-    {
-      setSourceColorRamp( gradRamp );
-      emit sourceRampEdited();
-    }
+    setSourceColorRamp( limitedRampWidget->ramp().clone() );
+    emit sourceRampEdited();
+    return;
   }
-  else if ( newRamp->type() == "random" )
+  QgsColorBrewerColorRampWidget* colorBrewerRampWidget = qobject_cast< QgsColorBrewerColorRampWidget* >( sender() );
+  if ( colorBrewerRampWidget )
   {
-    QgsVectorRandomColorRampV2* randRamp = static_cast<QgsVectorRandomColorRampV2*>( newRamp.data() );
-    QgsVectorRandomColorRampV2Dialog dlg( randRamp, this );
-    if ( dlg.exec() )
-    {
-      setSourceColorRamp( randRamp );
-      emit sourceRampEdited();
-    }
+    setSourceColorRamp( colorBrewerRampWidget->ramp().clone() );
+    emit sourceRampEdited();
+    return;
   }
-  else if ( newRamp->type() == "colorbrewer" )
+  QgsPresetColorRampWidget* presetRampWidget = qobject_cast< QgsPresetColorRampWidget* >( sender() );
+  if ( presetRampWidget )
   {
-    QgsVectorColorBrewerColorRampV2* brewerRamp = static_cast<QgsVectorColorBrewerColorRampV2*>( newRamp.data() );
-    QgsVectorColorBrewerColorRampV2Dialog dlg( brewerRamp, this );
-    if ( dlg.exec() )
-    {
-      setSourceColorRamp( brewerRamp );
-      emit sourceRampEdited();
-    }
-  }
-  else if ( newRamp->type() == "cpt-city" )
-  {
-    QgsCptCityColorRampV2* cptCityRamp = static_cast<QgsCptCityColorRampV2*>( newRamp.data() );
-    QgsCptCityColorRampV2Dialog dlg( cptCityRamp, this );
-    if ( dlg.exec() && cptCityRamp )
-    {
-      setSourceColorRamp( cptCityRamp );
-      emit sourceRampEdited();
-    }
+    setSourceColorRamp( presetRampWidget->ramp().clone() );
+    emit sourceRampEdited();
+    return;
   }
 }

@@ -17,7 +17,6 @@
 ***************************************************************************
 """
 
-
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
 __copyright__ = '(C) 2012, Victor Olaya'
@@ -27,11 +26,14 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt4.QtGui import QIcon
-from processing.script.ScriptAlgorithm import ScriptAlgorithm
+import re
+
+from qgis.PyQt.QtGui import QIcon
+
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.algs.gdal.GdalAlgorithmDialog import GdalAlgorithmDialog
 from processing.algs.gdal.GdalUtils import GdalUtils
+from processing.tools import dataobjects
 
 pluginPath = os.path.normpath(os.path.join(
     os.path.split(os.path.dirname(__file__))[0], os.pardir))
@@ -39,20 +41,42 @@ pluginPath = os.path.normpath(os.path.join(
 
 class GdalAlgorithm(GeoAlgorithm):
 
+    def __init__(self):
+        GeoAlgorithm.__init__(self)
+        self._icon = None
+
     def getIcon(self):
-        return QIcon(os.path.join(pluginPath, 'images', 'gdal.png'))
+        if self._icon is None:
+            self._icon = QIcon(os.path.join(pluginPath, 'images', 'gdal.svg'))
+        return self._icon
 
     def getCustomParametersDialog(self):
         return GdalAlgorithmDialog(self)
 
     def processAlgorithm(self, progress):
-        GdalUtils.runGdal(self.getConsoleCommands(), progress)
+        commands = self.getConsoleCommands()
+        layers = dataobjects.getVectorLayers()
+        supported = dataobjects.getSupportedOutputVectorLayerExtensions()
+        for i, c in enumerate(commands):
+            for layer in layers:
+                if layer.source() in c:
+                    exported = dataobjects.exportVectorLayer(layer, supported)
+                    exportedFileName = os.path.splitext(os.path.split(exported)[1])[0]
+                    c = c.replace(layer.source(), exported)
+                    if os.path.isfile(layer.source()):
+                        fileName = os.path.splitext(os.path.split(layer.source())[1])[0]
+                        c = re.sub('[\s]{}[\s]'.format(fileName), ' ' + exportedFileName + ' ', c)
+                        c = re.sub('[\s]{}'.format(fileName), ' ' + exportedFileName, c)
+                        c = re.sub('["\']{}["\']'.format(fileName), "'" + exportedFileName + "'", c)
 
-    def help(self):
-        try:
-            return False, "http://www.gdal.org/%s.html" % self.commandName()
-        except:
-            return False, None
+            commands[i] = c
+        GdalUtils.runGdal(commands, progress)
+
+    def shortHelp(self):
+        return self._formatHelp('''This algorithm is based on the GDAL %s module.
+
+                For more info, see the <a href = 'http://www.gdal.org/%s.html'> module help</a>
+                ''' % (self.commandName(), self.commandName()))
 
     def commandName(self):
         alg = self.getCopy()
@@ -64,12 +88,3 @@ class GdalAlgorithm(GeoAlgorithm):
         if name.endswith(".py"):
             name = name[:-3]
         return name
-
-
-class GdalScriptAlgorithm(ScriptAlgorithm):
-
-    def getIcon(self):
-        return QIcon(os.path.join(pluginPath, 'images', 'gdal.png'))
-
-    def getCustomParametersDialog(self):
-        return GdalAlgorithmDialog(self)

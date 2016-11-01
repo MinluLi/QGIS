@@ -16,7 +16,7 @@
  ***************************************************************************/
 
 
-class QgsWMSConfigParser
+class QgsWmsConfigParser
 {
 %TypeHeaderCode
 #include "qgswmsconfigparser.h"
@@ -52,6 +52,9 @@ class QgsWMSConfigParser
 
     /** True if the feature info response should contain the wkt geometry for vector features*/
     virtual bool featureInfoWithWktGeometry() const = 0;
+
+    /** True if the feature info wkt geometry is delivered with segmentized curve types*/
+    virtual bool segmentizeFeatureInfoWktGeometry() const = 0;
 
     /** Returns map with layer aliases for GetFeatureInfo (or 0 pointer if not supported). Key: layer name, Value: layer alias*/
     virtual QHash<QString, QString> featureInfoLayerAliasMap() const = 0;
@@ -93,12 +96,15 @@ class QgsWMSConfigParser
     virtual double imageQuality() const = 0;
 
     // WMS GetFeatureInfo precision (decimal places)
-    virtual int WMSPrecision() const = 0;
+    virtual int wmsPrecision() const = 0;
 
     //printing
 
-   /** Creates a print composition, usually for a GetPrint request. Replaces map and label parameters*/
+    /** Creates a print composition, usually for a GetPrint request. Replaces map and label parameters*/
     QgsComposition* createPrintComposition( const QString& composerTemplate, QgsMapRenderer* mapRenderer, const QMap< QString, QString >& parameterMap ) const;
+
+   /** Creates a print composition, usually for a GetPrint request. Replaces map and label parameters*/
+    QgsComposition* createPrintComposition( const QString& composerTemplate, QgsMapRenderer* mapRenderer, const QMap< QString, QString >& parameterMap, QStringList& highlightLayers ) const;
 
     /** Creates a composition from the project file (probably delegated to the fallback parser)*/
     //virtual QgsComposition* initComposition( const QString& composerTemplate, QgsMapRenderer* mapRenderer, QList< QgsComposerMap*>& mapList /Out/, QList< QgsComposerLegend* >& legendList /Out/, QList< QgsComposerLabel* >& labelList /Out/, QList<const QgsComposerHtml *>& htmlFrameList /Out/ ) const = 0;
@@ -115,11 +121,11 @@ class QgsWMSConfigParser
 
     virtual void serviceCapabilities( QDomElement& parentElement, QDomDocument& doc ) const = 0;
 
-    virtual bool useLayerIDs() const = 0;
+    virtual bool useLayerIds() const = 0;
 
   private:
 
-    QgsWMSConfigParser();
-    virtual ~QgsWMSConfigParser();
+    QgsWmsConfigParser();
+    virtual ~QgsWmsConfigParser();
 
 };

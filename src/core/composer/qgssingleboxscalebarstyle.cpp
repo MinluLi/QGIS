@@ -25,7 +25,7 @@ QgsSingleBoxScaleBarStyle::QgsSingleBoxScaleBarStyle( const QgsComposerScaleBar*
 
 }
 
-QgsSingleBoxScaleBarStyle::QgsSingleBoxScaleBarStyle(): QgsScaleBarStyle( 0 )
+QgsSingleBoxScaleBarStyle::QgsSingleBoxScaleBarStyle(): QgsScaleBarStyle( nullptr )
 {
 
 }
@@ -78,6 +78,6 @@ void QgsSingleBoxScaleBarStyle::draw( QPainter* p, double xOffset ) const
 
 QString QgsSingleBoxScaleBarStyle::name() const
 {
-  return "Single Box";
+  return QStringLiteral( "Single Box" );
 }
 

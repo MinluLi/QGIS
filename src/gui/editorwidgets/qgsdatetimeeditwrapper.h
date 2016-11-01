@@ -19,10 +19,10 @@
 #include <QDateTimeEdit>
 
 #include "qgseditorwidgetwrapper.h"
-#include "qgsdatetimeedit.h"
-#include "qgsdatetimeeditfactory.h"
 
-/**
+class QgsDateTimeEdit;
+
+/** \ingroup gui
  * Wraps a date time widget. Users will be able to choose date and time from an appropriate dialog.
  *
  * Options:
@@ -39,7 +39,7 @@ class GUI_EXPORT QgsDateTimeEditWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsDateTimeEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = 0 );
+    explicit QgsDateTimeEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = nullptr );
 
   private slots:
     void dateTimeChanged( const QDateTime &dateTime );
@@ -51,10 +51,11 @@ class GUI_EXPORT QgsDateTimeEditWrapper : public QgsEditorWidgetWrapper
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value() override;
+    QVariant value() const override;
     QWidget *createWidget( QWidget *parent ) override;
     void initWidget( QWidget *editor ) override;
-    bool valid() override;
+    bool valid() const override;
+    virtual void showIndeterminateState() override;
 
   public slots:
     void setValue( const QVariant &value ) override;

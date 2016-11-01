@@ -23,12 +23,8 @@
 #include "qgscontexthelp.h"
 
 #include <QThread>
-
-#include <vector>
-#include <list>
-#include <utility>
-
 #include <QMap>
+#include <QList>
 #include <QPair>
 #include <QIcon>
 #include <QFileDialog>
@@ -90,6 +86,7 @@ class QgsSpatiaLiteSourceSelect: public QDialog, private Ui::QgsDbSourceSelectBa
     void setLayerType( const QString& table, const QString& column, const QString& type );
     void on_mTablesTreeView_clicked( const QModelIndex &index );
     void on_mTablesTreeView_doubleClicked( const QModelIndex &index );
+    void treeWidgetSelectionChanged( const QItemSelection &selected, const QItemSelection &deselected );
     //!Sets a new regular expression to the model
     void setSearchExpression( const QString & regexp );
 
@@ -108,8 +105,8 @@ class QgsSpatiaLiteSourceSelect: public QDialog, private Ui::QgsDbSourceSelectBa
       dbssColumns,
     };
 
-    typedef std::pair < QString, QString > geomPair;
-    typedef std::list < geomPair > geomCol;
+    typedef QPair< QString, QString > geomPair;
+    typedef QList< geomPair > geomCol;
 
     // Set the position of the database connection list to the last
     // used one.

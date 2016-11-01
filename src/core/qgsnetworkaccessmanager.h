@@ -24,7 +24,7 @@
 #include <QNetworkProxy>
 #include <QNetworkRequest>
 
-/*
+/**
  * \class QgsNetworkAccessManager
  * \brief network access manager for QGIS
  * \ingroup core
@@ -50,7 +50,7 @@ class CORE_EXPORT QgsNetworkAccessManager : public QNetworkAccessManager
     // and creates that instance on the first call.
     static QgsNetworkAccessManager* instance();
 
-    QgsNetworkAccessManager( QObject *parent = 0 );
+    QgsNetworkAccessManager( QObject *parent = nullptr );
 
     //! destructor
     ~QgsNetworkAccessManager();
@@ -82,43 +82,27 @@ class CORE_EXPORT QgsNetworkAccessManager : public QNetworkAccessManager
     //! Setup the NAM according to the user's settings
     void setupDefaultProxyAndCache();
 
-    bool useSystemProxy() { return mUseSystemProxy; }
-
-  public slots:
-    /** Send GET request, calls get().
-     * Emits requestSent().
-     * @param request request to be sent
-     */
-    void sendGet( const QNetworkRequest & request );
-    /** Abort and delete reply. This slot may be used to abort reply created by instance of this class
-     * (and which was not moved to another thread) from a different thread. Such reply cannot
-     * be aborted directly from a different thread. The reply must be also deleted
-     * in this slot, otherwise it could happen that abort signal comes after the reply was deleted.
-     * @param reply reply to be aborted.
-     */
-    void deleteReply( QNetworkReply * reply );
+    //! return whether the system proxy should be used
+    bool useSystemProxy() const { return mUseSystemProxy; }
 
   signals:
     void requestAboutToBeCreated( QNetworkAccessManager::Operation, const QNetworkRequest &, QIODevice * );
     void requestCreated( QNetworkReply * );
     void requestTimedOut( QNetworkReply * );
-    /** Emitted when request was sent by request()
-     * @param reply request reply
-     * @param sender the object which called request() slot.
-     */
-    void requestSent( QNetworkReply * reply, QObject *sender );
 
   private slots:
     void abortRequest();
 
   protected:
-    virtual QNetworkReply *createRequest( QNetworkAccessManager::Operation op, const QNetworkRequest &req, QIODevice *outgoingData = 0 ) override;
+    virtual QNetworkReply *createRequest( QNetworkAccessManager::Operation op, const QNetworkRequest &req, QIODevice *outgoingData = nullptr ) override;
 
   private:
     QList<QNetworkProxyFactory*> mProxyFactories;
     QNetworkProxy mFallbackProxy;
     QStringList mExcludedURLs;
     bool mUseSystemProxy;
+    bool mInitialized;
+    static QgsNetworkAccessManager *smMainNAM;
 };
 
 #endif // QGSNETWORKACCESSMANAGER_H

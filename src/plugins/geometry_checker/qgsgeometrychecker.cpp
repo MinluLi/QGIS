@@ -25,7 +25,9 @@
 
 
 QgsGeometryChecker::QgsGeometryChecker( const QList<QgsGeometryCheck*>& checks, QgsFeaturePool *featurePool )
-    : mChecks( checks ), mFeaturePool( featurePool ), mMergeAttributeIndex( -1 )
+    : mChecks( checks )
+    , mFeaturePool( featurePool )
+    , mMergeAttributeIndex( -1 )
 {
 }
 
@@ -98,7 +100,7 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError* error, int method )
   // Determine what to recheck
   // - Collect all features which were changed, get affected area
   QgsFeatureIds recheckFeatures;
-  Q_FOREACH ( const QgsFeatureId& id, changes.keys() )
+  Q_FOREACH ( QgsFeatureId id, changes.keys() )
   {
     bool removed = false;
     Q_FOREACH ( const QgsGeometryCheck::Change& change, changes.value( id ) )
@@ -115,7 +117,7 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError* error, int method )
       if ( mFeaturePool->get( id, f ) )
       {
         recheckFeatures.insert( id );
-        recheckArea.unionRect( f.geometry()->boundingBox() );
+        recheckArea.unionRect( f.geometry().boundingBox() );
       }
     }
   }
@@ -145,22 +147,25 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError* error, int method )
   {
     if ( check->getCheckType() == QgsGeometryCheck::LayerCheck )
     {
-      check->collectErrors( recheckErrors, mMessages, 0, recheckAreaFeatures );
+      check->collectErrors( recheckErrors, mMessages, nullptr, recheckAreaFeatures );
     }
     else
     {
-      check->collectErrors( recheckErrors, mMessages, 0, recheckFeatures );
+      check->collectErrors( recheckErrors, mMessages, nullptr, recheckFeatures );
     }
   }
 
-  // Remove just-fixed error from newly-found errors (needed in case error was fixed with "no change")
-  Q_FOREACH ( QgsGeometryCheckError* recheckErr, recheckErrors )
+  // Remove just-fixed error from newly-found errors if no changes occurred (needed in case error was fixed with "no change")
+  if ( changes.isEmpty() )
   {
-    if ( recheckErr->isEqual( error ) )
+    Q_FOREACH ( QgsGeometryCheckError* recheckErr, recheckErrors )
     {
-      recheckErrors.removeAll( recheckErr );
-      delete recheckErr;
-      break;
+      if ( recheckErr->isEqual( error ) )
+      {
+        recheckErrors.removeAll( recheckErr );
+        delete recheckErr;
+        break;
+      }
     }
   }
 
@@ -183,7 +188,7 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError* error, int method )
     }
 
     // Check if this error now matches one found when rechecking the feature/area
-    QgsGeometryCheckError* matchErr = 0;
+    QgsGeometryCheckError* matchErr = nullptr;
     int nMatch = 0;
     Q_FOREACH ( QgsGeometryCheckError* recheckErr, recheckErrors )
     {
@@ -233,6 +238,11 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError* error, int method )
   }
 
   return true;
+}
+
+QgsMapLayer* QgsGeometryChecker::getLayer() const
+{
+  return mFeaturePool->getLayer();
 }
 
 void QgsGeometryChecker::runCheck( const QgsGeometryCheck* check )

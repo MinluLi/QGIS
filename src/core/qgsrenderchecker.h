@@ -22,14 +22,13 @@
 #include <QRegExp>
 #include <QList>
 
-#include <qgsmaprenderer.h>
 #include <qgslogger.h>
 #include <qgsmapsettings.h>
 #include <qgsdartmeasurement.h>
 
 class QImage;
 
-/** \ingroup UnitTests
+/** \ingroup core
  * This is a helper class for unit tests that need to
  * write an image and compare it to an expected result
  * or render time.
@@ -59,19 +58,19 @@ class CORE_EXPORT QgsRenderChecker
     void setElapsedTimeTarget( int theTarget ) { mElapsedTimeTarget = theTarget; }
 
     /** Base directory name for the control image (with control image path
-      * suffixed) the path to the image will be constructed like this:
-      * controlImagePath + '/' + mControlName + '/' + mControlName + '.png'
-      */
+     * suffixed) the path to the image will be constructed like this:
+     * controlImagePath + '/' + mControlName + '/' + mControlName + '.png'
+     */
     void setControlName( const QString &theName );
 
     /** Prefix where the control images are kept.
      * This will be appended to controlImagePath
-      */
+     */
     void setControlPathPrefix( const QString &theName ) { mControlPathPrefix = theName + '/'; }
 
-    void setControlPathSuffix( const QString& theName ) { mControlPathSuffix = theName + '/'; }
+    void setControlPathSuffix( const QString& theName );
 
-    /** Get an md5 hash that uniquely identifies an image */
+    //! Get an md5 hash that uniquely identifies an image
     QString imageToHash( const QString& theImageFile );
 
     void setRenderedImage( const QString& theImageFileName ) { mRenderedImageFile = theImageFileName; }
@@ -83,9 +82,6 @@ class CORE_EXPORT QgsRenderChecker
      * @return The path to the rendered image
      */
     QString renderedImage() { return mRenderedImageFile; }
-
-    //! @deprecated since 2.4 - use setMapSettings()
-    Q_DECL_DEPRECATED void setMapRenderer( QgsMapRenderer *  thepMapRenderer );
 
     //! @note added in 2.4
     void setMapSettings( const QgsMapSettings& mapSettings );
@@ -130,12 +126,12 @@ class CORE_EXPORT QgsRenderChecker
      */
     bool compareImages( const QString& theTestName, unsigned int theMismatchCount = 0, const QString& theRenderedImageFile = "" );
     /** Get a list of all the anomalies. An anomaly is a rendered difference
-      * file where there is some red pixel content (indicating a render check
-      * mismatch), but where the output was still acceptible. If the render
-      * diff matches one of these anomalies we will still consider it to be
-      * acceptible.
-      * @return a bool indicating if the diff matched one of the anomaly files
-    */
+     * file where there is some red pixel content (indicating a render check
+     * mismatch), but where the output was still acceptible. If the render
+     * diff matches one of these anomalies we will still consider it to be
+     * acceptible.
+     * @return a bool indicating if the diff matched one of the anomaly files
+     */
     bool isKnownAnomaly( const QString& theDiffImageFile );
 
     /** Draws a checkboard pattern for image backgrounds, so that transparency is visible
@@ -206,8 +202,8 @@ inline bool compareWkt( const QString& a, const QString& b, double tolerance = 0
   QRegExp re( "-?\\d+(?:\\.\\d+)?(?:[eE]\\d+)?" );
 
   QString a0( a ), b0( b );
-  a0.replace( re, "#" );
-  b0.replace( re, "#" );
+  a0.replace( re, QStringLiteral( "#" ) );
+  b0.replace( re, QStringLiteral( "#" ) );
 
   QgsDebugMsg( QString( "a0:%1 b0:%2" ).arg( a0, b0 ) );
 

@@ -27,6 +27,7 @@ class QWidget;
 /** \ingroup gui
  * A text editor based on QScintilla2.
  * \note added in 2.6
+ * \note may not be available in Python bindings, depending on platform support
  */
 class GUI_EXPORT QgsCodeEditor : public QsciScintilla
 {
@@ -38,16 +39,16 @@ class GUI_EXPORT QgsCodeEditor : public QsciScintilla
      *
      * @param parent The parent QWidget
      * @param title The title to show in the code editor dialog
-     * @param folding False: Enable margin for code editor
-     * @param margin False: Enable folding for code editor
+     * @param folding false: Enable folding for code editor
+     * @param margin false: Enable margin for code editor
      * @note added in 2.6
      */
-    QgsCodeEditor( QWidget *parent = 0, const QString& title = "", bool folding = false, bool margin = false );
+    QgsCodeEditor( QWidget *parent = nullptr, const QString& title = "", bool folding = false, bool margin = false );
     ~QgsCodeEditor();
 
     /** Set the widget title
      * @param title widget title
-    */
+     */
     void setTitle( const QString& title );
 
     /** Set margin visible state
@@ -71,6 +72,9 @@ class GUI_EXPORT QgsCodeEditor : public QsciScintilla
   protected:
 
     bool isFixedPitch( const QFont& font );
+
+    void focusOutEvent( QFocusEvent *event ) override;
+    void keyPressEvent( QKeyEvent * event ) override;
 
     QFont getMonospaceFont();
 

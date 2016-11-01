@@ -35,11 +35,11 @@ class QgsSpatialQueryDialog : public QDialog, private Ui::QgsSpatialQueryDialogB
     Q_OBJECT
   public:
     /**
-    * Constructor for a dialog. The QgisInterface pointer is passed by
-    * QGIS when it attempts to instantiate the plugin.
-    * @param iface Pointer to the QgisInterface object.
-    */
-    QgsSpatialQueryDialog( QWidget *parent = 0, QgisInterface* iface = 0 );
+     * Constructor for a dialog. The QgisInterface pointer is passed by
+     * QGIS when it attempts to instantiate the plugin.
+     * @param iface Pointer to the QgisInterface object.
+     */
+    QgsSpatialQueryDialog( QWidget *parent = nullptr, QgisInterface* iface = nullptr );
     //! Destructor
     ~QgsSpatialQueryDialog();
 
@@ -110,7 +110,7 @@ class QgsSpatialQueryDialog : public QDialog, private Ui::QgsSpatialQueryDialogB
     //! Get Vector layer from combobox
     QgsVectorLayer * getLayerFromCombobox( bool isTarget, int index );
     //! Get Icon for vector layer
-    QIcon getIconTypeGeometry( QGis::GeometryType geomType );
+    QIcon getIconTypeGeometry( QgsWkbTypes::GeometryType geomType );
     //! Add layer in combobox (text, data and  tooltips)
     void addCbLayer( bool isTarget, QgsVectorLayer* lyr );
     //! Find Layer in combobox

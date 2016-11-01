@@ -36,8 +36,8 @@ QgsAuthImportCertDialog::QgsAuthImportCertDialog( QWidget *parent ,
     , mFilter( filter )
     , mInput( input )
     , mDisabled( false )
-    , mAuthNotifyLayout( 0 )
-    , mAuthNotify( 0 )
+    , mAuthNotifyLayout( nullptr )
+    , mAuthNotify( nullptr )
 {
   if ( QgsAuthManager::instance()->isDisabled() )
   {
@@ -151,7 +151,7 @@ void QgsAuthImportCertDialog::validateCertificates()
 {
   mCerts.clear();
   teValidation->clear();
-  teValidation->setStyleSheet( "" );
+  teValidation->setStyleSheet( QLatin1String( "" ) );
 
   bool valid = false;
   QList<QSslCertificate> certs;
@@ -194,7 +194,7 @@ void QgsAuthImportCertDialog::validateCertificates()
             && ( allowinvalid || certssize == validcerts )
             && ( !filterCAs || nixcerts.size() < certssize ) );
 
-  if ( nixcerts.size() > 0 )
+  if ( !nixcerts.isEmpty() )
   {
     Q_FOREACH ( const QSslCertificate &nixcert, nixcerts )
     {
@@ -208,8 +208,8 @@ void QgsAuthImportCertDialog::validateCertificates()
   if ( certssize > 0 )
   {
     teValidation->setStyleSheet(
-      valid ? QgsAuthGuiUtils::greenTextStyleSheet( "QTextEdit" )
-      : QgsAuthGuiUtils::redTextStyleSheet( "QTextEdit" ) );
+      valid ? QgsAuthGuiUtils::greenTextStyleSheet( QStringLiteral( "QTextEdit" ) )
+      : QgsAuthGuiUtils::redTextStyleSheet( QStringLiteral( "QTextEdit" ) ) );
   }
 
   QString msg = tr( "Certificates found: %1\n"
@@ -218,7 +218,7 @@ void QgsAuthImportCertDialog::validateCertificates()
   if ( filterCAs )
   {
     msg += tr( "\nAuthorities/Issuers: %1%2" ).arg( cas )
-           .arg( nixcerts.size() > 0 && nixcerts.size() < certssize ? " (others not imported)" : "" );
+           .arg( !nixcerts.isEmpty() && nixcerts.size() < certssize ? " (others not imported)" : "" );
   }
 
   teValidation->setText( msg );
@@ -245,7 +245,7 @@ void QgsAuthImportCertDialog::on_chkAllowInvalid_toggled( bool checked )
 QString QgsAuthImportCertDialog::getOpenFileName( const QString &title, const QString &extfilter )
 {
   QSettings settings;
-  QString recentdir = settings.value( "UI/lastAuthImportCertOpenFileDir", QDir::homePath() ).toString();
+  QString recentdir = settings.value( QStringLiteral( "UI/lastAuthImportCertOpenFileDir" ), QDir::homePath() ).toString();
   QString f = QFileDialog::getOpenFileName( this, title, recentdir, extfilter );
 
   // return dialog focus on Mac
@@ -254,7 +254,7 @@ QString QgsAuthImportCertDialog::getOpenFileName( const QString &title, const QS
 
   if ( !f.isEmpty() )
   {
-    settings.setValue( "UI/lastAuthImportCertOpenFileDir", QFileInfo( f ).absoluteDir().path() );
+    settings.setValue( QStringLiteral( "UI/lastAuthImportCertOpenFileDir" ), QFileInfo( f ).absoluteDir().path() );
   }
   return f;
 }

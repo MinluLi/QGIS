@@ -25,26 +25,28 @@
 
 class QgsComposerTableColumn;
 
-/** List of QVariants, representing a the contents of a single row in
+/** \ingroup core
+ * List of QVariants, representing a the contents of a single row in
  * a QgsComposerTable
  * \note Added in version 2.5
 */
 typedef QList< QVariant > QgsComposerTableRow;
 
-/** List of QgsComposerTableRows, representing rows and column cell contents
+/** \ingroup core
+ * List of QgsComposerTableRows, representing rows and column cell contents
  * for a QgsComposerTable
  * \note Added in version 2.5
 */
 typedef QList< QgsComposerTableRow > QgsComposerTableContents;
 
-/** List of column definitions for a QgsComposerTable
+/** \ingroup core
+ * List of column definitions for a QgsComposerTable
  * \note Added in version 2.5
 */
 typedef QList<QgsComposerTableColumn*> QgsComposerTableColumns;
 
 
-
-/** \ingroup MapComposer
+/** \ingroup core
  *  \class QgsComposerTableStyle
  *  \brief Styling option for a composer table cell
  *  \note added in QGIS 2.12
@@ -68,21 +70,21 @@ class CORE_EXPORT QgsComposerTableStyle
     /** Writes the style's properties to XML for storage.
      * @param styleElem an existing QDomElement in which to store the style's properties.
      * @param doc QDomDocument for the destination XML.
-     * @see readXML
+     * @see readXml
      */
-    bool writeXML( QDomElement& styleElem, QDomDocument & doc ) const;
+    bool writeXml( QDomElement& styleElem, QDomDocument & doc ) const;
 
     /** Reads the style's properties from XML.
      * @param styleElem a QDomElement holding the style's desired properties.
-     * @see writeXML
+     * @see writeXml
      */
-    bool readXML( const QDomElement& styleElem );
+    bool readXml( const QDomElement& styleElem );
 
 };
 
 /** A class to display a table in the print composer, and allow
  * the table to span over multiple frames
- * \ingroup MapComposer
+ * \ingroup core
  * @note added in QGIS 2.5
  */
 class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
@@ -95,51 +97,51 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
      */
     enum HeaderHAlignment
     {
-      FollowColumn, /*!< header uses the same alignment as the column */
-      HeaderLeft, /*!< align headers left */
-      HeaderCenter, /*!< align headers to center */
-      HeaderRight /*!< align headers right */
+      FollowColumn, //!< Header uses the same alignment as the column
+      HeaderLeft, //!< Align headers left
+      HeaderCenter, //!< Align headers to center
+      HeaderRight //!< Align headers right
     };
 
     /** Controls where headers are shown in the table
      */
     enum HeaderMode
     {
-      FirstFrame = 0, /*!< header shown on first frame only */
-      AllFrames, /*!< headers shown on all frames */
-      NoHeaders /*!< no headers shown for table */
+      FirstFrame = 0, //!< Header shown on first frame only
+      AllFrames, //!< Headers shown on all frames
+      NoHeaders //!< No headers shown for table
     };
 
     /** Controls how empty tables are displayed
      */
     enum EmptyTableMode
     {
-      HeadersOnly = 0, /*!< show header rows only */
-      HideTable, /*!< hides entire table if empty */
-      ShowMessage /*!< shows preset message instead of table contents*/
+      HeadersOnly = 0, //!< Show header rows only
+      HideTable, //!< Hides entire table if empty
+      ShowMessage //!< Shows preset message instead of table contents
     };
 
     /** Controls how long strings in the table are handled
      */
     enum WrapBehaviour
     {
-      TruncateText = 0, /*!< text which doesn't fit inside the cell is truncated */
-      WrapText /*!< text which doesn't fit inside the cell is wrapped. Note that this only applies to text in columns with a fixed width. */
+      TruncateText = 0, //!< Text which doesn't fit inside the cell is truncated
+      WrapText //!< Text which doesn't fit inside the cell is wrapped. Note that this only applies to text in columns with a fixed width.
     };
 
     /** Row or column groups for cell styling
      */
     enum CellStyleGroup
     {
-      OddColumns, /*!< Style odd numbered columns */
-      EvenColumns, /*!< Style even numbered columns */
-      OddRows, /*!< Style odd numbered rows */
-      EvenRows, /*!< Style even numbered rows */
-      FirstColumn, /*!< Style first column only */
-      LastColumn, /*!< Style last column only */
-      HeaderRow, /*!< Style header row */
-      FirstRow, /*!< Style first row only */
-      LastRow /*!< Style last row only */
+      OddColumns, //!< Style odd numbered columns
+      EvenColumns, //!< Style even numbered columns
+      OddRows, //!< Style odd numbered rows
+      EvenRows, //!< Style even numbered rows
+      FirstColumn, //!< Style first column only
+      LastColumn, //!< Style last column only
+      HeaderRow, //!< Style header row
+      FirstRow, //!< Style first row only
+      LastRow //!< Style last row only
     };
 
     QgsComposerTableV2( QgsComposition* composition, bool createUndoCommands );
@@ -336,6 +338,46 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
      */
     QColor gridColor() const { return mGridColor; }
 
+    /** Sets whether the grid's horizontal lines should be drawn in the table
+     * @param horizontalGrid set to true to draw grid's horizontal lines
+     * @see setShowGrid
+     * @see setGridStrokeWidth
+     * @see setGridColor
+     * @see setVerticalGrid
+     * @note added in QGIS 3.0
+     */
+    void setHorizontalGrid( const bool horizontalGrid );
+
+    /** Returns whether the grid's horizontal lines are drawn in the table
+     * @returns true if grid's horizontal lines are drawn
+     * @see setShowGrid
+     * @see setGridStrokeWidth
+     * @see setGridColor
+     * @see setVerticalGrid
+     * @note added in QGIS 3.0
+     */
+    bool horizontalGrid() const { return mHorizontalGrid; }
+
+    /** Sets whether the grid's vertical lines should be drawn in the table
+     * @param verticalGrid set to true to draw grid's vertical lines
+     * @see setShowGrid
+     * @see setGridStrokeWidth
+     * @see setGridColor
+     * @see setHorizontalGrid
+     * @note added in QGIS 3.0
+     */
+    void setVerticalGrid( const bool verticalGrid );
+
+    /** Returns whether the grid's vertical lines are drawn in the table
+     * @returns true if grid's vertical lines are drawn
+     * @see setShowGrid
+     * @see setGridStrokeWidth
+     * @see setGridColor
+     * @see setHorizontalGrid
+     * @note added in QGIS 3.0
+     */
+    bool verticalGrid() const { return mVerticalGrid; }
+
     /** Sets color used for background of table.
      * @param color table background color
      * @see backgroundColor
@@ -373,7 +415,8 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
     QgsComposerTableColumns* columns() { return &mColumns; }
 
     /** Replaces the columns in the table with a specified list of QgsComposerTableColumns.
-     * @param columns list of QgsComposerTableColumns to show in table
+     * @param columns list of QgsComposerTableColumns to show in table. Ownership of columns
+     * is transferred to the table.
      * @see columns
      */
     void setColumns( const QgsComposerTableColumns& columns );
@@ -387,7 +430,7 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
     void setCellStyle( CellStyleGroup group, const QgsComposerTableStyle& style );
 
     /** Returns the cell style for a cell group.
-     * @param group group to retreive style for
+     * @param group group to retrieve style for
      * @see setCellStyle()
      * @note added in QGIS 2.12
      */
@@ -418,8 +461,8 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
     //reimplemented to return min frame height
     virtual QSizeF minFrameSize( const int frameIndex = -1 ) const override;
 
-    virtual bool writeXML( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const override;
-    virtual bool readXML( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) override;
+    virtual bool writeXml( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const override;
+    virtual bool readXml( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) override;
     virtual QSizeF totalSize() const override;
     virtual void render( QPainter* p, const QRectF& renderExtent, const int frameIndex ) override;
 
@@ -429,64 +472,70 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
      * This also causes the column widths and size of the table to change to accommodate the
      * new data.
      * @see adjustFrameToSize
-    */
+     */
     virtual void refreshAttributes();
 
     void recalculateFrameSizes() override;
 
   protected:
-    /** Margin between cell borders and cell text*/
+    //! Margin between cell borders and cell text
     double mCellMargin;
 
-    /** Behaviour for empty tables*/
+    //! Behaviour for empty tables
     EmptyTableMode mEmptyTableMode;
 
-    /** String to show in empty tables*/
+    //! String to show in empty tables
     QString mEmptyTableMessage;
 
-    /** True if empty rows should be shown in the table*/
+    //! True if empty rows should be shown in the table
     bool mShowEmptyRows;
 
-    /** Header font*/
+    //! Header font
     QFont mHeaderFont;
 
-    /** Header font color*/
+    //! Header font color
     QColor mHeaderFontColor;
 
-    /** Alignment for table headers*/
+    //! Alignment for table headers
     HeaderHAlignment mHeaderHAlignment;
 
-    /** Header display mode*/
+    //! Header display mode
     HeaderMode mHeaderMode;
 
-    /** Table contents font*/
+    //! Table contents font
     QFont mContentFont;
 
-    /** Table contents font color*/
+    //! Table contents font color
     QColor mContentFontColor;
 
-    /** True if grid should be shown*/
+    //! True if grid should be shown
     bool mShowGrid;
 
-    /** Width of grid lines*/
+    //! Width of grid lines
     double mGridStrokeWidth;
 
-    /** Color for grid lines*/
+    //! Color for grid lines
     QColor mGridColor;
 
-    /** Color for table background*/
+    //! True if grid should be shown
+    bool mHorizontalGrid;
+
+    //! True if grid should be shown
+    bool mVerticalGrid;
+
+    //! Color for table background
     QColor mBackgroundColor;
 
-    /** Columns to show in table*/
+    //! Columns to show in table
     QgsComposerTableColumns mColumns;
 
-    /** Contents to show in table*/
+    //! Contents to show in table
     QgsComposerTableContents mTableContents;
 
-    /** Map of maximum width for each column*/
+    //! Map of maximum width for each column
     QMap<int, double> mMaxColumnWidthMap;
 
-    /** Map of maximum height for each row*/
+    //! Map of maximum height for each row
     QMap<int, double> mMaxRowHeightMap;
 
     QSizeF mTableSize;
@@ -588,57 +637,11 @@ class CORE_EXPORT QgsComposerTableV2: public QgsComposerMultiFrame
      */
     bool contentsContainsRow( const QgsComposerTableContents &contents, const QgsComposerTableRow &row ) const;
 
-    //deprecated methods
-
-    /** Calculates how many content rows are visible within a given frame
-     * @param frameIndex index number for frame
-     * @returns number of visible content rows (excludes header rows)
-     */
-    Q_DECL_DEPRECATED int rowsVisible( const int frameIndex ) const;
-
-    /** Calculates how many content rows would be visible within a specified
-     * height.
-     * @param frameHeight height of frame
-     * @param includeHeader set to true if frame would include a header row
-     * @returns number of visible content rows (excluding header row)
-     */
-    Q_DECL_DEPRECATED int rowsVisible( const double frameHeight, const bool includeHeader ) const;
-
-    /** Calculates a range of rows which should be visible in a given
-     * frame extent.
-     * @param extent visible extent
-     * @param frameIndex index number for frame
-     * @returns row range
-     */
-    Q_DECL_DEPRECATED QPair<int, int> rowRange( const QRectF &extent, const int frameIndex ) const;
-
-    /** Draws the horizontal grid lines for the table.
-     * @param painter destination painter for grid lines
-     * @param rows number of rows shown in table
-     * @param drawHeaderLines set to true to include for the table header
-     * @see drawVerticalGridLines
-     */
-    Q_DECL_DEPRECATED void drawHorizontalGridLines( QPainter* painter, const int rows, const bool drawHeaderLines ) const;
-
-    /** Draws the vertical grid lines for the table.
-     * @param painter destination painter for grid lines
-     * @param maxWidthMap QMap of int to double, where the int contains the column number and the double is the
-     * maximum width of text present in the column.
-     * @param numberRows number of rows of content in table frame
-     * @param hasHeader set to true if table frame includes header cells
-     * @param mergeCells set to true to merge table content cells
-     * @note not available in python bindings
-     * @see drawVerticalGridLines
-     * @see calculateMaxColumnWidths
-     * @note not available in python bindings
-     */
-    Q_DECL_DEPRECATED void drawVerticalGridLines( QPainter* painter, const QMap<int, double>& maxWidthMap, const int numberRows, const bool hasHeader, const bool mergeCells = false ) const;
-
   private:
 
     QMap< CellStyleGroup, QString > mCellStyleNames;
 
-    /** Initializes cell style map */
+    //! Initializes cell style map
     void initStyles();
 
     bool textRequiresWrapping( const QString& text, double columnWidth , const QFont &font ) const;

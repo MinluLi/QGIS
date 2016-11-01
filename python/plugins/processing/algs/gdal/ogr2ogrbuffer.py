@@ -27,18 +27,19 @@ __revision__ = '$Format:%H$'
 
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterString
-from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterTableField
 from processing.core.outputs import OutputVector
 
-from processing.tools.system import isWindows
-
-from processing.algs.gdal.OgrAlgorithm import OgrAlgorithm
+from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.algs.gdal.GdalUtils import GdalUtils
 
+from processing.tools import dataobjects
+from processing.tools.system import isWindows
+from processing.tools.vector import ogrConnectionString, ogrLayerName
 
-class Ogr2OgrBuffer(OgrAlgorithm):
+
+class Ogr2OgrBuffer(GdalAlgorithm):
 
     OUTPUT_LAYER = 'OUTPUT_LAYER'
     INPUT_LAYER = 'INPUT_LAYER'
@@ -54,7 +55,7 @@ class Ogr2OgrBuffer(OgrAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('[OGR] Geoprocessing')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterString(self.GEOMETRY,
                                           self.tr('Geometry column name ("geometry" for Shapefiles, may be different for other formats)'),
                                           'geometry', optional=False))
@@ -70,47 +71,44 @@ class Ogr2OgrBuffer(OgrAlgorithm):
                                           self.tr('Additional creation options (see ogr2ogr manual)'),
                                           '', optional=True))
 
-        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Buffer')))
+        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Buffer'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def getConsoleCommands(self):
         inLayer = self.getParameterValue(self.INPUT_LAYER)
-        ogrLayer = self.ogrConnectionString(inLayer)[1:-1]
-        layername = "'" + self.ogrLayerName(inLayer) + "'"
-        geometry = unicode(self.getParameterValue(self.GEOMETRY))
-        distance = unicode(self.getParameterValue(self.DISTANCE))
+        geometry = self.getParameterValue(self.GEOMETRY)
+        distance = self.getParameterValue(self.DISTANCE)
         dissolveall = self.getParameterValue(self.DISSOLVEALL)
-        field = unicode(self.getParameterValue(self.FIELD))
+        field = self.getParameterValue(self.FIELD)
         multi = self.getParameterValue(self.MULTI)
+        options = self.getParameterValue(self.OPTIONS)
+
+        ogrLayer = ogrConnectionString(inLayer)[1:-1]
+        layername = ogrLayerName(inLayer)
 
         output = self.getOutputFromName(self.OUTPUT_LAYER)
         outFile = output.value
 
-        output = self.ogrConnectionString(outFile)
-        options = unicode(self.getParameterValue(self.OPTIONS))
+        output = ogrConnectionString(outFile)
 
         arguments = []
         arguments.append(output)
         arguments.append(ogrLayer)
-        arguments.append(self.ogrLayerName(inLayer))
-        if dissolveall or field != 'None':
-            arguments.append('-dialect sqlite -sql "SELECT ST_Union(ST_Buffer(')
+        arguments.append(ogrLayerName(inLayer))
+        arguments.append('-dialect')
+        arguments.append('sqlite')
+        arguments.append('-sql')
+
+        if dissolveall or field is not None:
+            sql = "SELECT ST_Union(ST_Buffer({}, {})), * FROM '{}'".format(geometry, distance, layername)
         else:
-            arguments.append('-dialect sqlite -sql "SELECT ST_Buffer(')
-        arguments.append(geometry)
-        arguments.append(',')
-        arguments.append(distance)
-        if dissolveall or field != 'None':
-            arguments.append(')),*')
-        else:
-            arguments.append('),*')
-        arguments.append('FROM')
-        arguments.append(layername)
-        if field != 'None':
-            arguments.append('GROUP')
-            arguments.append('BY')
-            arguments.append(field)
-        arguments.append('"')
-        if field != 'None' and multi:
+            sql = "SELECT ST_Buffer({}, {}), * FROM '{}'".format(geometry, distance, layername)
+
+        if field is not None:
+            sql = '{} GROUP BY {}'.format(sql, field)
+
+        arguments.append(sql)
+
+        if field is not None and multi:
             arguments.append('-explodecollections')
 
         if len(options) > 0:

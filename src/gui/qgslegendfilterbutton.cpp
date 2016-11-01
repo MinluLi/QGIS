@@ -21,10 +21,10 @@
 #include <qgsapplication.h>
 #include <qgsexpressionbuilderdialog.h>
 
-QgsLegendFilterButton::QgsLegendFilterButton( QWidget* parent ) :
-    QToolButton( parent )
-    , mMenu( 0 )
-    , mLayer( 0 )
+QgsLegendFilterButton::QgsLegendFilterButton( QWidget* parent )
+    : QToolButton( parent )
+    , mMenu( nullptr )
+    , mLayer( nullptr )
 {
   mMenu = new QMenu( this );
   mSetExpressionAction = new QAction( tr( "Edit filter expression" ), mMenu );
@@ -38,7 +38,7 @@ QgsLegendFilterButton::QgsLegendFilterButton( QWidget* parent ) :
   mMenu->addAction( mClearExpressionAction );
 
   setCheckable( true );
-  setIcon( QgsApplication::getThemeIcon( "/mIconExpressionFilter.svg" ) );
+  setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mIconExpressionFilter.svg" ) ) );
   setPopupMode( QToolButton::MenuButtonPopup );
 
   setMenu( mMenu );
@@ -87,7 +87,7 @@ void QgsLegendFilterButton::onSetLegendFilterExpression()
 void QgsLegendFilterButton::onClearFilterExpression()
 {
   mClearExpressionAction->setEnabled( false );
-  setExpressionText( "" );
+  setExpressionText( QLatin1String( "" ) );
 
   setChecked( false );
 }

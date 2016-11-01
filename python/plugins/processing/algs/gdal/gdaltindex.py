@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Pedro Venancio'
 __date__ = 'February 2015'
@@ -25,15 +26,19 @@ __copyright__ = '(C) 2015, Pedro Venancio'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
 
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.core.outputs import OutputVector
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterMultipleInput
 from processing.core.parameters import ParameterString
+from processing.tools import dataobjects
 from processing.algs.gdal.GdalUtils import GdalUtils
 
-import os
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class gdaltindex(GdalAlgorithm):
@@ -43,11 +48,14 @@ class gdaltindex(GdalAlgorithm):
     FIELD_NAME = 'FIELD_NAME'
     PROJ_DIFFERENCE = 'PROJ_DIFFERENCE'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'tiles.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Tile Index')
         self.group, self.i18n_group = self.trAlgorithm('[GDAL] Miscellaneous')
         self.addParameter(ParameterMultipleInput(self.INPUT,
-                                                 self.tr('Input layers'), ParameterMultipleInput.TYPE_RASTER))
+                                                 self.tr('Input layers'), dataobjects.TYPE_RASTER))
         self.addParameter(ParameterString(self.FIELD_NAME,
                                           self.tr('Tile index field'),
                                           'location', optional=True))
@@ -56,7 +64,7 @@ class gdaltindex(GdalAlgorithm):
         self.addOutput(OutputVector(gdaltindex.OUTPUT, self.tr('Tile index')))
 
     def getConsoleCommands(self):
-        fieldName = unicode(self.getParameterValue(self.FIELD_NAME))
+        fieldName = str(self.getParameterValue(self.FIELD_NAME))
 
         arguments = []
         if len(fieldName) > 0:
@@ -64,7 +72,7 @@ class gdaltindex(GdalAlgorithm):
             arguments.append(fieldName)
         if self.getParameterValue(gdaltindex.PROJ_DIFFERENCE):
             arguments.append('-skip_different_projection')
-        arguments.append(unicode(self.getOutputValue(gdaltindex.OUTPUT)))
-        arguments.extend(unicode(self.getParameterValue(gdaltindex.INPUT)).split(';'))
+        arguments.append(str(self.getOutputValue(gdaltindex.OUTPUT)))
+        arguments.extend(str(self.getParameterValue(gdaltindex.INPUT)).split(';'))
 
         return ['gdaltindex', GdalUtils.escapeAndJoin(arguments)]

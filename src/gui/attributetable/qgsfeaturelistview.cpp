@@ -35,11 +35,11 @@
 
 QgsFeatureListView::QgsFeatureListView( QWidget *parent )
     : QListView( parent )
-    , mModel( 0 )
-    , mCurrentEditSelectionModel( 0 )
-    , mFeatureSelectionModel( 0 )
-    , mFeatureSelectionManager( NULL )
-    , mItemDelegate( 0 )
+    , mModel( nullptr )
+    , mCurrentEditSelectionModel( nullptr )
+    , mFeatureSelectionModel( nullptr )
+    , mFeatureSelectionManager( nullptr )
+    , mItemDelegate( nullptr )
     , mEditSelectionDrag( false )
     , mRowAnchor( 0 )
 {
@@ -82,6 +82,7 @@ void QgsFeatureListView::setModel( QgsFeatureListModel* featureListModel )
 
   connect( mCurrentEditSelectionModel, SIGNAL( selectionChanged( QItemSelection, QItemSelection ) ), SLOT( editSelectionChanged( QItemSelection, QItemSelection ) ) );
 
+  connect( mModel->layerCache()->layer(), SIGNAL( attributeValueChanged( QgsFeatureId, int, QVariant ) ), this, SLOT( repaintRequested() ) );
 }
 
 bool QgsFeatureListView::setDisplayExpression( const QString& expression )
@@ -149,7 +150,7 @@ void QgsFeatureListView::mousePressEvent( QMouseEvent *event )
   }
 }
 
-void QgsFeatureListView::editSelectionChanged( QItemSelection deselected, QItemSelection selected )
+void QgsFeatureListView::editSelectionChanged( const QItemSelection& deselected, const QItemSelection& selected )
 {
   if ( isVisible() && updatesEnabled() )
   {
@@ -196,7 +197,7 @@ void QgsFeatureListView::setEditSelection( const QgsFeatureIds &fids )
     mCurrentEditSelectionModel->select( selection, QItemSelectionModel::ClearAndSelect );
 }
 
-void QgsFeatureListView::setEditSelection( const QModelIndex& index, const QItemSelectionModel::SelectionFlags& command )
+void QgsFeatureListView::setEditSelection( const QModelIndex& index, QItemSelectionModel::SelectionFlags command )
 {
   bool ok = true;
   emit aboutToChangeEditSelection( ok );
@@ -257,7 +258,8 @@ void QgsFeatureListView::mouseReleaseEvent( QMouseEvent *event )
   }
   else
   {
-    mFeatureSelectionModel->enableSync( true );
+    if ( mFeatureSelectionModel )
+      mFeatureSelectionModel->enableSync( true );
   }
 }
 
@@ -315,8 +317,8 @@ void QgsFeatureListView::contextMenuEvent( QContextMenuEvent *event )
   {
     QgsFeature feature = mModel->data( index, QgsFeatureListModel::FeatureRole ).value<QgsFeature>();
 
-    QgsActionMenu menu( mModel->layerCache()->layer(), &feature, this );
-    menu.exec( event->globalPos() );
+    QgsActionMenu* menu = new QgsActionMenu( mModel->layerCache()->layer(), &feature, this );
+    menu->exec( event->globalPos() );
   }
 }
 

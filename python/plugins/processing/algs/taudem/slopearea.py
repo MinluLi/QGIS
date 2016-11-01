@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2012'
@@ -27,7 +30,7 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
@@ -38,7 +41,7 @@ from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterNumber
 from processing.core.outputs import OutputRaster
 
-from TauDEMUtils import TauDEMUtils
+from .TauDEMUtils import TauDEMUtils
 
 
 class SlopeArea(GeoAlgorithm):
@@ -51,7 +54,7 @@ class SlopeArea(GeoAlgorithm):
     SLOPE_AREA_GRID = 'SLOPE_AREA_GRID'
 
     def getIcon(self):
-        return QIcon(os.path.dirname(__file__) + '/../../images/taudem.png')
+        return QIcon(os.path.dirname(__file__) + '/../../images/taudem.svg')
 
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Slope Area Combination')
@@ -81,15 +84,15 @@ class SlopeArea(GeoAlgorithm):
                         'correct number before running TauDEM algorithms.'))
 
         commands.append('-n')
-        commands.append(unicode(processNum))
+        commands.append(str(processNum))
         commands.append(os.path.join(TauDEMUtils.taudemPath(), self.cmdName))
         commands.append('-slp')
         commands.append(self.getParameterValue(self.SLOPE_GRID))
         commands.append('-sca')
         commands.append(self.getParameterValue(self.AREA_GRID))
         commands.append('-par')
-        commands.append(unicode(self.getParameterValue(self.SLOPE_EXPONENT)))
-        commands.append(unicode(self.getParameterValue(self.AREA_EXPONENT)))
+        commands.append(str(self.getParameterValue(self.SLOPE_EXPONENT)))
+        commands.append(str(self.getParameterValue(self.AREA_EXPONENT)))
         commands.append('-sa')
         commands.append(self.getOutputValue(self.SLOPE_AREA_GRID))
 

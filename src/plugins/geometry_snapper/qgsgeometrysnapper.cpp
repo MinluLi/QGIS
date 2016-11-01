@@ -17,15 +17,20 @@
 #include <QtConcurrentMap>
 #include <qmath.h>
 
+#include "qgsfeatureiterator.h"
 #include "qgsgeometry.h"
 #include "qgsvectorlayer.h"
 #include "qgsgeometrysnapper.h"
 #include "qgsvectordataprovider.h"
 #include "qgsgeometryutils.h"
 #include "qgssnapindex.h"
+#include "qgsmapsettings.h"
 
 QgsGeometrySnapper::QgsGeometrySnapper( QgsVectorLayer *adjustLayer, QgsVectorLayer *referenceLayer, bool selectedOnly, double snapToleranceMapUnits, const QgsMapSettings *mapSettings )
-    : mAdjustLayer( adjustLayer ), mReferenceLayer( referenceLayer ), mSnapToleranceMapUnits( snapToleranceMapUnits ), mMapSettings( mapSettings )
+    : mAdjustLayer( adjustLayer )
+    , mReferenceLayer( referenceLayer )
+    , mSnapToleranceMapUnits( snapToleranceMapUnits )
+    , mMapSettings( mapSettings )
 {
   if ( selectedOnly )
   {
@@ -40,20 +45,18 @@ QgsGeometrySnapper::QgsGeometrySnapper( QgsVectorLayer *adjustLayer, QgsVectorLa
   QgsFeature feature;
   QgsFeatureRequest req;
   req.setSubsetOfAttributes( QgsAttributeList() );
-  QgsFeatureIterator it = mReferenceLayer->getFeatures( req );
-  while ( it.nextFeature( feature ) )
-  {
-    mIndex.insertFeature( feature );
-  }
+  mIndex = QgsSpatialIndex( mReferenceLayer->getFeatures( req ) );
 }
 
 QFuture<void> QgsGeometrySnapper::processFeatures()
 {
+  emit progressRangeChanged( 0, mFeatures.size() );
   return QtConcurrent::map( mFeatures, ProcessFeatureWrapper( this ) );
 }
 
-void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
+void QgsGeometrySnapper::processFeature( QgsFeatureId id )
 {
+  emit progressStep();
   // Get current feature
   QgsFeature feature;
   if ( !getFeature( mAdjustLayer, mAdjustLayerMutex, id, feature ) )
@@ -63,24 +66,24 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
     mErrorMutex.unlock();
     return;
   }
-  QgsPointV2 center = QgsPointV2( feature.geometry()->geometry()->boundingBox().center() );
+  QgsPointV2 center = QgsPointV2( feature.geometry().geometry()->boundingBox().center() );
 
   // Compute snap tolerance
-  double layerToMapUnits = mMapSettings->layerToMapUnits( mAdjustLayer, feature.geometry()->boundingBox() );
+  double layerToMapUnits = mMapSettings->layerToMapUnits( mAdjustLayer, feature.geometry().boundingBox() );
   double snapTolerance = mSnapToleranceMapUnits / layerToMapUnits;
 
 
   // Get potential reference features and construct snap index
-  QList<QgsAbstractGeometryV2*> refGeometries;
+  QList<QgsAbstractGeometry*> refGeometries;
   mIndexMutex.lock();
-  QList<QgsFeatureId> refFeatureIds = mIndex.intersects( feature.geometry()->boundingBox() );
+  QList<QgsFeatureId> refFeatureIds = mIndex.intersects( feature.geometry().boundingBox() );
   mIndexMutex.unlock();
-  Q_FOREACH ( const QgsFeatureId& refId, refFeatureIds )
+  Q_FOREACH ( QgsFeatureId refId, refFeatureIds )
   {
     QgsFeature refFeature;
     if ( getFeature( mReferenceLayer, mReferenceLayerMutex, refId, refFeature ) )
     {
-      refGeometries.append( refFeature.geometry()->geometry()->clone() );
+      refGeometries.append( refFeature.geometry().geometry()->clone() );
     }
     else
     {
@@ -90,13 +93,14 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
     }
   }
   QgsSnapIndex refSnapIndex( center, 10 * snapTolerance );
-  Q_FOREACH ( const QgsAbstractGeometryV2* geom, refGeometries )
+  Q_FOREACH ( const QgsAbstractGeometry* geom, refGeometries )
   {
     refSnapIndex.addGeometry( geom );
   }
 
   // Snap geometries
-  QgsAbstractGeometryV2* subjGeom = feature.geometry()->geometry();
+  QgsGeometry featureGeom = feature.geometry();
+  QgsAbstractGeometry* subjGeom = featureGeom.geometry();
   QList < QList< QList<PointFlag> > > subjPointFlags;
 
   // Pass 1: snap vertices of subject geometry to reference vertices
@@ -111,8 +115,8 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
       for ( int iVert = 0, nVerts = polyLineSize( subjGeom, iPart, iRing ); iVert < nVerts; ++iVert )
       {
 
-        QgsSnapIndex::PointSnapItem* snapPoint = 0;
-        QgsSnapIndex::SegmentSnapItem* snapSegment = 0;
+        QgsSnapIndex::PointSnapItem* snapPoint = nullptr;
+        QgsSnapIndex::SegmentSnapItem* snapSegment = nullptr;
         QgsVertexId vidx( iPart, iRing, iVert );
         QgsPointV2 p = subjGeom->vertexAt( vidx );
         if ( !refSnapIndex.getSnapItem( p, snapTolerance, &snapPoint, &snapSegment ) )
@@ -141,12 +145,12 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
   QgsSnapIndex* subjSnapIndex = new QgsSnapIndex( center, 10 * snapTolerance );
   subjSnapIndex->addGeometry( subjGeom );
 
-  QgsAbstractGeometryV2* origSubjGeom = subjGeom->clone();
+  QgsAbstractGeometry* origSubjGeom = subjGeom->clone();
   QgsSnapIndex* origSubjSnapIndex = new QgsSnapIndex( center, 10 * snapTolerance );
   origSubjSnapIndex->addGeometry( origSubjGeom );
 
   // Pass 2: add missing vertices to subject geometry
-  Q_FOREACH ( const QgsAbstractGeometryV2* refGeom, refGeometries )
+  Q_FOREACH ( const QgsAbstractGeometry* refGeom, refGeometries )
   {
     for ( int iPart = 0, nParts = refGeom->partCount(); iPart < nParts; ++iPart )
     {
@@ -155,8 +159,8 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
         for ( int iVert = 0, nVerts = polyLineSize( refGeom, iPart, iRing ); iVert < nVerts; ++iVert )
         {
 
-          QgsSnapIndex::PointSnapItem* snapPoint = 0;
-          QgsSnapIndex::SegmentSnapItem* snapSegment = 0;
+          QgsSnapIndex::PointSnapItem* snapPoint = nullptr;
+          QgsSnapIndex::SegmentSnapItem* snapSegment = nullptr;
           QgsPointV2 point = refGeom->vertexAt( QgsVertexId( iPart, iRing, iVert ) );
           if ( subjSnapIndex->getSnapItem( point, snapTolerance, &snapPoint, &snapSegment ) )
           {
@@ -201,6 +205,7 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
   {
     for ( int iRing = 0, nRings = subjGeom->ringCount( iPart ); iRing < nRings; ++iRing )
     {
+      bool ringIsClosed = subjGeom->vertexAt( QgsVertexId( iPart, iRing, 0 ) ) == subjGeom->vertexAt( QgsVertexId( iPart, iRing, subjGeom->vertexCount( iPart, iRing ) - 1 ) );
       for ( int iVert = 0, nVerts = polyLineSize( subjGeom, iPart, iRing ); iVert < nVerts; ++iVert )
       {
         int iPrev = ( iVert - 1 + nVerts ) % nVerts;
@@ -214,25 +219,33 @@ void QgsGeometrySnapper::processFeature( const QgsFeatureId &id )
              subjPointFlags[iPart][iRing][iNext] != Unsnapped &&
              QgsGeometryUtils::sqrDistance2D( QgsGeometryUtils::projPointOnSegment( pMid, pPrev, pNext ), pMid ) < 1E-12 )
         {
-          subjGeom->deleteVertex( QgsVertexId( iPart, iRing, iVert ) );
-          subjPointFlags[iPart][iRing].removeAt( iVert );
-          iVert -= 1;
-          nVerts -= 1;
+          if (( ringIsClosed && nVerts > 3 ) || ( !ringIsClosed && nVerts > 2 ) )
+          {
+            subjGeom->deleteVertex( QgsVertexId( iPart, iRing, iVert ) );
+            subjPointFlags[iPart][iRing].removeAt( iVert );
+            iVert -= 1;
+            nVerts -= 1;
+          }
+          else
+          {
+            // Don't delete vertices if this would result in a degenerate geometry
+            break;
+          }
         }
       }
     }
   }
 
-  feature.setGeometry( new QgsGeometry( feature.geometry()->geometry()->clone() ) ); // force refresh
+  feature.setGeometry( QgsGeometry( featureGeom.geometry()->clone() ) ); // force refresh
   QgsGeometryMap geometryMap;
-  geometryMap.insert( id, *feature.geometry() );
+  geometryMap.insert( id, feature.geometry() );
   qDeleteAll( refGeometries );
   mAdjustLayerMutex.lock();
   mAdjustLayer->dataProvider()->changeGeometryValues( geometryMap );
   mAdjustLayerMutex.unlock();
 }
 
-bool QgsGeometrySnapper::getFeature( QgsVectorLayer *layer, QMutex &mutex, const QgsFeatureId &id, QgsFeature &feature )
+bool QgsGeometrySnapper::getFeature( QgsVectorLayer *layer, QMutex &mutex, QgsFeatureId id, QgsFeature &feature )
 {
   QMutexLocker locker( &mutex );
   QgsFeatureRequest req( id );
@@ -241,7 +254,7 @@ bool QgsGeometrySnapper::getFeature( QgsVectorLayer *layer, QMutex &mutex, const
 }
 
 
-int QgsGeometrySnapper::polyLineSize( const QgsAbstractGeometryV2* geom, int iPart, int iRing ) const
+int QgsGeometrySnapper::polyLineSize( const QgsAbstractGeometry* geom, int iPart, int iRing ) const
 {
   int nVerts = geom->vertexCount( iPart, iRing );
   QgsPointV2 front = geom->vertexAt( QgsVertexId( iPart, iRing, 0 ) );

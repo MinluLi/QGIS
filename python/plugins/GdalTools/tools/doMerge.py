@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,12 +24,12 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL, QObject, QCoreApplication
-from PyQt4.QtGui import QWidget, QMessageBox
+from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtWidgets import QWidget, QMessageBox
 
-from ui_widgetMerge import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetMerge import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -50,23 +51,23 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.extent = None
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.noDataSpin, SIGNAL("valueChanged(int)"), self.noDataCheck),
-            (self.inputDirCheck, SIGNAL("stateChanged(int)")),
-            (self.recurseCheck, SIGNAL("stateChanged(int)"), self.inputDirCheck),
-            (self.separateCheck, SIGNAL("stateChanged( int )")),
-            (self.pctCheck, SIGNAL("stateChanged( int )")),
-            (self.intersectCheck, SIGNAL("stateChanged( int )")),
-            (self.creationOptionsWidget, SIGNAL("optionsChanged()")),
-            (self.creationOptionsGroupBox, SIGNAL("toggled(bool)"))
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.noDataSpin, "valueChanged", self.noDataCheck),
+            (self.inputDirCheck, "stateChanged"),
+            (self.recurseCheck, "stateChanged", self.inputDirCheck),
+            (self.separateCheck, "stateChanged"),
+            (self.pctCheck, "stateChanged"),
+            (self.intersectCheck, "stateChanged"),
+            (self.creationOptionsWidget, "optionsChanged"),
+            (self.creationOptionsGroupBox, "toggled")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFilesEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
-        self.connect(self.intersectCheck, SIGNAL("toggled(bool)"), self.refreshExtent)
-        self.connect(self.inputDirCheck, SIGNAL("stateChanged( int )"), self.switchToolMode)
-        self.connect(self.inSelector, SIGNAL("filenameChanged()"), self.refreshExtent)
+        self.inSelector.selectClicked.connect(self.fillInputFilesEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
+        self.intersectCheck.toggled.connect(self.refreshExtent)
+        self.inputDirCheck.stateChanged.connect(self.switchToolMode)
+        self.inSelector.filenameChanged.connect(self.refreshExtent)
 
     def switchToolMode(self):
         self.recurseCheck.setVisible(self.inputDirCheck.isChecked())
@@ -76,13 +77,13 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
             self.inFileLabel = self.label.text()
             self.label.setText(QCoreApplication.translate("GdalTools", "&Input directory"))
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFilesEdit)
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
+            self.inSelector.selectClicked.disconnect(self.fillInputFilesEdit)
+            self.inSelector.selectClicked.connect(self.fillInputDir)
         else:
             self.label.setText(self.inFileLabel)
 
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFilesEdit)
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
+            self.inSelector.selectClicked.connect(self.fillInputFilesEdit)
+            self.inSelector.selectClicked.disconnect(self.fillInputDir)
 
     def fillInputFilesEdit(self):
         lastUsedFilter = Utils.FileFilter.lastUsedRasterFilter()
@@ -137,16 +138,16 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         if self.intersectCheck.isChecked():
             if self.extent is not None:
                 arguments.append("-ul_lr")
-                arguments.append(unicode(self.extent.xMinimum()))
-                arguments.append(unicode(self.extent.yMaximum()))
-                arguments.append(unicode(self.extent.xMaximum()))
-                arguments.append(unicode(self.extent.yMinimum()))
+                arguments.append(str(self.extent.xMinimum()))
+                arguments.append(str(self.extent.yMaximum()))
+                arguments.append(str(self.extent.xMaximum()))
+                arguments.append(str(self.extent.yMinimum()))
         if self.noDataCheck.isChecked():
             arguments.append("-n")
-            arguments.append(unicode(self.noDataSpin.value()))
+            arguments.append(str(self.noDataSpin.value()))
             if Utils.GdalConfig.versionNum() >= 1900:
                 arguments.append("-a_nodata")
-                arguments.append(unicode(self.noDataSpin.value()))
+                arguments.append(str(self.noDataSpin.value()))
         if self.separateCheck.isChecked():
             arguments.append("-separate")
         if self.pctCheck.isChecked():

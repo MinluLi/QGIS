@@ -1,8 +1,16 @@
 /***************************************************************************
- *  qgsgeometrydegeneratepolygoncheck.cpp                                  *
- *  -------------------                                                    *
- *  copyright            : (C) 2014 by Sandro Mani / Sourcepole AG         *
- *  email                : smani@sourcepole.ch                             *
+    qgsgeometrydegeneratepolygoncheck.cpp
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2014 by Sandro Mani / Sourcepole AG
+    email                : smani at sourcepole dot ch
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
  ***************************************************************************/
 
 #include "qgsgeometrydegeneratepolygoncheck.h"
@@ -11,7 +19,7 @@
 void QgsGeometryDegeneratePolygonCheck::collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList &/*messages*/, QAtomicInt* progressCounter , const QgsFeatureIds &ids ) const
 {
   const QgsFeatureIds& featureIds = ids.isEmpty() ? mFeaturePool->getFeatureIds() : ids;
-  Q_FOREACH ( const QgsFeatureId& featureid, featureIds )
+  Q_FOREACH ( QgsFeatureId featureid, featureIds )
   {
     if ( progressCounter ) progressCounter->fetchAndAddRelaxed( 1 );
     QgsFeature feature;
@@ -19,12 +27,13 @@ void QgsGeometryDegeneratePolygonCheck::collectErrors( QList<QgsGeometryCheckErr
     {
       continue;
     }
-    QgsAbstractGeometryV2* geom = feature.geometry()->geometry();
+    QgsGeometry featureGeom = feature.geometry();
+    QgsAbstractGeometry* geom = featureGeom.geometry();
     for ( int iPart = 0, nParts = geom->partCount(); iPart < nParts; ++iPart )
     {
       for ( int iRing = 0, nRings = geom->ringCount( iPart ); iRing < nRings; ++iRing )
       {
-        if ( QgsGeomUtils::polyLineSize( geom, iPart, iRing ) < 3 )
+        if ( QgsGeometryCheckerUtils::polyLineSize( geom, iPart, iRing ) < 3 )
         {
           errors.append( new QgsGeometryCheckError( this, featureid, geom->vertexAt( QgsVertexId( iPart, iRing, 0 ) ), QgsVertexId( iPart, iRing ) ) );
         }
@@ -41,8 +50,9 @@ void QgsGeometryDegeneratePolygonCheck::fixError( QgsGeometryCheckError* error, 
     error->setObsolete();
     return;
   }
-  QgsAbstractGeometryV2* geom = feature.geometry()->geometry();
-  const QgsVertexId& vidx = error->vidx();
+  QgsGeometry featureGeometry = feature.geometry();
+  QgsAbstractGeometry* geom = featureGeometry.geometry();
+  QgsVertexId vidx = error->vidx();
 
   // Check if ring still exists
   if ( !vidx.isValid( geom ) )
@@ -52,7 +62,7 @@ void QgsGeometryDegeneratePolygonCheck::fixError( QgsGeometryCheckError* error, 
   }
 
   // Check if error still applies
-  if ( QgsGeomUtils::polyLineSize( geom, vidx.part, vidx.ring ) >= 3 )
+  if ( QgsGeometryCheckerUtils::polyLineSize( geom, vidx.part, vidx.ring ) >= 3 )
   {
     error->setObsolete();
     return;

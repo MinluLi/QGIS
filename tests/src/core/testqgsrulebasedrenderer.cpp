@@ -16,13 +16,13 @@
 #include <QDomDocument>
 #include <QFile>
 //header for class being tested
-#include <qgsrulebasedrendererv2.h>
+#include <qgsrulebasedrenderer.h>
 
 #include <qgsapplication.h>
-#include <qgssymbolv2.h>
+#include <qgssymbol.h>
 #include <qgsvectorlayer.h>
 
-typedef QgsRuleBasedRendererV2::Rule RRule;
+typedef QgsRuleBasedRenderer::Rule RRule;
 
 class TestQgsRuleBasedRenderer: public QObject
 {
@@ -44,10 +44,10 @@ class TestQgsRuleBasedRenderer: public QObject
     void test_load_xml()
     {
       QDomDocument doc;
-      xml2domElement( "rulebasedrenderer_simple.xml", doc );
+      xml2domElement( QStringLiteral( "rulebasedrenderer_simple.xml" ), doc );
       QDomElement elem = doc.documentElement();
 
-      QgsRuleBasedRendererV2* r = static_cast<QgsRuleBasedRendererV2*>( QgsRuleBasedRendererV2::create( elem ) );
+      QgsRuleBasedRenderer* r = static_cast<QgsRuleBasedRenderer*>( QgsRuleBasedRenderer::create( elem ) );
       QVERIFY( r );
       check_tree_valid( r->rootRule() );
       delete r;
@@ -56,32 +56,38 @@ class TestQgsRuleBasedRenderer: public QObject
     void test_load_invalid_xml()
     {
       QDomDocument doc;
-      xml2domElement( "rulebasedrenderer_invalid.xml", doc );
+      xml2domElement( QStringLiteral( "rulebasedrenderer_invalid.xml" ), doc );
       QDomElement elem = doc.documentElement();
 
-      QSharedPointer<QgsRuleBasedRendererV2> r( static_cast<QgsRuleBasedRendererV2*>( QgsRuleBasedRendererV2::create( elem ) ) );
-      QVERIFY( r == NULL );
+      QSharedPointer<QgsRuleBasedRenderer> r( static_cast<QgsRuleBasedRenderer*>( QgsRuleBasedRenderer::create( elem ) ) );
+      QVERIFY( !r );
     }
 
     void test_willRenderFeature_symbolsForFeature()
     {
       // prepare features
-      QgsVectorLayer* layer = new QgsVectorLayer( "point?field=fld:int", "x", "memory" );
-      int idx = layer->fieldNameIndex( "fld" );
+      QgsVectorLayer* layer = new QgsVectorLayer( QStringLiteral( "point?field=fld:int" ), QStringLiteral( "x" ), QStringLiteral( "memory" ) );
+      int idx = layer->fields().indexFromName( QStringLiteral( "fld" ) );
       QVERIFY( idx != -1 );
-      QgsFeature f1; f1.initAttributes( 1 ); f1.setAttribute( idx, QVariant( 2 ) );
-      QgsFeature f2; f2.initAttributes( 1 ); f2.setAttribute( idx, QVariant( 8 ) );
-      QgsFeature f3; f3.initAttributes( 1 ); f3.setAttribute( idx, QVariant( 100 ) );
+      QgsFeature f1;
+      f1.initAttributes( 1 );
+      f1.setAttribute( idx, QVariant( 2 ) );
+      QgsFeature f2;
+      f2.initAttributes( 1 );
+      f2.setAttribute( idx, QVariant( 8 ) );
+      QgsFeature f3;
+      f3.initAttributes( 1 );
+      f3.setAttribute( idx, QVariant( 100 ) );
 
       // prepare renderer
-      QgsSymbolV2* s1 = QgsSymbolV2::defaultSymbol( QGis::Point );
-      QgsSymbolV2* s2 = QgsSymbolV2::defaultSymbol( QGis::Point );
-      RRule* rootRule = new RRule( NULL );
-      rootRule->appendChild( new RRule( s1, 0, 0, "fld >= 5 and fld <= 20" ) );
-      rootRule->appendChild( new RRule( s2, 0, 0, "fld <= 10" ) );
-      QgsRuleBasedRendererV2 r( rootRule );
+      QgsSymbol* s1 = QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry );
+      QgsSymbol* s2 = QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry );
+      RRule* rootRule = new RRule( nullptr );
+      rootRule->appendChild( new RRule( s1, 0, 0, QStringLiteral( "fld >= 5 and fld <= 20" ) ) );
+      rootRule->appendChild( new RRule( s2, 0, 0, QStringLiteral( "fld <= 10" ) ) );
+      QgsRuleBasedRenderer r( rootRule );
 
-      QVERIFY( r.capabilities() & QgsFeatureRendererV2::MoreSymbolsPerFeature );
+      QVERIFY( r.capabilities() & QgsFeatureRenderer::MoreSymbolsPerFeature );
 
       QgsRenderContext ctx; // dummy render context
       ctx.expressionContext().setFields( layer->fields() );
@@ -97,14 +103,14 @@ class TestQgsRuleBasedRenderer: public QObject
 
       // test symbolsForFeature
       ctx.expressionContext().setFeature( f1 );
-      QgsSymbolV2List lst1 = r.symbolsForFeature( f1, ctx );
+      QgsSymbolList lst1 = r.symbolsForFeature( f1, ctx );
       QVERIFY( lst1.count() == 1 );
       ctx.expressionContext().setFeature( f2 );
-      QgsSymbolV2List lst2 = r.symbolsForFeature( f2, ctx );
+      QgsSymbolList lst2 = r.symbolsForFeature( f2, ctx );
       QVERIFY( lst2.count() == 2 );
       ctx.expressionContext().setFeature( f3 );
-      QgsSymbolV2List lst3 = r.symbolsForFeature( f3, ctx );
-      QVERIFY( lst3.count() == 0 );
+      QgsSymbolList lst3 = r.symbolsForFeature( f3, ctx );
+      QVERIFY( lst3.isEmpty() );
 
       r.stopRender( ctx );
 
@@ -114,15 +120,15 @@ class TestQgsRuleBasedRenderer: public QObject
     void test_clone_ruleKey()
     {
       RRule* rootRule = new RRule( 0 );
-      RRule* sub1Rule = new RRule( 0, 0, 0, "fld > 1" );
-      RRule* sub2Rule = new RRule( 0, 0, 0, "fld > 2" );
-      RRule* sub3Rule = new RRule( 0, 0, 0, "fld > 3" );
+      RRule* sub1Rule = new RRule( 0, 0, 0, QStringLiteral( "fld > 1" ) );
+      RRule* sub2Rule = new RRule( 0, 0, 0, QStringLiteral( "fld > 2" ) );
+      RRule* sub3Rule = new RRule( 0, 0, 0, QStringLiteral( "fld > 3" ) );
       rootRule->appendChild( sub1Rule );
       sub1Rule->appendChild( sub2Rule );
       sub2Rule->appendChild( sub3Rule );
-      QgsRuleBasedRendererV2 r( rootRule );
+      QgsRuleBasedRenderer r( rootRule );
 
-      QgsRuleBasedRendererV2* clone = static_cast<QgsRuleBasedRendererV2*>( r.clone() );
+      QgsRuleBasedRenderer* clone = static_cast<QgsRuleBasedRenderer*>( r.clone() );
       RRule* cloneRootRule = clone->rootRule();
       RRule* cloneSub1Rule = cloneRootRule->children()[0];
       RRule* cloneSub2Rule = cloneSub1Rule->children()[0];
@@ -139,7 +145,7 @@ class TestQgsRuleBasedRenderer: public QObject
   private:
     void xml2domElement( const QString& testFile, QDomDocument& doc )
     {
-      QString fileName = QString( TEST_DATA_DIR ) + '/' + testFile;
+      QString fileName = QStringLiteral( TEST_DATA_DIR ) + '/' + testFile;
       QFile f( fileName );
       bool fileOpen = f.open( QIODevice::ReadOnly );
       QVERIFY( fileOpen );
@@ -150,26 +156,26 @@ class TestQgsRuleBasedRenderer: public QObject
       QVERIFY( parse );
     }
 
-    void check_tree_valid( QgsRuleBasedRendererV2::Rule* root )
+    void check_tree_valid( QgsRuleBasedRenderer::Rule* root )
     {
       // root must always exist (although it does not have children)
       QVERIFY( root );
       // and does not have a parent
-      QVERIFY( root->parent() == NULL );
+      QVERIFY( !root->parent() );
 
-      Q_FOREACH ( QgsRuleBasedRendererV2::Rule* node, root->children() )
+      Q_FOREACH ( QgsRuleBasedRenderer::Rule* node, root->children() )
         check_non_root_rule( node );
     }
 
-    void check_non_root_rule( QgsRuleBasedRendererV2::Rule* node )
+    void check_non_root_rule( QgsRuleBasedRenderer::Rule* node )
     {
       qDebug() << node->dump();
-      // children must not be NULL
+      // children must not be nullptr
       QVERIFY( node );
       // and must have a parent
       QVERIFY( node->parent() );
       // check that all children are okay
-      Q_FOREACH ( QgsRuleBasedRendererV2::Rule* child, node->children() )
+      Q_FOREACH ( QgsRuleBasedRenderer::Rule* child, node->children() )
         check_non_root_rule( child );
     }
 

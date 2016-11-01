@@ -32,6 +32,7 @@
 #include "qgis.h"
 #include "qgsdataitem.h"
 
+#include "qgsapplication.h"
 #include "qgsdataitemprovider.h"
 #include "qgsdataitemproviderregistry.h"
 #include "qgsdataprovider.h"
@@ -46,7 +47,7 @@
 QgsAnimatedIcon::QgsAnimatedIcon( const QString & iconPath )
     : QObject()
     , mCount( 0 )
-    , mMovie( 0 )
+    , mMovie( nullptr )
 {
   // QApplication as parent to ensure that it is deleted before QApplication
   mMovie = new QMovie( QApplication::instance() );
@@ -81,7 +82,7 @@ void QgsAnimatedIcon::connectFrameChanged( const QObject * receiver, const char 
     mCount++;
   }
   mMovie->setPaused( mCount == 0 );
-  QgsDebugMsg( QString( "mCount = %1" ).arg( mCount ) );
+  QgsDebugMsgLevel( QString( "mCount = %1" ).arg( mCount ), 3 );
 }
 
 void QgsAnimatedIcon::disconnectFrameChanged( const QObject * receiver, const char * method )
@@ -91,7 +92,7 @@ void QgsAnimatedIcon::disconnectFrameChanged( const QObject * receiver, const ch
     mCount--;
   }
   mMovie->setPaused( mCount == 0 );
-  QgsDebugMsg( QString( "mCount = %1" ).arg( mCount ) );
+  QgsDebugMsgLevel( QString( "mCount = %1" ).arg( mCount ), 3 );
 }
 
 // shared icons
@@ -100,7 +101,7 @@ const QIcon &QgsLayerItem::iconPoint()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconPointLayer.svg" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconPointLayer.svg" ) );
 
   return icon;
 }
@@ -110,7 +111,7 @@ const QIcon &QgsLayerItem::iconLine()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconLineLayer.svg" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconLineLayer.svg" ) );
 
   return icon;
 }
@@ -120,7 +121,7 @@ const QIcon &QgsLayerItem::iconPolygon()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconPolygonLayer.svg" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconPolygonLayer.svg" ) );
 
   return icon;
 }
@@ -130,7 +131,7 @@ const QIcon &QgsLayerItem::iconTable()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconTableLayer.png" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconTableLayer.svg" ) );
 
   return icon;
 }
@@ -140,7 +141,7 @@ const QIcon &QgsLayerItem::iconRaster()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconRaster.svg" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconRaster.svg" ) );
 
   return icon;
 }
@@ -150,7 +151,7 @@ const QIcon &QgsLayerItem::iconDefault()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconLayer.png" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconLayer.png" ) );
 
   return icon;
 }
@@ -160,7 +161,7 @@ const QIcon &QgsDataCollectionItem::iconDataCollection()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconDbSchema.png" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconDbSchema.png" ) );
 
   return icon;
 }
@@ -181,12 +182,12 @@ const QIcon &QgsDataCollectionItem::iconDir()
   return icon;
 }
 
-const QIcon &QgsFavouritesItem::iconFavourites()
+const QIcon &QgsFavoritesItem::iconFavorites()
 {
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconFavourites.png" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconFavourites.png" ) );
 
   return icon;
 }
@@ -196,15 +197,13 @@ const QIcon &QgsZipItem::iconZip()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mIconZip.png" );
+    icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconZip.png" ) );
 // icon from http://www.softicons.com/free-icons/application-icons/mega-pack-icons-1-by-nikolay-verin/winzip-folder-icon
 
   return icon;
 }
 
-QMap<QString, QIcon> QgsDataItem::mIconMap = QMap<QString, QIcon>();
-
-QgsAnimatedIcon * QgsDataItem::mPopulatingIcon = 0;
+QgsAnimatedIcon * QgsDataItem::mPopulatingIcon = nullptr;
 
 QgsDataItem::QgsDataItem( QgsDataItem::Type type, QgsDataItem* parent, const QString& name, const QString& path )
 // Do not pass parent to QObject, Qt would delete this when parent is deleted
@@ -213,11 +212,10 @@ QgsDataItem::QgsDataItem( QgsDataItem::Type type, QgsDataItem* parent, const QSt
     , mCapabilities( NoCapabilities )
     , mParent( parent )
     , mState( NotPopulated )
-    , mPopulated( false )
     , mName( name )
     , mPath( path )
     , mDeferredDelete( false )
-    , mFutureWatcher( 0 )
+    , mFutureWatcher( nullptr )
 {
 }
 
@@ -245,13 +243,13 @@ QgsDataItem::~QgsDataItem()
 
 QString QgsDataItem::pathComponent( const QString &string )
 {
-  return QString( string ).replace( QRegExp( "[\\\\/]" ), "|" );
+  return QString( string ).replace( QRegExp( "[\\\\/]" ), QStringLiteral( "|" ) );
 }
 
 void QgsDataItem::deleteLater()
 {
-  QgsDebugMsg( "path = " + path() );
-  setParent( 0 ); // also disconnects parent
+  QgsDebugMsgLevel( "path = " + path(), 3 );
+  setParent( nullptr ); // also disconnects parent
   Q_FOREACH ( QgsDataItem *child, mChildren )
   {
     if ( !child ) // should not happen
@@ -289,8 +287,8 @@ void QgsDataItem::moveToThread( QThread * targetThread )
   {
     if ( !child ) // should not happen
       continue;
-    QgsDebugMsg( "moveToThread child " + child->path() );
-    child->QObject::setParent( 0 ); // to be sure
+    QgsDebugMsgLevel( "moveToThread child " + child->path(), 3 );
+    child->QObject::setParent( nullptr ); // to be sure
     child->moveToThread( targetThread );
   }
   QObject::moveToThread( targetThread );
@@ -312,39 +310,9 @@ QIcon QgsDataItem::icon()
   return mIconMap.value( mIconName );
 }
 
-void QgsDataItem::emitBeginInsertItems( QgsDataItem* parent, int first, int last )
-{
-  emit beginInsertItems( parent, first, last );
-}
-void QgsDataItem::emitEndInsertItems()
-{
-  emit endInsertItems();
-}
-void QgsDataItem::emitBeginRemoveItems( QgsDataItem* parent, int first, int last )
-{
-  emit beginRemoveItems( parent, first, last );
-}
-void QgsDataItem::emitEndRemoveItems()
-{
-  emit endRemoveItems();
-}
-
-void QgsDataItem::emitDataChanged( QgsDataItem* item )
-{
-  emit dataChanged( item );
-}
-
 void QgsDataItem::emitDataChanged()
 {
   emit dataChanged( this );
-}
-
-void QgsDataItem::emitStateChanged( QgsDataItem* item, QgsDataItem::State oldState )
-{
-  if ( !item )
-    return;
-  QgsDebugMsg( QString( "item %1 state changed %2 -> %3" ).arg( item->path() ).arg( oldState ).arg( item->state() ) );
-  emit stateChanged( item, oldState );
 }
 
 QVector<QgsDataItem*> QgsDataItem::createChildren()
@@ -357,7 +325,7 @@ void QgsDataItem::populate( bool foreground )
   if ( state() == Populated || state() == Populating )
     return;
 
-  QgsDebugMsg( "mPath = " + mPath );
+  QgsDebugMsgLevel( "mPath = " + mPath, 2 );
 
   if ( capabilities2() & QgsDataItem::Fast || foreground )
   {
@@ -379,27 +347,27 @@ void QgsDataItem::populate( bool foreground )
 // This is expected to be run in a separate thread
 QVector<QgsDataItem*> QgsDataItem::runCreateChildren( QgsDataItem* item )
 {
-  QgsDebugMsg( "path = " + item->path() );
+  QgsDebugMsgLevel( "path = " + item->path(), 2 );
   QTime time;
   time.start();
   QVector <QgsDataItem*> children = item->createChildren();
-  QgsDebugMsg( QString( "%1 children created in %2 ms" ).arg( children.size() ).arg( time.elapsed() ) );
+  QgsDebugMsgLevel( QString( "%1 children created in %2 ms" ).arg( children.size() ).arg( time.elapsed() ), 3 );
   // Children objects must be pushed to main thread.
   Q_FOREACH ( QgsDataItem* child, children )
   {
     if ( !child ) // should not happen
       continue;
-    QgsDebugMsg( "moveToThread child " + child->path() );
+    QgsDebugMsgLevel( "moveToThread child " + child->path(), 2 );
     if ( qApp )
       child->moveToThread( qApp->thread() ); // moves also children
   }
-  QgsDebugMsg( QString( "finished path %1: %2 children" ).arg( item->path() ).arg( children.size() ) );
+  QgsDebugMsgLevel( QString( "finished path %1: %2 children" ).arg( item->path() ).arg( children.size() ), 3 );
   return children;
 }
 
 void QgsDataItem::childrenCreated()
 {
-  QgsDebugMsg( QString( "path = %1 children.size() = %2" ).arg( path() ).arg( mFutureWatcher->result().size() ) );
+  QgsDebugMsgLevel( QString( "path = %1 children.size() = %2" ).arg( path() ).arg( mFutureWatcher->result().size() ), 3 );
 
   if ( deferredDelete() )
   {
@@ -408,7 +376,7 @@ void QgsDataItem::childrenCreated()
     return;
   }
 
-  if ( mChildren.size() == 0 ) // usually populating but may also be refresh if originaly there were no children
+  if ( mChildren.isEmpty() ) // usually populating but may also be refresh if originaly there were no children
   {
     populate( mFutureWatcher->result() );
   }
@@ -422,7 +390,7 @@ void QgsDataItem::childrenCreated()
 
 void QgsDataItem::populate( const QVector<QgsDataItem*>& children )
 {
-  QgsDebugMsg( "mPath = " + mPath );
+  QgsDebugMsgLevel( "mPath = " + mPath, 3 );
 
   Q_FOREACH ( QgsDataItem *child, children )
   {
@@ -436,11 +404,11 @@ void QgsDataItem::populate( const QVector<QgsDataItem*>& children )
 
 void QgsDataItem::depopulate()
 {
-  QgsDebugMsg( "mPath = " + mPath );
+  QgsDebugMsgLevel( "mPath = " + mPath, 3 );
 
   Q_FOREACH ( QgsDataItem *child, mChildren )
   {
-    QgsDebugMsg( "remove " + child->path() );
+    QgsDebugMsgLevel( "remove " + child->path(), 3 );
     child->depopulate(); // recursive
     deleteChildItem( child );
   }
@@ -452,7 +420,7 @@ void QgsDataItem::refresh()
   if ( state() == Populating )
     return;
 
-  QgsDebugMsg( "mPath = " + mPath );
+  QgsDebugMsgLevel( "mPath = " + mPath, 3 );
 
   if ( capabilities2() & QgsDataItem::Fast )
   {
@@ -470,7 +438,7 @@ void QgsDataItem::refresh()
   }
 }
 
-void QgsDataItem::refresh( QVector<QgsDataItem*> children )
+void QgsDataItem::refresh( const QVector<QgsDataItem*>& children )
 {
   QgsDebugMsgLevel( "mPath = " + mPath, 2 );
 
@@ -486,7 +454,7 @@ void QgsDataItem::refresh( QVector<QgsDataItem*> children )
   }
   Q_FOREACH ( QgsDataItem *child, remove )
   {
-    QgsDebugMsg( "remove " + child->path() );
+    QgsDebugMsgLevel( "remove " + child->path(), 3 );
     deleteChildItem( child );
   }
 
@@ -520,29 +488,29 @@ int QgsDataItem::rowCount()
 }
 bool QgsDataItem::hasChildren()
 {
-  return ( state() == Populated ? mChildren.count() > 0 : true );
+  return ( state() == Populated ? !mChildren.isEmpty() : true );
 }
 
 void QgsDataItem::setParent( QgsDataItem* parent )
 {
   if ( mParent )
   {
-    disconnect( this, 0, mParent, 0 );
+    disconnect( this, nullptr, mParent, nullptr );
   }
   if ( parent )
   {
     connect( this, SIGNAL( beginInsertItems( QgsDataItem*, int, int ) ),
-             parent, SLOT( emitBeginInsertItems( QgsDataItem*, int, int ) ) );
+             parent, SIGNAL( beginInsertItems( QgsDataItem*, int, int ) ) );
     connect( this, SIGNAL( endInsertItems() ),
-             parent, SLOT( emitEndInsertItems() ) );
+             parent, SIGNAL( endInsertItems() ) );
     connect( this, SIGNAL( beginRemoveItems( QgsDataItem*, int, int ) ),
-             parent, SLOT( emitBeginRemoveItems( QgsDataItem*, int, int ) ) );
+             parent, SIGNAL( beginRemoveItems( QgsDataItem*, int, int ) ) );
     connect( this, SIGNAL( endRemoveItems() ),
-             parent, SLOT( emitEndRemoveItems() ) );
+             parent, SIGNAL( endRemoveItems() ) );
     connect( this, SIGNAL( dataChanged( QgsDataItem* ) ),
-             parent, SLOT( emitDataChanged( QgsDataItem* ) ) );
+             parent, SIGNAL( dataChanged( QgsDataItem* ) ) );
     connect( this, SIGNAL( stateChanged( QgsDataItem*, QgsDataItem::State ) ),
-             parent, SLOT( emitStateChanged( QgsDataItem*, QgsDataItem::State ) ) );
+             parent, SIGNAL( stateChanged( QgsDataItem*, QgsDataItem::State ) ) );
   }
   mParent = parent;
 }
@@ -550,16 +518,17 @@ void QgsDataItem::setParent( QgsDataItem* parent )
 void QgsDataItem::addChildItem( QgsDataItem * child, bool refresh )
 {
   Q_ASSERT( child );
-  QgsDebugMsg( QString( "path = %1 add child #%2 - %3 - %4" ).arg( mPath ).arg( mChildren.size() ).arg( child->mName ).arg( child->mType ) );
+  QgsDebugMsgLevel( QString( "path = %1 add child #%2 - %3 - %4" ).arg( mPath ).arg( mChildren.size() ).arg( child->mName ).arg( child->mType ), 3 );
 
+  //calculate position to insert child
   int i;
   if ( type() == Directory )
   {
     for ( i = 0; i < mChildren.size(); i++ )
     {
       // sort items by type, so directories are before data items
-      if ( mChildren[i]->mType == child->mType &&
-           mChildren[i]->mName.localeAwareCompare( child->mName ) > 0 )
+      if ( mChildren.at( i )->mType == child->mType &&
+           mChildren.at( i )->mName.localeAwareCompare( child->mName ) > 0 )
         break;
     }
   }
@@ -567,7 +536,7 @@ void QgsDataItem::addChildItem( QgsDataItem * child, bool refresh )
   {
     for ( i = 0; i < mChildren.size(); i++ )
     {
-      if ( mChildren[i]->mName.localeAwareCompare( child->mName ) >= 0 )
+      if ( mChildren.at( i )->mName.localeAwareCompare( child->mName ) >= 0 )
         break;
     }
   }
@@ -581,6 +550,7 @@ void QgsDataItem::addChildItem( QgsDataItem * child, bool refresh )
   if ( refresh )
     emit endInsertItems();
 }
+
 void QgsDataItem::deleteChildItem( QgsDataItem * child )
 {
   QgsDebugMsgLevel( "mName = " + child->mName, 2 );
@@ -597,10 +567,15 @@ QgsDataItem * QgsDataItem::removeChildItem( QgsDataItem * child )
   QgsDebugMsgLevel( "mName = " + child->mName, 2 );
   int i = mChildren.indexOf( child );
   Q_ASSERT( i >= 0 );
+  if ( i < 0 )
+  {
+    child->setParent( nullptr );
+    return nullptr;
+  }
+
   emit beginRemoveItems( this, i, i );
   mChildren.remove( i );
   emit endRemoveItems();
-  child->setParent( 0 );
   return child;
 }
 
@@ -608,7 +583,7 @@ int QgsDataItem::findItem( QVector<QgsDataItem*> items, QgsDataItem * item )
 {
   for ( int i = 0; i < items.size(); i++ )
   {
-    Q_ASSERT_X( items[i], "findItem", QString( "item %1 is NULL" ).arg( i ).toAscii() );
+    Q_ASSERT_X( items[i], "findItem", QString( "item %1 is nullptr" ).arg( i ).toLatin1() );
     QgsDebugMsgLevel( QString::number( i ) + " : " + items[i]->mPath + " x " + item->mPath, 2 );
     if ( items[i]->equal( item ) )
       return i;
@@ -628,16 +603,12 @@ bool QgsDataItem::equal( const QgsDataItem *other )
 
 QgsDataItem::State QgsDataItem::state() const
 {
-  // for backward compatibility (if subclass set mPopulated directly)
-  // TODO: remove in 3.0
-  if ( mPopulated )
-    return Populated;
   return mState;
 }
 
 void QgsDataItem::setState( State state )
 {
-  QgsDebugMsg( QString( "item %1 set state %2 -> %3" ).arg( path() ).arg( this->state() ).arg( state ) );
+  QgsDebugMsgLevel( QString( "item %1 set state %2 -> %3" ).arg( path() ).arg( this->state() ).arg( state ), 3 );
   if ( state == mState )
     return;
 
@@ -648,7 +619,7 @@ void QgsDataItem::setState( State state )
     if ( !mPopulatingIcon )
     {
       // TODO: ensure that QgsAnimatedIcon is created on UI thread only
-      mPopulatingIcon = new QgsAnimatedIcon( QgsApplication::iconPath( "/mIconLoading.gif" ) );
+      mPopulatingIcon = new QgsAnimatedIcon( QgsApplication::iconPath( QStringLiteral( "/mIconLoading.gif" ) ) );
     }
     mPopulatingIcon->connectFrameChanged( this, SLOT( emitDataChanged() ) );
   }
@@ -658,11 +629,10 @@ void QgsDataItem::setState( State state )
   }
 
   mState = state;
-  // for backward compatibility (if subclass access mPopulated directly)
-  // TODO: remove in 3.0
-  mPopulated = state == Populated;
 
   emit stateChanged( this, oldState );
+  if ( state == Populated )
+    emitDataChanged();
 }
 
 // ---------------------------------------------------------------------
@@ -675,18 +645,32 @@ QgsLayerItem::QgsLayerItem( QgsDataItem* parent, const QString& name, const QStr
 {
   switch ( layerType )
   {
-    case Point:      mIconName = "/mIconPointLayer.svg"; break;
-    case Line:       mIconName = "/mIconLineLayer.svg"; break;
-    case Polygon:    mIconName = "/mIconPolygonLayer.svg"; break;
+    case Point:
+      mIconName = QStringLiteral( "/mIconPointLayer.svg" );
+      break;
+    case Line:
+      mIconName = QStringLiteral( "/mIconLineLayer.svg" );
+      break;
+    case Polygon:
+      mIconName = QStringLiteral( "/mIconPolygonLayer.svg" );
+      break;
       // TODO add a new icon for generic Vector layers
-    case Vector :    mIconName = "/mIconPolygonLayer.svg"; break;
-    case TableLayer: mIconName = "/mIconTableLayer.png"; break;
-    case Raster:     mIconName = "/mIconRaster.svg"; break;
-    default:         mIconName = "/mIconLayer.png"; break;
+    case Vector :
+      mIconName = QStringLiteral( "/mIconPolygonLayer.svg" );
+      break;
+    case TableLayer:
+      mIconName = QStringLiteral( "/mIconTableLayer.svg" );
+      break;
+    case Raster:
+      mIconName = QStringLiteral( "/mIconRaster.svg" );
+      break;
+    default:
+      mIconName = QStringLiteral( "/mIconLayer.png" );
+      break;
   }
 }
 
-QgsMapLayer::LayerType QgsLayerItem::mapLayerType()
+QgsMapLayer::LayerType QgsLayerItem::mapLayerType() const
 {
   if ( mLayerType == QgsLayerItem::Raster )
     return QgsMapLayer::RasterLayer;
@@ -710,12 +694,39 @@ bool QgsLayerItem::equal( const QgsDataItem *other )
   return ( mPath == o->mPath && mName == o->mName && mUri == o->mUri && mProviderKey == o->mProviderKey );
 }
 
+QgsMimeDataUtils::Uri QgsLayerItem::mimeUri() const
+{
+  QgsMimeDataUtils::Uri u;
+
+  switch ( mapLayerType() )
+  {
+    case QgsMapLayer::VectorLayer:
+      u.layerType = QStringLiteral( "vector" );
+      break;
+    case QgsMapLayer::RasterLayer:
+      u.layerType = QStringLiteral( "raster" );
+      break;
+    case QgsMapLayer::PluginLayer:
+      u.layerType = QStringLiteral( "plugin" );
+      break;
+    default:
+      return u;  // invalid URI
+  }
+
+  u.providerKey = providerKey();
+  u.name = layerName();
+  u.uri = uri();
+  u.supportedCrs = supportedCrs();
+  u.supportedFormats = supportedFormats();
+  return u;
+}
+
 // ---------------------------------------------------------------------
 QgsDataCollectionItem::QgsDataCollectionItem( QgsDataItem* parent, const QString& name, const QString& path )
     : QgsDataItem( Collection, parent, name, path )
 {
   mCapabilities = Fertile;
-  mIconName = "/mIconDbSchema.png";
+  mIconName = QStringLiteral( "/mIconDbSchema.png" );
 }
 
 QgsDataCollectionItem::~QgsDataCollectionItem()
@@ -733,15 +744,11 @@ QgsDataCollectionItem::~QgsDataCollectionItem()
 }
 
 //-----------------------------------------------------------------------
-// QVector<QgsDataProvider*> QgsDirectoryItem::mProviders = QVector<QgsDataProvider*>();
-Q_NOWARN_DEPRECATED_PUSH
-QVector<QLibrary*> QgsDirectoryItem::mLibraries = QVector<QLibrary*>();
-Q_NOWARN_DEPRECATED_POP
 
 QgsDirectoryItem::QgsDirectoryItem( QgsDataItem* parent, const QString& name, const QString& path )
     : QgsDataCollectionItem( parent, name, path )
     , mDirPath( path )
-    , mFileSystemWatcher( 0 )
+    , mFileSystemWatcher( nullptr )
     , mRefreshLater( false )
 {
   mType = Directory;
@@ -751,7 +758,7 @@ QgsDirectoryItem::QgsDirectoryItem( QgsDataItem* parent, const QString& name, co
 QgsDirectoryItem::QgsDirectoryItem( QgsDataItem* parent, const QString& name, const QString& dirPath, const QString& path )
     : QgsDataCollectionItem( parent, name, path )
     , mDirPath( dirPath )
-    , mFileSystemWatcher( 0 )
+    , mFileSystemWatcher( nullptr )
     , mRefreshLater( false )
 {
   mType = Directory;
@@ -787,10 +794,14 @@ QVector<QgsDataItem*> QgsDirectoryItem::createChildren()
       deleteLater( children );
       return children;
     }
+
     QString subdirPath = dir.absoluteFilePath( subdir );
+
     QgsDebugMsgLevel( QString( "creating subdir: %1" ).arg( subdirPath ), 2 );
 
     QString path = mPath + '/' + subdir; // may differ from subdirPath
+    if ( QgsDirectoryItem::hiddenPath( path ) )
+      continue;
     QgsDirectoryItem *item = new QgsDirectoryItem( this, subdir, subdirPath, path );
     // propagate signals up to top
 
@@ -808,6 +819,13 @@ QVector<QgsDataItem*> QgsDirectoryItem::createChildren()
 
     QString path = dir.absoluteFilePath( name );
     QFileInfo fileInfo( path );
+
+    if ( fileInfo.suffix() == QLatin1String( "qgs" ) )
+    {
+      QgsDataItem * item = new QgsProjectItem( this, name, path );
+      children.append( item );
+      continue;
+    }
 
     // vsizip support was added to GDAL/OGR 1.6 but GDAL_VERSION_NUM not available here
     //   so we assume it's available anyway
@@ -844,7 +862,6 @@ QVector<QgsDataItem*> QgsDirectoryItem::createChildren()
 
 void QgsDirectoryItem::setState( State state )
 {
-  QgsDebugMsg( "Entered" );
   QgsDataCollectionItem::setState( state );
 
   if ( state == Populated )
@@ -861,14 +878,13 @@ void QgsDirectoryItem::setState( State state )
     if ( mFileSystemWatcher )
     {
       delete mFileSystemWatcher;
-      mFileSystemWatcher = 0;
+      mFileSystemWatcher = nullptr;
     }
   }
 }
 
 void QgsDirectoryItem::directoryChanged()
 {
-  QgsDebugMsg( "Entered" );
   if ( state() == Populating )
   {
     // schedule to refresh later, because refres() simply returns if Populating
@@ -880,13 +896,22 @@ void QgsDirectoryItem::directoryChanged()
   }
 }
 
+bool QgsDirectoryItem::hiddenPath( const QString& path )
+{
+  QSettings settings;
+  QStringList hiddenItems = settings.value( QStringLiteral( "/browser/hiddenPaths" ),
+                            QStringList() ).toStringList();
+  int idx = hiddenItems.indexOf( path );
+  return ( idx > -1 );
+}
+
 void QgsDirectoryItem::childrenCreated()
 {
-  QgsDebugMsg( QString( "mRefreshLater = %1" ).arg( mRefreshLater ) );
+  QgsDebugMsgLevel( QString( "mRefreshLater = %1" ).arg( mRefreshLater ), 3 );
 
   if ( mRefreshLater )
   {
-    QgsDebugMsg( "directory changed during createChidren() -> refresh() again" );
+    QgsDebugMsgLevel( "directory changed during createChidren() -> refresh() again", 3 );
     mRefreshLater = false;
     setState( Populated );
     refresh();
@@ -949,7 +974,7 @@ QgsDirectoryParamWidget::QgsDirectoryParamWidget( const QString& path, QWidget* 
     }
     else
     {
-      size = QString( "%1 B" ).arg( fi.size() );
+      size = QStringLiteral( "%1 B" ).arg( fi.size() );
     }
     texts << size;
     texts << fi.lastModified().toString( Qt::SystemLocaleShortDate );
@@ -1003,7 +1028,7 @@ QgsDirectoryParamWidget::QgsDirectoryParamWidget( const QString& path, QWidget* 
 
   // hide columns that are not requested
   QSettings settings;
-  QList<QVariant> lst = settings.value( "/dataitem/directoryHiddenColumns" ).toList();
+  QList<QVariant> lst = settings.value( QStringLiteral( "/dataitem/directoryHiddenColumns" ) ).toList();
   Q_FOREACH ( const QVariant& colVariant, lst )
   {
     setColumnHidden( colVariant.toInt(), true );
@@ -1048,14 +1073,25 @@ void QgsDirectoryParamWidget::showHideColumn()
     if ( isColumnHidden( i ) )
       lst.append( QVariant( i ) );
   }
-  settings.setValue( "/dataitem/directoryHiddenColumns", lst );
+  settings.setValue( QStringLiteral( "/dataitem/directoryHiddenColumns" ), lst );
 }
 
+QgsProjectItem::QgsProjectItem( QgsDataItem* parent, const QString &name, const QString& path )
+    : QgsDataItem( QgsDataItem::Project, parent, name, path )
+{
+  mIconName = QStringLiteral( ":/images/icons/qgis-icon-16x16.png" );
+
+  setState( Populated ); // no more children
+}
+
+QgsProjectItem::~QgsProjectItem()
+{
+}
 
 QgsErrorItem::QgsErrorItem( QgsDataItem* parent, const QString& error, const QString& path )
     : QgsDataItem( QgsDataItem::Error, parent, error, path )
 {
-  mIconName = "/mIconDelete.png";
+  mIconName = QStringLiteral( "/mIconDelete.png" );
 
   setState( Populated ); // no more children
 }
@@ -1064,73 +1100,100 @@ QgsErrorItem::~QgsErrorItem()
 {
 }
 
-QgsFavouritesItem::QgsFavouritesItem( QgsDataItem* parent, const QString& name, const QString& path )
-    : QgsDataCollectionItem( parent, name, "favourites:" )
+QgsFavoritesItem::QgsFavoritesItem( QgsDataItem* parent, const QString& name, const QString& path )
+    : QgsDataCollectionItem( parent, name, QStringLiteral( "favorites:" ) )
 {
   Q_UNUSED( path );
   mCapabilities |= Fast;
-  mType = Favourites;
-  mIconName = "/mIconFavourites.png";
+  mType = Favorites;
+  mIconName = QStringLiteral( "/mIconFavourites.png" );
   populate();
 }
 
-QgsFavouritesItem::~QgsFavouritesItem()
+QgsFavoritesItem::~QgsFavoritesItem()
 {
 }
 
-QVector<QgsDataItem*> QgsFavouritesItem::createChildren()
+QVector<QgsDataItem*> QgsFavoritesItem::createChildren()
 {
   QVector<QgsDataItem*> children;
 
   QSettings settings;
-  QStringList favDirs = settings.value( "/browser/favourites", QVariant() ).toStringList();
+  QStringList favDirs = settings.value( QStringLiteral( "/browser/favourites" ), QVariant() ).toStringList();
 
   Q_FOREACH ( const QString& favDir, favDirs )
   {
-    QString pathName = pathComponent( favDir );
+    children << createChildren( favDir );
+  }
+
+  return children;
+}
+
+void QgsFavoritesItem::addDirectory( const QString& favDir )
+{
+  QSettings settings;
+  QStringList favDirs = settings.value( QStringLiteral( "/browser/favourites" ) ).toStringList();
+  favDirs.append( favDir );
+  settings.setValue( QStringLiteral( "/browser/favourites" ), favDirs );
+
+  if ( state() == Populated )
+  {
+    QVector<QgsDataItem*> items = createChildren( favDir );
+    Q_FOREACH ( QgsDataItem* item, items )
+    {
+      addChildItem( item, true );
+    }
+  }
+}
+
+void QgsFavoritesItem::removeDirectory( QgsDirectoryItem *item )
+{
+  if ( !item )
+    return;
+
+  QSettings settings;
+  QStringList favDirs = settings.value( QStringLiteral( "/browser/favourites" ) ).toStringList();
+  favDirs.removeAll( item->dirPath() );
+  settings.setValue( QStringLiteral( "/browser/favourites" ), favDirs );
+
+  int idx = findItem( mChildren, item );
+  if ( idx < 0 )
+  {
+    QgsDebugMsg( QString( "favorites item %1 not found" ).arg( item->path() ) );
+    return;
+  }
+
+  if ( state() == Populated )
+    deleteChildItem( mChildren.at( idx ) );
+}
+
+QVector<QgsDataItem*> QgsFavoritesItem::createChildren( const QString& favDir )
+{
+  QVector<QgsDataItem*> children;
+  QString pathName = pathComponent( favDir );
+  Q_FOREACH ( QgsDataItemProvider* provider, QgsDataItemProviderRegistry::instance()->providers() )
+  {
+    int capabilities = provider->capabilities();
+
+    if ( capabilities & QgsDataProvider::Dir )
+    {
+      QgsDataItem * item = provider->createDataItem( favDir, this );
+      if ( item )
+      {
+        item->setName( favDir );
+        children.append( item );
+      }
+    }
+  }
+  if ( children.isEmpty() )
+  {
     QgsDataItem *item = new QgsDirectoryItem( this, favDir, favDir, mPath + '/' + pathName );
     if ( item )
     {
       children.append( item );
     }
   }
-
   return children;
-}
-
-void QgsFavouritesItem::addDirectory( const QString& favDir )
-{
-  QSettings settings;
-  QStringList favDirs = settings.value( "/browser/favourites" ).toStringList();
-  favDirs.append( favDir );
-  settings.setValue( "/browser/favourites", favDirs );
-
-  if ( state() == Populated )
-  {
-    QString pathName = pathComponent( favDir );
-    addChildItem( new QgsDirectoryItem( this, favDir, favDir, mPath + '/' + pathName ), true );
-  }
-}
-
-void QgsFavouritesItem::removeDirectory( QgsDirectoryItem *item )
-{
-  if ( !item )
-    return;
-
-  QSettings settings;
-  QStringList favDirs = settings.value( "/browser/favourites" ).toStringList();
-  favDirs.removeAll( item->dirPath() );
-  settings.setValue( "/browser/favourites", favDirs );
-
-  int idx = findItem( mChildren, item );
-  if ( idx < 0 )
-  {
-    QgsDebugMsg( QString( "favourites item %1 not found" ).arg( item->path() ) );
-    return;
-  }
-
-  if ( state() == Populated )
-    deleteChildItem( mChildren[idx] );
 }
 
 //-----------------------------------------------------------------------
@@ -1155,28 +1218,28 @@ QgsZipItem::QgsZipItem( QgsDataItem* parent, const QString& name, const QString&
 void QgsZipItem::init()
 {
   mType = Collection; //Zip??
-  mIconName = "/mIconZip.png";
+  mIconName = QStringLiteral( "/mIconZip.png" );
   mVsiPrefix = vsiPrefix( mFilePath );
 
-  if ( mProviderNames.size() == 0 )
+  if ( mProviderNames.isEmpty() )
   {
     // QStringList keys = QgsProviderRegistry::instance()->providerList();
     // only use GDAL and OGR providers as we use the VSIFILE mechanism
     QStringList keys;
     // keys << "ogr" << "gdal";
-    keys << "gdal" << "ogr";
+    keys << QStringLiteral( "gdal" ) << QStringLiteral( "ogr" );
 
     QStringList::const_iterator i;
     for ( i = keys.begin(); i != keys.end(); ++i )
     {
       QString k( *i );
-      QgsDebugMsg( "provider " + k );
+      QgsDebugMsgLevel( "provider " + k, 3 );
       // some providers hangs with empty uri (Postgis) etc...
       // -> using libraries directly
       QLibrary *library = QgsProviderRegistry::instance()->providerLibrary( k );
       if ( library )
       {
-        dataCapabilities_t * dataCapabilities = ( dataCapabilities_t * ) cast_to_fptr( library->resolve( "dataCapabilities" ) );
+        dataCapabilities_t * dataCapabilities = reinterpret_cast< dataCapabilities_t * >( cast_to_fptr( library->resolve( "dataCapabilities" ) ) );
         if ( !dataCapabilities )
         {
           QgsDebugMsg( library->fileName() + " does not have dataCapabilities" );
@@ -1189,7 +1252,7 @@ void QgsZipItem::init()
         }
         QgsDebugMsg( QString( "%1 dataCapabilities : %2" ).arg( library->fileName() ).arg( dataCapabilities() ) );
 
-        dataItem_t * dataItem = ( dataItem_t * ) cast_to_fptr( library->resolve( "dataItem" ) );
+        dataItem_t * dataItem = reinterpret_cast< dataItem_t * >( cast_to_fptr( library->resolve( "dataItem" ) ) );
         if ( ! dataItem )
         {
           QgsDebugMsg( library->fileName() + " does not have dataItem" );
@@ -1219,10 +1282,10 @@ QgsZipItem::~QgsZipItem()
 // but use char ** and CSLAddString, because CPLStringList was added in gdal-1.9
 char **VSIReadDirRecursive1( const char *pszPath )
 {
-  // CPLStringList oFiles = NULL;
-  char **papszOFiles = NULL;
-  char **papszFiles1 = NULL;
-  char **papszFiles2 = NULL;
+  // CPLStringList oFiles = nullptr;
+  char **papszOFiles = nullptr;
+  char **papszFiles1 = nullptr;
+  char **papszFiles2 = nullptr;
   VSIStatBufL psStatBuf;
   CPLString osTemp1, osTemp2;
   int i, j;
@@ -1231,7 +1294,7 @@ char **VSIReadDirRecursive1( const char *pszPath )
   // get listing
   papszFiles1 = VSIReadDir( pszPath );
   if ( ! papszFiles1 )
-    return NULL;
+    return nullptr;
 
   // get files and directories inside listing
   nCount1 = CSLCount( papszFiles1 );
@@ -1289,14 +1352,14 @@ QVector<QgsDataItem*> QgsZipItem::createChildren()
   QVector<QgsDataItem*> children;
   QString tmpPath;
   QSettings settings;
-  QString scanZipSetting = settings.value( "/qgis/scanZipInBrowser2", "basic" ).toString();
+  QString scanZipSetting = settings.value( QStringLiteral( "/qgis/scanZipInBrowser2" ), "basic" ).toString();
 
   mZipFileList.clear();
 
   QgsDebugMsgLevel( QString( "mFilePath = %1 path = %2 name= %3 scanZipSetting= %4 vsiPrefix= %5" ).arg( mFilePath, path(), name(), scanZipSetting, mVsiPrefix ), 2 );
 
   // if scanZipBrowser == no: skip to the next file
-  if ( scanZipSetting == "no" )
+  if ( scanZipSetting == QLatin1String( "no" ) )
   {
     return children;
   }
@@ -1315,24 +1378,24 @@ QVector<QgsDataItem*> QgsZipItem::createChildren()
     for ( int i = 0; i < mProviderNames.size(); i++ )
     {
       // ugly hack to remove .dbf file if there is a .shp file
-      if ( mProviderNames[i] == "ogr" )
+      if ( mProviderNames[i] == QLatin1String( "ogr" ) )
       {
-        if ( info.suffix().toLower() == "dbf" )
+        if ( info.suffix().toLower() == QLatin1String( "dbf" ) )
         {
           if ( mZipFileList.indexOf( fileName.left( fileName.count() - 4 ) + ".shp" ) != -1 )
             continue;
         }
-        if ( info.completeSuffix().toLower() == "shp.xml" )
+        if ( info.completeSuffix().toLower() == QLatin1String( "shp.xml" ) )
         {
           continue;
         }
       }
 
       // try to get data item from provider
-      dataItem_t *dataItem = mDataItemPtr[i];
+      dataItem_t *dataItem = mDataItemPtr.at( i );
       if ( dataItem )
       {
-        QgsDebugMsgLevel( QString( "trying to load item %1 with %2" ).arg( tmpPath, mProviderNames[i] ), 3 );
+        QgsDebugMsgLevel( QString( "trying to load item %1 with %2" ).arg( tmpPath, mProviderNames.at( i ) ), 3 );
         QgsDataItem * item = dataItem( tmpPath, this );
         if ( item )
         {
@@ -1354,7 +1417,7 @@ QVector<QgsDataItem*> QgsZipItem::createChildren()
   return children;
 }
 
-QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, QString path, QString name )
+QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, const QString& path, const QString& name )
 {
   return itemFromPath( parent, path, name, path );
 }
@@ -1362,23 +1425,22 @@ QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, QString path, QStrin
 QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, const QString& filePath, const QString& name, const QString& path )
 {
   QSettings settings;
-  QString scanZipSetting = settings.value( "/qgis/scanZipInBrowser2", "basic" ).toString();
+  QString scanZipSetting = settings.value( QStringLiteral( "/qgis/scanZipInBrowser2" ), "basic" ).toString();
   int zipFileCount = 0;
   QStringList zipFileList;
-  QFileInfo fileInfo( filePath );
   QString vsiPrefix = QgsZipItem::vsiPrefix( filePath );
-  QgsZipItem * zipItem = 0;
+  QgsZipItem * zipItem = nullptr;
   bool populated = false;
 
   QgsDebugMsgLevel( QString( "path = %1 name= %2 scanZipSetting= %3 vsiPrefix= %4" ).arg( path, name, scanZipSetting, vsiPrefix ), 3 );
 
   // don't scan if scanZipBrowser == no
-  if ( scanZipSetting == "no" )
-    return 0;
+  if ( scanZipSetting == QLatin1String( "no" ) )
+    return nullptr;
 
   // don't scan if this file is not a /vsizip/ or /vsitar/ item
-  if (( vsiPrefix != "/vsizip/" && vsiPrefix != "/vsitar/" ) )
-    return 0;
+  if (( vsiPrefix != QLatin1String( "/vsizip/" ) && vsiPrefix != QLatin1String( "/vsitar/" ) ) )
+    return nullptr;
 
   zipItem = new QgsZipItem( parent, name, filePath, path );
 
@@ -1390,13 +1452,13 @@ QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, const QString& fileP
     // could also accept all files smaller than a certain size and add options for file count and/or size
 
     // first get list of files inside .zip or .tar files
-    if ( path.endsWith( ".zip", Qt::CaseInsensitive ) ||
-         path.endsWith( ".tar", Qt::CaseInsensitive ) )
+    if ( path.endsWith( QLatin1String( ".zip" ), Qt::CaseInsensitive ) ||
+         path.endsWith( QLatin1String( ".tar" ), Qt::CaseInsensitive ) )
     {
       zipFileList = zipItem->getZipFileList();
     }
     // force populate if less than 10 items
-    if ( zipFileList.count() > 0 && zipFileList.count() <= 10 )
+    if ( !zipFileList.isEmpty() && zipFileList.count() <= 10 )
     {
       zipItem->populate( zipItem->createChildren() );
       populated = true; // there is no QgsDataItem::isPopulated() function
@@ -1437,15 +1499,15 @@ QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, const QString& fileP
     // try to open using registered providers (gdal and ogr)
     for ( int i = 0; i < mProviderNames.size(); i++ )
     {
-      dataItem_t *dataItem = mDataItemPtr[i];
+      dataItem_t *dataItem = mDataItemPtr.at( i );
       if ( dataItem )
       {
-        QgsDataItem *item = 0;
+        QgsDataItem *item = nullptr;
         // try first with normal path (Passthru)
         // this is to simplify .qml handling, and without this some tests will fail
         // (e.g. testZipItemVectorTransparency(), second test)
-        if (( mProviderNames[i] == "ogr" ) ||
-            ( mProviderNames[i] == "gdal" && zipFileCount == 1 ) )
+        if (( mProviderNames.at( i ) == QLatin1String( "ogr" ) ) ||
+            ( mProviderNames.at( i ) == QLatin1String( "gdal" ) && zipFileCount == 1 ) )
           item = dataItem( filePath, parent );
         // try with /vsizip/
         if ( ! item )
@@ -1456,7 +1518,7 @@ QgsDataItem* QgsZipItem::itemFromPath( QgsDataItem* parent, const QString& fileP
     }
   }
 
-  return 0;
+  return nullptr;
 }
 
 const QStringList &QgsZipItem::getZipFileList()
@@ -1466,12 +1528,12 @@ const QStringList &QgsZipItem::getZipFileList()
 
   QString tmpPath;
   QSettings settings;
-  QString scanZipSetting = settings.value( "/qgis/scanZipInBrowser2", "basic" ).toString();
+  QString scanZipSetting = settings.value( QStringLiteral( "/qgis/scanZipInBrowser2" ), "basic" ).toString();
 
   QgsDebugMsgLevel( QString( "mFilePath = %1 name= %2 scanZipSetting= %3 vsiPrefix= %4" ).arg( mFilePath, name(), scanZipSetting, mVsiPrefix ), 3 );
 
   // if scanZipBrowser == no: skip to the next file
-  if ( scanZipSetting == "no" )
+  if ( scanZipSetting == QLatin1String( "no" ) )
   {
     return mZipFileList;
   }
@@ -1486,7 +1548,7 @@ const QStringList &QgsZipItem::getZipFileList()
       tmpPath = papszSiblingFiles[i];
       QgsDebugMsgLevel( QString( "Read file %1" ).arg( tmpPath ), 3 );
       // skip directories (files ending with /)
-      if ( tmpPath.right( 1 ) != "/" )
+      if ( tmpPath.right( 1 ) != QLatin1String( "/" ) )
         mZipFileList << tmpPath;
     }
     CSLDestroy( papszSiblingFiles );

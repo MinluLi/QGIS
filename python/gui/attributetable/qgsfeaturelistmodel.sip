@@ -12,6 +12,12 @@ class QgsFeatureListModel : QAbstractProxyModel, QgsFeatureModel
       bool isEdited;
     };
 
+    enum Role
+    {
+      FeatureInfoRole,
+      FeatureRole
+    };
+
   public:
     explicit QgsFeatureListModel( QgsAttributeTableFilterModel *sourceModel, QObject* parent /TransferThis/ = 0 );
     virtual ~QgsFeatureListModel();
@@ -20,6 +26,20 @@ class QgsFeatureListModel : QAbstractProxyModel, QgsFeatureModel
     QgsVectorLayerCache* layerCache();
     virtual QVariant data( const QModelIndex& index, int role ) const;
     virtual Qt::ItemFlags flags( const QModelIndex& index ) const;
+
+    /**
+     * @brief If true is specified, a NULL value will be injected
+     * @param injectNull state of null value injection
+     * @note added in 2.9
+     */
+    void setInjectNull( bool injectNull );
+
+    /**
+     * @brief Returns the current state of null value injection
+     * @return If a NULL value is added
+     * @note added in 2.9
+     */
+    bool injectNull();
 
     QgsAttributeTableModel* masterModel();
 

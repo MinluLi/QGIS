@@ -28,8 +28,8 @@
 
 QgsMapToolMeasureAngle::QgsMapToolMeasureAngle( QgsMapCanvas* canvas )
     : QgsMapTool( canvas )
-    , mRubberBand( 0 )
-    , mResultDisplay( 0 )
+    , mRubberBand( nullptr )
+    , mResultDisplay( nullptr )
 {
   mToolName = tr( "Measure angle" );
 
@@ -91,9 +91,10 @@ void QgsMapToolMeasureAngle::canvasReleaseEvent( QgsMapMouseEvent* e )
 
   if ( mAnglePoints.size() < 1 )
   {
-    if ( mResultDisplay == NULL )
+    if ( !mResultDisplay )
     {
-      mResultDisplay = new QgsDisplayAngle( this, Qt::WindowStaysOnTopHint );
+      mResultDisplay = new QgsDisplayAngle( this );
+      mResultDisplay->setWindowFlags( mResultDisplay->windowFlags() | Qt::Tool );
       QObject::connect( mResultDisplay, SIGNAL( rejected() ), this, SLOT( stopMeasuring() ) );
     }
     configureDistanceArea();
@@ -111,9 +112,9 @@ void QgsMapToolMeasureAngle::canvasReleaseEvent( QgsMapMouseEvent* e )
 void QgsMapToolMeasureAngle::stopMeasuring()
 {
   delete mRubberBand;
-  mRubberBand = 0;
+  mRubberBand = nullptr;
   delete mResultDisplay;
-  mResultDisplay = 0;
+  mResultDisplay = nullptr;
   mAnglePoints.clear();
 }
 
@@ -131,17 +132,17 @@ void QgsMapToolMeasureAngle::deactivate()
 void QgsMapToolMeasureAngle::createRubberBand()
 {
   delete mRubberBand;
-  mRubberBand = new QgsRubberBand( mCanvas, QGis::Line );
+  mRubberBand = new QgsRubberBand( mCanvas, QgsWkbTypes::LineGeometry );
 
   QSettings settings;
-  int myRed = settings.value( "/qgis/default_measure_color_red", 180 ).toInt();
-  int myGreen = settings.value( "/qgis/default_measure_color_green", 180 ).toInt();
-  int myBlue = settings.value( "/qgis/default_measure_color_blue", 180 ).toInt();
+  int myRed = settings.value( QStringLiteral( "/qgis/default_measure_color_red" ), 180 ).toInt();
+  int myGreen = settings.value( QStringLiteral( "/qgis/default_measure_color_green" ), 180 ).toInt();
+  int myBlue = settings.value( QStringLiteral( "/qgis/default_measure_color_blue" ), 180 ).toInt();
   mRubberBand->setColor( QColor( myRed, myGreen, myBlue, 100 ) );
   mRubberBand->setWidth( 3 );
 }
 
-QgsPoint QgsMapToolMeasureAngle::snapPoint( const QPoint& p )
+QgsPoint QgsMapToolMeasureAngle::snapPoint( QPoint p )
 {
   QgsPointLocator::Match m = mCanvas->snappingUtils()->snapToMap( p );
   return m.isValid() ? m.point() : mCanvas->getCoordinateTransform()->toMapCoordinates( p );
@@ -180,7 +181,7 @@ void QgsMapToolMeasureAngle::updateSettings()
 
 void QgsMapToolMeasureAngle::configureDistanceArea()
 {
-  QString ellipsoidId = QgsProject::instance()->readEntry( "Measure", "/Ellipsoid", GEO_NONE );
+  QString ellipsoidId = QgsProject::instance()->ellipsoid();
   mDa.setSourceCrs( mCanvas->mapSettings().destinationCrs().srsid() );
   mDa.setEllipsoid( ellipsoidId );
   // Only use ellipsoidal calculation when project wide transformation is enabled.

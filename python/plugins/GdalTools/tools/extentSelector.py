@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'December 2010'
@@ -23,15 +24,20 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL
-from PyQt4.QtGui import QWidget, QColor
-from qgis.core import QgsPoint, QgsRectangle, QGis
+from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtWidgets import QWidget
+from qgis.PyQt.QtGui import QColor
+from qgis.core import QgsPoint, QgsRectangle, Qgis, QgsWkbTypes
 from qgis.gui import QgsMapTool, QgsMapToolEmitPoint, QgsRubberBand
 
-from ui_extentSelector import Ui_GdalToolsExtentSelector as Ui_ExtentSelector
+from .ui_extentSelector import Ui_GdalToolsExtentSelector as Ui_ExtentSelector
 
 
 class GdalToolsExtentSelector(QWidget, Ui_ExtentSelector):
+    selectionStarted = pyqtSignal()
+    selectionStopped = pyqtSignal()
+    selectionPaused = pyqtSignal()
+    newExtentDefined = pyqtSignal()
 
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
@@ -42,18 +48,18 @@ class GdalToolsExtentSelector(QWidget, Ui_ExtentSelector):
 
         self.setupUi(self)
 
-        self.connect(self.x1CoordEdit, SIGNAL("textChanged(const QString &)"), self.coordsChanged)
-        self.connect(self.x2CoordEdit, SIGNAL("textChanged(const QString &)"), self.coordsChanged)
-        self.connect(self.y1CoordEdit, SIGNAL("textChanged(const QString &)"), self.coordsChanged)
-        self.connect(self.y2CoordEdit, SIGNAL("textChanged(const QString &)"), self.coordsChanged)
-        self.connect(self.btnEnable, SIGNAL("clicked()"), self.start)
+        self.x1CoordEdit.textChanged.connect(self.coordsChanged)
+        self.x2CoordEdit.textChanged.connect(self.coordsChanged)
+        self.y1CoordEdit.textChanged.connect(self.coordsChanged)
+        self.y2CoordEdit.textChanged.connect(self.coordsChanged)
+        self.btnEnable.clicked.connect(self.start)
 
     def setCanvas(self, canvas):
         self.canvas = canvas
         self.tool = RectangleMapTool(self.canvas)
         self.previousMapTool = self.canvas.mapTool()
-        self.connect(self.tool, SIGNAL("rectangleCreated()"), self.fillCoords)
-        self.connect(self.tool, SIGNAL("deactivated()"), self.pause)
+        self.tool.rectangleCreated.connect(self.fillCoords)
+        self.tool.deactivated.connect(self.pause)
 
     def stop(self):
         if not self.isStarted:
@@ -65,7 +71,7 @@ class GdalToolsExtentSelector(QWidget, Ui_ExtentSelector):
         if self.previousMapTool != self.tool:
             self.canvas.setMapTool(self.previousMapTool)
         #self.coordsChanged()
-        self.emit(SIGNAL("selectionStopped()"))
+        self.selectionStopped.emit()
 
     def start(self):
         prevMapTool = self.canvas.mapTool()
@@ -75,18 +81,18 @@ class GdalToolsExtentSelector(QWidget, Ui_ExtentSelector):
         self.isStarted = True
         self.btnEnable.setVisible(False)
         self.coordsChanged()
-        self.emit(SIGNAL("selectionStarted()"))
+        self.selectionStarted.emit()
 
     def pause(self):
         if not self.isStarted:
             return
 
         self.btnEnable.setVisible(True)
-        self.emit(SIGNAL("selectionPaused()"))
+        self.selectionPaused.emit()
 
     def setExtent(self, rect):
         if self.tool.setRectangle(rect):
-            self.emit(SIGNAL("newExtentDefined()"))
+            self.newExtentDefined.emit()
 
     def getExtent(self):
         return self.tool.rectangle()
@@ -113,26 +119,27 @@ class GdalToolsExtentSelector(QWidget, Ui_ExtentSelector):
         rect = self.getExtent()
         self.blockSignals(True)
         if rect is not None:
-            self.x1CoordEdit.setText(unicode(rect.xMinimum()))
-            self.x2CoordEdit.setText(unicode(rect.xMaximum()))
-            self.y1CoordEdit.setText(unicode(rect.yMaximum()))
-            self.y2CoordEdit.setText(unicode(rect.yMinimum()))
+            self.x1CoordEdit.setText(str(rect.xMinimum()))
+            self.x2CoordEdit.setText(str(rect.xMaximum()))
+            self.y1CoordEdit.setText(str(rect.yMaximum()))
+            self.y2CoordEdit.setText(str(rect.yMinimum()))
         else:
             self.x1CoordEdit.clear()
             self.x2CoordEdit.clear()
             self.y1CoordEdit.clear()
             self.y2CoordEdit.clear()
         self.blockSignals(False)
-        self.emit(SIGNAL("newExtentDefined()"))
+        self.newExtentDefined.emit()
 
 
 class RectangleMapTool(QgsMapToolEmitPoint):
+    rectangleCreated = pyqtSignal()
 
     def __init__(self, canvas):
         self.canvas = canvas
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
-        self.rubberBand = QgsRubberBand(self.canvas, QGis.Polygon)
+        self.rubberBand = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
         self.rubberBand.setColor(QColor(255, 0, 0, 100))
         self.rubberBand.setWidth(2)
 
@@ -141,7 +148,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def reset(self):
         self.startPoint = self.endPoint = None
         self.isEmittingPoint = False
-        self.rubberBand.reset(QGis.Polygon)
+        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
 
     def canvasPressEvent(self, e):
         self.startPoint = self.toMapCoordinates(e.pos())
@@ -152,9 +159,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
 
     def canvasReleaseEvent(self, e):
         self.isEmittingPoint = False
-        #if self.rectangle() != None:
-        #  self.emit( SIGNAL("rectangleCreated()") )
-        self.emit(SIGNAL("rectangleCreated()"))
+        self.rectangleCreated.emit()
 
     def canvasMoveEvent(self, e):
         if not self.isEmittingPoint:
@@ -164,7 +169,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.showRect(self.startPoint, self.endPoint)
 
     def showRect(self, startPoint, endPoint):
-        self.rubberBand.reset(QGis.Polygon)
+        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
         if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
             return
 
@@ -176,7 +181,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.rubberBand.addPoint(point1, False)
         self.rubberBand.addPoint(point2, False)
         self.rubberBand.addPoint(point3, False)
-        self.rubberBand.addPoint(point4, True)	# true to update canvas
+        self.rubberBand.addPoint(point4, True)  # true to update canvas
         self.rubberBand.show()
 
     def rectangle(self):
@@ -201,4 +206,4 @@ class RectangleMapTool(QgsMapToolEmitPoint):
 
     def deactivate(self):
         QgsMapTool.deactivate(self)
-        self.emit(SIGNAL("deactivated()"))
+        self.deactivated.emit()

@@ -2,8 +2,8 @@
 
 """
 ***************************************************************************
-    OTBUtils.py
-    ---------------------
+    OTBSpecific_XMLLoading.py
+    -------------------------
     Date                 : 11-12-13
     Copyright            : (C) 2013 by CS Systemes d'information (CS SI)
     Email                : otb at c-s dot fr (CS SI)
@@ -26,6 +26,8 @@ Most of the following functions are like follows :
     adaptNameOfTheOTBApplication(commands_list)
 The command list is a list of all parameters of the given algorithm with all user values.
 """
+from builtins import str
+from builtins import map
 
 
 __author__ = 'Julien Malik, Oscar Picas, Alexia Mondot'
@@ -38,13 +40,13 @@ __version__ = "3.8"
 import os
 
 try:
-    import processing
+    import processing  # NOQA
 except ImportError as e:
     raise Exception("Processing must be installed and available in PYTHONPATH")
 
 from processing.core.ProcessingConfig import ProcessingConfig
 
-from OTBUtils import OTBUtils
+from . import OTBUtils
 
 
 def adaptBinaryMorphologicalOperation(commands_list):
@@ -57,7 +59,7 @@ def adaptBinaryMorphologicalOperation(commands_list):
             return param
 
     import functools
-    com_list = map(functools.partial(replace_dilate, value=val), commands_list)
+    com_list = list(map(functools.partial(replace_dilate, value=val), commands_list))
 
     val = com_list[com_list.index("-structype.ball.xradius") + 1]
 
@@ -171,7 +173,7 @@ def adaptColorMapping(commands_list):
     The output of this algorithm must be in uint8.
     """
     indexInput = commands_list.index("-out")
-    commands_list[indexInput + 1] = commands_list[indexInput + 1] + " uint8"
+    commands_list[indexInput + 1] = commands_list[indexInput + 1] + '" "uint8"'
     return commands_list
 
 
@@ -188,7 +190,6 @@ def adaptStereoFramework(commands_list):
             argumentToRemove = commands_list2[index - 1]
             commands_list2.remove(item)
             commands_list2.remove(argumentToRemove)
-        #commands_list2.append(item)
     return commands_list2
 
 

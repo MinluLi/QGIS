@@ -16,17 +16,24 @@
 #include "qgsdatetimeeditfactory.h"
 #include "qgsdatetimeeditconfig.h"
 #include "qgsdatetimeeditwrapper.h"
+#include "qgsdatetimesearchwidgetwrapper.h"
+#include "qgsdatetimeedit.h"
 
 #include <QSettings>
 
-QgsDateTimeEditFactory::QgsDateTimeEditFactory( const QString& name ) :
-    QgsEditorWidgetFactory( name )
+QgsDateTimeEditFactory::QgsDateTimeEditFactory( const QString& name )
+    : QgsEditorWidgetFactory( name )
 {
 }
 
 QgsEditorWidgetWrapper *QgsDateTimeEditFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsDateTimeEditWrapper( vl, fieldIdx, editor, parent );
+}
+
+QgsSearchWidgetWrapper* QgsDateTimeEditFactory::createSearchWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+{
+  return new QgsDateTimeSearchWidgetWrapper( vl, fieldIdx, parent );
 }
 
 QgsEditorConfigWidget *QgsDateTimeEditFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
@@ -40,10 +47,10 @@ QgsEditorWidgetConfig QgsDateTimeEditFactory::readConfig( const QDomElement& con
   Q_UNUSED( fieldIdx );
   QgsEditorWidgetConfig cfg;
 
-  cfg.insert( "field_format", configElement.attribute( "field_format" ) );
-  cfg.insert( "display_format", configElement.attribute( "display_format" ) );
-  cfg.insert( "calendar_popup", configElement.attribute( "calendar_popup" ) == "1" );
-  cfg.insert( "allow_null", configElement.attribute( "allow_null" ) == "1" );
+  cfg.insert( QStringLiteral( "field_format" ), configElement.attribute( QStringLiteral( "field_format" ) ) );
+  cfg.insert( QStringLiteral( "display_format" ), configElement.attribute( QStringLiteral( "display_format" ) ) );
+  cfg.insert( QStringLiteral( "calendar_popup" ), configElement.attribute( QStringLiteral( "calendar_popup" ) ) == QLatin1String( "1" ) );
+  cfg.insert( QStringLiteral( "allow_null" ), configElement.attribute( QStringLiteral( "allow_null" ) ) == QLatin1String( "1" ) );
 
   return cfg;
 }
@@ -54,10 +61,10 @@ void QgsDateTimeEditFactory::writeConfig( const QgsEditorWidgetConfig& config, Q
   Q_UNUSED( layer );
   Q_UNUSED( fieldIdx );
 
-  configElement.setAttribute( "field_format", config["field_format"].toString() );
-  configElement.setAttribute( "display_format", config["display_format"].toString() );
-  configElement.setAttribute( "calendar_popup", config["calendar_popup"].toBool() );
-  configElement.setAttribute( "allow_null", config["allow_null"].toBool() );
+  configElement.setAttribute( QStringLiteral( "field_format" ), config[QStringLiteral( "field_format" )].toString() );
+  configElement.setAttribute( QStringLiteral( "display_format" ), config[QStringLiteral( "display_format" )].toString() );
+  configElement.setAttribute( QStringLiteral( "calendar_popup" ), config[QStringLiteral( "calendar_popup" )].toBool() );
+  configElement.setAttribute( QStringLiteral( "allow_null" ), config[QStringLiteral( "allow_null" )].toBool() );
 }
 
 QString QgsDateTimeEditFactory::representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const
@@ -71,11 +78,12 @@ QString QgsDateTimeEditFactory::representValue( QgsVectorLayer* vl, int fieldIdx
   if ( value.isNull() )
   {
     QSettings settings;
-    return settings.value( "qgis/nullValue", "NULL" ).toString();
+    return settings.value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString();
   }
 
-  const QString displayFormat = config.value( "display_format", QGSDATETIMEEDIT_DATEFORMAT ).toString();
-  const QString fieldFormat = config.value( "field_format", QGSDATETIMEEDIT_DATEFORMAT ).toString();
+  const QgsField field = vl->fields().at( fieldIdx );
+  const QString displayFormat = config.value( QStringLiteral( "display_format" ), QgsDateTimeEditConfig::defaultFormat( field.type() ) ).toString();
+  const QString fieldFormat = config.value( QStringLiteral( "field_format" ), QgsDateTimeEditConfig::defaultFormat( field.type() ) ).toString();
 
   QDateTime date = QDateTime::fromString( value.toString(), fieldFormat );
 
@@ -91,10 +99,34 @@ QString QgsDateTimeEditFactory::representValue( QgsVectorLayer* vl, int fieldIdx
   return result;
 }
 
-QMap<const char*, int> QgsDateTimeEditFactory::supportedWidgetTypes()
+Qt::AlignmentFlag QgsDateTimeEditFactory::alignmentFlag( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config ) const
 {
-  QMap<const char*, int> map = QMap<const char*, int>();
+  Q_UNUSED( vl );
+  Q_UNUSED( fieldIdx );
+  Q_UNUSED( config );
+
+  return Qt::AlignLeft;
+}
+
+QHash<const char*, int> QgsDateTimeEditFactory::supportedWidgetTypes()
+{
+  QHash<const char*, int> map = QHash<const char*, int>();
   map.insert( QDateTimeEdit::staticMetaObject.className(), 10 );
   map.insert( QgsDateTimeEdit::staticMetaObject.className(), 10 );
   return map;
+}
+
+unsigned int QgsDateTimeEditFactory::fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const
+{
+  const QgsField field = vl->fields().field( fieldIdx );
+  const QVariant::Type type = field.type();
+  const QgsEditorWidgetConfig config = vl->editFormConfig().widgetConfig( field.name() );
+  if ( type == QVariant::DateTime || type == QVariant::Date || type == QVariant::Time || config.contains( QStringLiteral( "field_format" ) ) )
+  {
+    return 20;
+  }
+  else
+  {
+    return 5;
+  }
 }

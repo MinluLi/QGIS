@@ -22,12 +22,15 @@
 #include <QObject>
 #include <QPair>
 
-#include "qgsfield.h"
+#include "qgsfields.h"
 #include "qgsfeature.h"
 
 extern "C"
 {
 #include <grass/version.h>
+#if defined(_MSC_VER) && defined(M_PI_4)
+#undef M_PI_4 //avoid redefinition warning
+#endif
 #include <grass/gprojects.h>
 #include <grass/gis.h>
 #include <grass/dbmi.h>
@@ -51,10 +54,10 @@ class GRASS_LIB_EXPORT QgsGrassVectorMapLayer : public QObject
     bool isValid() const { return mValid; }
     QgsGrassVectorMap *map() { return mMap; }
 
-    /** Category index index */
+    //! Category index index
     int cidxFieldIndex();
 
-    /** Current number of cats in cat index, changing during editing */
+    //! Current number of cats in cat index, changing during editing
     int cidxFieldNumCats();
 
     /** Original fields before editing started + topo field if edited.
@@ -83,13 +86,13 @@ class GRASS_LIB_EXPORT QgsGrassVectorMapLayer : public QObject
     void addUser();
     void removeUser();
 
-    /** Load attributes from the map. Old sources are released. */
+    //! Load attributes from the map. Old sources are released.
     void load();
 
-    /** Clear all cached data */
+    //! Clear all cached data
     void clear();
 
-    /** Decrease number of users and clear if no more users */
+    //! Decrease number of users and clear if no more users
     void close();
 
     void startEdit();
@@ -105,7 +108,7 @@ class GRASS_LIB_EXPORT QgsGrassVectorMapLayer : public QObject
     /** Update attributes
      *   @param cat
      *   @param index ields  index */
-    void changeAttributeValue( int cat, QgsField field, QVariant value, QString &error );
+    void changeAttributeValue( int cat, const QgsField &field, const QVariant &value, QString &error );
 
     /** Insert new attributes to the table (it does not check if attributes already exists)
      *   @param cat */
@@ -153,7 +156,7 @@ class GRASS_LIB_EXPORT QgsGrassVectorMapLayer : public QObject
 
     void deleteColumn( const QgsField &field, QString &error );
 
-    /** Insert records for all existing categories to the table */
+    //! Insert records for all existing categories to the table
     void insertCats( QString &error );
 
     // update fields to real state
@@ -163,7 +166,7 @@ class GRASS_LIB_EXPORT QgsGrassVectorMapLayer : public QObject
     void printCachedAttributes();
 
   private:
-    QString quotedValue( QVariant value );
+    QString quotedValue( const QVariant &value );
     dbDriver * openDriver( QString &error );
     void addTopoField( QgsFields &fields );
     int mField;

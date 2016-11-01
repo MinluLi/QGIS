@@ -18,13 +18,12 @@
 #ifndef CHECKDOCK_H
 #define CHECKDOCK_H
 
-#include <QDockWidget>
+#include "qgsdockwidget.h"
 
 #include <qgsvectorlayer.h>
 #include <qgsgeometry.h>
 //#include <qgsvertexmarker.h>
 #include "qgsspatialindex.h"
-//#include <spatialindex/qgsspatialindex.h>
 
 #include "ui_checkDock.h"
 #include "rulesDialog.h"
@@ -39,7 +38,7 @@ class QgisApp;
 class QgisInterface;
 class checkDock;
 
-class checkDock : public QDockWidget, public Ui::checkDock
+class checkDock : public QgsDockWidget, private Ui::checkDock
 {
     Q_OBJECT
 
@@ -49,7 +48,7 @@ class checkDock : public QDockWidget, public Ui::checkDock
      * @param qIface  pointer to QgisInterface instance that is passed to the rulesDialog
      * @param parent parent object
      */
-    checkDock( QgisInterface* qIface, QWidget *parent = 0 );
+    checkDock( QgisInterface* qIface, QWidget *parent = nullptr );
     ~checkDock();
 
   private slots:

@@ -18,14 +18,24 @@
 
 #include <QMenu>
 
-#include "qgsactionmenu.h"
-#include "qgsmapcanvas.h"
+#include "qgsmaplayeractionregistry.h"
 #include "qgsmaptoolidentify.h"
-#include "qgsvectorlayer.h"
 
-/**
+/// @cond PRIVATE
+class CustomActionRegistry : public QgsMapLayerActionRegistry
+{
+    Q_OBJECT
+
+  public:
+    explicit CustomActionRegistry( QObject *parent );
+    // remove all actions
+    void clear() { mMapLayerActionList.clear(); }
+};
+///@endcond
+
+/** \ingroup gui
  * @brief The QgsIdentifyMenu class builds a menu to be used with identify results (@see QgsMapToolIdentify).
- * It is customizable and can display attribute actions (@see QgsAttributeAction) as well as map layer actions (@see QgsMapLayerAction).
+ * It is customizable and can display attribute actions (@see QgsAction) as well as map layer actions (@see QgsMapLayerAction).
  * It can also embed custom map layer actions, defined for this menu exclusively.
  * If used in a QgsMapToolIdentify, it is accessible via QgsMapToolIdentify::identifyMenu() and can be customized in the map tool sub-class.
  */
@@ -47,26 +57,26 @@ class GUI_EXPORT QgsIdentifyMenu : public QMenu
           : mIsValid( false )
           , mAllResults( false )
           , mIsExternalAction( false )
-          , mLayer( NULL )
+          , mLayer( nullptr )
           , mFeatureId( 0 )
           , mLevel( LayerLevel )
-          , mMapLayerAction( NULL )
+          , mMapLayerAction( nullptr )
       {}
 
-      ActionData( QgsMapLayer* layer, QgsMapLayerAction* mapLayerAction = 0 )
+      ActionData( QgsMapLayer* layer, QgsMapLayerAction* mapLayerAction = nullptr )
           : mIsValid( true )
-          , mAllResults( layer == 0 )
-          , mIsExternalAction( mapLayerAction != 0 )
+          , mAllResults( !layer )
+          , mIsExternalAction( nullptr != mapLayerAction )
           , mLayer( layer )
           , mFeatureId( 0 )
           , mLevel( LayerLevel )
           , mMapLayerAction( mapLayerAction )
       {}
 
-      ActionData( QgsMapLayer* layer, QgsFeatureId fid, QgsMapLayerAction* mapLayerAction = 0 )
+      ActionData( QgsMapLayer* layer, QgsFeatureId fid, QgsMapLayerAction* mapLayerAction = nullptr )
           : mIsValid( true )
           , mAllResults( false )
-          , mIsExternalAction( mapLayerAction != 0 )
+          , mIsExternalAction( nullptr != mapLayerAction )
           , mLayer( layer )
           , mFeatureId( fid )
           , mLevel( FeatureLevel )
@@ -100,7 +110,7 @@ class GUI_EXPORT QgsIdentifyMenu : public QMenu
     /**
      * @brief define if attribute actions(1) and map layer actions(2) can be listed and run from the menu
      * @note custom actions will be shown in any case if they exist.
-     * @note (1) attribute actions are defined by the user in the layer properties @see QgsAttributeAction
+     * @note (1) attribute actions are defined by the user in the layer properties @see QgsAction
      * @note (2) map layer actions are built-in c++ actions or actions which are defined by a python plugin @see QgsMapLayerActionRegistry
      */
     void setShowFeatureActions( bool showFeatureActions ) { mShowFeatureActions = showFeatureActions; }
@@ -146,13 +156,6 @@ class GUI_EXPORT QgsIdentifyMenu : public QMenu
     void triggerMapLayerAction();
 
   private:
-    class CustomActionRegistry : public QgsMapLayerActionRegistry
-    {
-      public:
-        explicit CustomActionRegistry( QObject *parent );
-        // remove all actions
-        void clear() {mMapLayerActionList.clear();}
-    };
 
     //! adds a raster layer in the menu being built
     void addRasterLayer( QgsMapLayer* layer );

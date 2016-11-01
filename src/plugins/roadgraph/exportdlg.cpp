@@ -58,7 +58,7 @@ RgExportDlg::RgExportDlg( QWidget* parent, Qt::WindowFlags fl )
     QgsVectorLayer* vl = dynamic_cast<QgsVectorLayer*>( layer_it.value() );
     if ( !vl )
       continue;
-    if ( vl->geometryType() != QGis::Line )
+    if ( vl->geometryType() != QgsWkbTypes::LineGeometry )
       continue;
     mcbLayers->insertItem( 0, vl->name(), QVariant( vl->id() ) );
   }
@@ -71,21 +71,21 @@ RgExportDlg::~RgExportDlg()
 
 QgsVectorLayer* RgExportDlg::mapLayer() const
 {
-  QgsVectorLayer* myLayer = NULL;
-  QString layerId = mcbLayers->itemData( mcbLayers->currentIndex() ).toString();
+  QgsVectorLayer* myLayer = nullptr;
+  QString layerId = mcbLayers->currentData().toString();
 
-  if ( layerId == "-1" )
+  if ( layerId == QLatin1String( "-1" ) )
   {
     // create a temporary layer
-    myLayer = new QgsVectorLayer( QString( "LineString?crs=epsg:4326&memoryid=%1" ).arg( QUuid::createUuid().toString() ), "shortest path", "memory" );
+    myLayer = new QgsVectorLayer( QStringLiteral( "LineString?crs=epsg:4326&memoryid=%1" ).arg( QUuid::createUuid().toString() ), QStringLiteral( "shortest path" ), QStringLiteral( "memory" ) );
 
     QgsVectorDataProvider *prov = myLayer->dataProvider();
-    if ( prov == NULL )
-      return NULL;
+    if ( !prov )
+      return nullptr;
 
     QList<QgsField> attrList;
-    attrList.append( QgsField( "length", QVariant::Double, "", 20, 8 ) );
-    attrList.append( QgsField( "time", QVariant::Double, "", 20, 8 ) );
+    attrList.append( QgsField( QStringLiteral( "length" ), QVariant::Double, QLatin1String( "" ), 20, 8 ) );
+    attrList.append( QgsField( QStringLiteral( "time" ), QVariant::Double, QLatin1String( "" ), 20, 8 ) );
     prov->addAttributes( attrList );
     myLayer->updateFields();
     QList<QgsMapLayer *> myList;

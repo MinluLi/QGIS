@@ -23,7 +23,7 @@
 #include <QMutex>
 #include "qgsfeature.h"
 #include "qgsspatialindex.h"
-#include "qgsgeomutils.h"
+#include "qgsgeometrycheckerutils.h"
 
 class QgsVectorLayer;
 
@@ -31,7 +31,7 @@ class QgsFeaturePool
 {
   public:
     QgsFeaturePool( QgsVectorLayer* layer, bool selectedOnly = false );
-    bool get( const QgsFeatureId& id, QgsFeature& feature );
+    bool get( QgsFeatureId id, QgsFeature& feature );
     void addFeature( QgsFeature &feature );
     void updateFeature( QgsFeature &feature );
     void deleteFeature( QgsFeature &feature );
@@ -39,13 +39,15 @@ class QgsFeaturePool
     QgsVectorLayer* getLayer() const { return mLayer; }
     const QgsFeatureIds& getFeatureIds() const { return mFeatureIds; }
     bool getSelectedOnly() const { return mSelectedOnly; }
-    void clearLayer() { mLayer = 0; }
+    void clearLayer() { mLayer = nullptr; }
 
   private:
     struct MapEntry
     {
       MapEntry( QgsFeature* _feature, QLinkedList<QgsFeatureId>::iterator _ageIt )
-          : feature( _feature ), ageIt( _ageIt ) {}
+          : feature( _feature )
+          , ageIt( _ageIt )
+      {}
       QgsFeature* feature;
       QLinkedList<QgsFeatureId>::iterator ageIt;
     };

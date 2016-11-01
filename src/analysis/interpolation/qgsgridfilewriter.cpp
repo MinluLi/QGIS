@@ -35,7 +35,7 @@ QgsGridFileWriter::QgsGridFileWriter( QgsInterpolator* i, const QString& outputP
 }
 
 QgsGridFileWriter::QgsGridFileWriter()
-    : mInterpolator( 0 )
+    : mInterpolator( nullptr )
     , mNumColumns( 0 )
     , mNumRows( 0 )
     , mCellSizeX( 0 )
@@ -44,16 +44,11 @@ QgsGridFileWriter::QgsGridFileWriter()
 
 }
 
-QgsGridFileWriter::~QgsGridFileWriter()
-{
-
-}
-
 int QgsGridFileWriter::writeFile( bool showProgressDialog )
 {
   QFile outputFile( mOutputFilePath );
 
-  if ( !outputFile.open( QFile::WriteOnly ) )
+  if ( !outputFile.open( QFile::WriteOnly | QIODevice::Truncate ) )
   {
     return 1;
   }
@@ -72,10 +67,10 @@ int QgsGridFileWriter::writeFile( bool showProgressDialog )
   double currentXValue;
   double interpolatedValue;
 
-  QProgressDialog* progressDialog = 0;
+  QProgressDialog* progressDialog = nullptr;
   if ( showProgressDialog )
   {
-    progressDialog = new QProgressDialog( QObject::tr( "Interpolating..." ), QObject::tr( "Abort" ), 0, mNumRows, 0 );
+    progressDialog = new QProgressDialog( QObject::tr( "Interpolating..." ), QObject::tr( "Abort" ), 0, mNumRows, nullptr );
     progressDialog->setWindowModality( Qt::WindowModal );
   }
 
@@ -116,7 +111,7 @@ int QgsGridFileWriter::writeFile( bool showProgressDialog )
   QFileInfo fi( mOutputFilePath );
   QString fileName = fi.absolutePath() + '/' + fi.completeBaseName() + ".prj";
   QFile prjFile( fileName );
-  if ( !prjFile.open( QFile::WriteOnly ) )
+  if ( !prjFile.open( QFile::WriteOnly | QIODevice::Truncate ) )
   {
     return 1;
   }

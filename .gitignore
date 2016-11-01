@@ -1,6 +1,7 @@
 *.*~
 *.autosave
 *.aux
+*.bak
 *.diff
 *.log*
 *.orig
@@ -25,7 +26,6 @@ build*
 debian/*.debhelper
 debian/*.substvars
 desktop.ini
-doc/CODING.tex
 doc/INSTALL.tex
 i18n/*.qm
 Makefile
@@ -53,6 +53,7 @@ scripts/qgisstyle*
 scripts/RelWithDebInfo
 src/core/qgscontexthelp_texts.cpp
 src/core/qgsexpression_texts.cpp
+tests/testdata/cache/
 tests/testdata/checker360by180.asc.aux.xml
 tests/testdata/grass/wgs84/test/.gislock
 tests/testdata/grass/wgs84/test6/.gislock
@@ -62,4 +63,7 @@ tests/testdata/raster/band1_float32_noct_epsg4326.tif.aux.xml
 tests/testdata/raster/band1_int16_noct_epsg4326.tif.aux.xml
 tests/testdata/raster/band3_float32_noct_epsg4326.tif.aux.xml
 tests/testdata/raster/band3_int16_noct_epsg4326.tif.aux.xml
+python/plugins/processing/tests/testdata/custom/grass7/float_raster.tif.aux.xml
+python/plugins/processing/tests/testdata/custom/grass7/raster_1class.tif.aux.xml
+python/plugins/processing/tests/testdata/dem.tif.aux.xml
 Thumb.db

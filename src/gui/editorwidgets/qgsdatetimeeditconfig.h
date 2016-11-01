@@ -19,7 +19,8 @@
 #include "qgseditorconfigwidget.h"
 #include "ui_qgsdatetimeeditconfig.h"
 
-/** \class QgsDateTimeEditConfig
+/** \ingroup gui
+ * \class QgsDateTimeEditConfig
  * \note not available in Python bindings
  */
 
@@ -27,7 +28,7 @@ class GUI_EXPORT QgsDateTimeEditConfig : public QgsEditorConfigWidget, private U
 {
     Q_OBJECT
   public:
-    QgsDateTimeEditConfig( QgsVectorLayer* vl, int fieldIdx, QWidget* parent = 0 );
+    QgsDateTimeEditConfig( QgsVectorLayer* vl, int fieldIdx, QWidget* parent = nullptr );
 
   private slots:
     void updateDemoWidget();
@@ -40,6 +41,13 @@ class GUI_EXPORT QgsDateTimeEditConfig : public QgsEditorConfigWidget, private U
   public:
     QgsEditorWidgetConfig config() override;
     void setConfig( const QgsEditorWidgetConfig &config ) override;
+
+    /**
+     * Get the default format in fonction of the type
+     * @param type the field type
+     * @return the date/time format
+     */
+    static QString defaultFormat( const QVariant::Type type );
 };
 
 #endif // QGSDATETIMEEDITCONFIG_H

@@ -38,16 +38,16 @@
 #include "qgslayertreeview.h"
 #include "qgsshortcutsmanager.h"
 #include "qgsattributedialog.h"
-#include "qgsfield.h"
+#include "qgsfields.h"
 #include "qgsvectordataprovider.h"
 #include "qgsfeatureaction.h"
-#include "qgsattributeaction.h"
+#include "qgsactionmanager.h"
 #include "qgsattributetabledialog.h"
 
 
 QgisAppInterface::QgisAppInterface( QgisApp * _qgis )
     : qgis( _qgis )
-    , mTimer( NULL )
+    , mTimer( nullptr )
     , legendIface( _qgis->layerTreeView() )
     , pluginManagerIface( _qgis->pluginManager() )
 {
@@ -363,18 +363,18 @@ QList<QgsComposerView*> QgisAppInterface::activeComposers()
 
 QgsComposerView* QgisAppInterface::createNewComposer( const QString& title )
 {
-  QgsComposer* composerObj = 0;
+  QgsComposer* composerObj = nullptr;
   composerObj = qgis->createNewComposer( title );
   if ( composerObj )
   {
     return composerObj->view();
   }
-  return 0;
+  return nullptr;
 }
 
 QgsComposerView* QgisAppInterface::duplicateComposer( QgsComposerView* composerView, const QString& title )
 {
-  QgsComposer* composerObj = 0;
+  QgsComposer* composerObj = nullptr;
   composerObj = qobject_cast<QgsComposer *>( composerView->composerWindow() );
   if ( composerObj )
   {
@@ -384,14 +384,14 @@ QgsComposerView* QgisAppInterface::duplicateComposer( QgsComposerView* composerV
       return dupComposer->view();
     }
   }
-  return 0;
+  return nullptr;
 }
 
 void QgisAppInterface::deleteComposer( QgsComposerView* composerView )
 {
   composerView->composerWindow()->close();
 
-  QgsComposer* composerObj = 0;
+  QgsComposer* composerObj = nullptr;
   composerObj = qobject_cast<QgsComposer *>( composerView->composerWindow() );
   if ( composerObj )
   {
@@ -452,7 +452,7 @@ QDialog* QgisAppInterface::showAttributeTable( QgsVectorLayer *l, const QString&
     dialog->show();
     return dialog;
   }
-  return 0;
+  return nullptr;
 }
 
 void QgisAppInterface::addWindow( QAction *action )
@@ -475,8 +475,27 @@ bool QgisAppInterface::unregisterMainWindowAction( QAction* action )
   return QgsShortcutsManager::instance()->unregisterAction( action );
 }
 
+void QgisAppInterface::registerMapLayerConfigWidgetFactory( QgsMapLayerConfigWidgetFactory* factory )
+{
+  qgis->registerMapLayerPropertiesFactory( factory );
+}
+
+void QgisAppInterface::unregisterMapLayerConfigWidgetFactory( QgsMapLayerConfigWidgetFactory* factory )
+{
+  qgis->unregisterMapLayerPropertiesFactory( factory );
+}
+
+void QgisAppInterface::registerCustomDropHandler( QgsCustomDropHandler *handler )
+{
+  qgis->registerCustomDropHandler( handler );
+}
+
+void QgisAppInterface::unregisterCustomDropHandler( QgsCustomDropHandler *handler )
+{
+  qgis->unregisterCustomDropHandler( handler );
+}
+
 //! Menus
-Q_DECL_DEPRECATED QMenu *QgisAppInterface::fileMenu() { return qgis->projectMenu(); }
 QMenu *QgisAppInterface::projectMenu() { return qgis->projectMenu(); }
 QMenu *QgisAppInterface::editMenu() { return qgis->editMenu(); }
 QMenu *QgisAppInterface::viewMenu() { return qgis->viewMenu(); }
@@ -566,6 +585,8 @@ QAction *QgisAppInterface::actionAddOgrLayer() { return qgis->actionAddOgrLayer(
 QAction *QgisAppInterface::actionAddRasterLayer() { return qgis->actionAddRasterLayer(); }
 QAction *QgisAppInterface::actionAddPgLayer() { return qgis->actionAddPgLayer(); }
 QAction *QgisAppInterface::actionAddWmsLayer() { return qgis->actionAddWmsLayer(); }
+QAction *QgisAppInterface::actionAddAfsLayer() { return qgis->actionAddAfsLayer(); }
+QAction *QgisAppInterface::actionAddAmsLayer() { return qgis->actionAddAmsLayer(); }
 QAction *QgisAppInterface::actionCopyLayerStyle() { return qgis->actionCopyLayerStyle(); }
 QAction *QgisAppInterface::actionPasteLayerStyle() { return qgis->actionPasteLayerStyle(); }
 QAction *QgisAppInterface::actionOpenTable() { return qgis->actionOpenTable(); }
@@ -580,8 +601,6 @@ QAction *QgisAppInterface::actionRollbackAllEdits() { return qgis->actionRollbac
 QAction *QgisAppInterface::actionCancelEdits() { return qgis->actionCancelEdits(); }
 QAction *QgisAppInterface::actionCancelAllEdits() { return qgis->actionCancelAllEdits(); }
 QAction *QgisAppInterface::actionLayerSaveAs() { return qgis->actionLayerSaveAs(); }
-QAction *QgisAppInterface::actionLayerSelectionSaveAs() { return 0; }
-QAction *QgisAppInterface::actionRemoveLayer() { return qgis->actionRemoveLayer(); }
 QAction *QgisAppInterface::actionDuplicateLayer() { return qgis->actionDuplicateLayer(); }
 QAction *QgisAppInterface::actionLayerProperties() { return qgis->actionLayerProperties(); }
 QAction *QgisAppInterface::actionAddToOverview() { return qgis->actionAddToOverview(); }
@@ -662,15 +681,15 @@ QgsAttributeDialog* QgisAppInterface::getFeatureForm( QgsVectorLayer *l, QgsFeat
 
   myDa.setSourceCrs( l->crs().srsid() );
   myDa.setEllipsoidalMode( QgisApp::instance()->mapCanvas()->mapSettings().hasCrsTransformEnabled() );
-  myDa.setEllipsoid( QgsProject::instance()->readEntry( "Measure", "/Ellipsoid", GEO_NONE ) );
+  myDa.setEllipsoid( QgsProject::instance()->ellipsoid() );
 
   QgsAttributeEditorContext context;
   context.setDistanceArea( myDa );
   context.setVectorLayerTools( qgis->vectorLayerTools() );
-  QgsAttributeDialog *dialog = new QgsAttributeDialog( l, &feature, false, NULL, true, context );
+  QgsAttributeDialog *dialog = new QgsAttributeDialog( l, &feature, false, qgis, true, context );
   if ( !feature.isValid() )
   {
-    dialog->setIsAddDialog( true );
+    dialog->setMode( QgsAttributeForm::AddFeatureMode );
   }
   return dialog;
 }

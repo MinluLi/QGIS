@@ -20,21 +20,20 @@
 
 #include <QColor>
 
+#include "qgsabstractgeometry.h"
 #include "qgscoordinatetransform.h"
 #include "qgsmaptopixel.h"
 #include "qgsrectangle.h"
 #include "qgsvectorsimplifymethod.h"
 #include "qgsexpressioncontext.h"
-#include "qgsfeaturefilterprovider.h"
 
 class QPainter;
 
-class QgsAbstractGeometryV2;
+class QgsAbstractGeometry;
 class QgsLabelingEngineInterface;
-class QgsLabelingEngineV2;
+class QgsLabelingEngine;
 class QgsMapSettings;
-class QgsExpression;
-class QgsVectorLayer;
+class QgsFeatureFilterProvider;
 
 
 /** \ingroup core
@@ -47,6 +46,10 @@ class CORE_EXPORT QgsRenderContext
 {
   public:
     QgsRenderContext();
+
+    QgsRenderContext( const QgsRenderContext& rh );
+    QgsRenderContext& operator=( const QgsRenderContext& rh );
+
     ~QgsRenderContext();
 
     /** Enumeration of flags that affect rendering operations.
@@ -54,18 +57,22 @@ class CORE_EXPORT QgsRenderContext
      */
     enum Flag
     {
-      DrawEditingInfo    = 0x01,  //!< Enable drawing of vertex markers for layers in editing mode
-      ForceVectorOutput  = 0x02,  //!< Vector graphics should not be cached and drawn as raster images
-      UseAdvancedEffects = 0x04,  //!< Enable layer transparency and blending effects
-      UseRenderingOptimization = 0x08, //!< Enable vector simplification and other rendering optimizations
-      DrawSelection      = 0x10,  //!< Whether vector selections should be shown in the rendered map
+      DrawEditingInfo          = 0x01,  //!< Enable drawing of vertex markers for layers in editing mode
+      ForceVectorOutput        = 0x02,  //!< Vector graphics should not be cached and drawn as raster images
+      UseAdvancedEffects       = 0x04,  //!< Enable layer transparency and blending effects
+      UseRenderingOptimization = 0x08,  //!< Enable vector simplification and other rendering optimizations
+      DrawSelection            = 0x10,  //!< Whether vector selections should be shown in the rendered map
+      DrawSymbolBounds         = 0x20,  //!< Draw bounds of symbols (for debugging/testing)
+      RenderMapTile            = 0x40,  //!< Draw map such that there are no problems between adjacent tiles
+      Antialiasing             = 0x80,  //!< Use antialiasing while drawing
+      RenderPartialOutput      = 0x100, //!< Whether to make extra effort to update map image with partially rendered layers (better for interactive map canvas). Added in QGIS 3.0
     };
     Q_DECLARE_FLAGS( Flags, Flag )
 
     /** Set combination of flags that will be used for rendering.
      * @note added in QGIS 2.14
      */
-    void setFlags( const QgsRenderContext::Flags& flags );
+    void setFlags( QgsRenderContext::Flags flags );
 
     /** Enable or disable a particular flag (other flags are not affected)
      * @note added in QGIS 2.14
@@ -91,7 +98,10 @@ class CORE_EXPORT QgsRenderContext
     QPainter* painter() {return mPainter;}
     const QPainter* constPainter() const { return mPainter; }
 
-    const QgsCoordinateTransform* coordinateTransform() const {return mCoordTransform;}
+    /** Returns the current coordinate transform for the context, or an invalid
+     * transform is no coordinate transformation is required.
+     */
+    QgsCoordinateTransform coordinateTransform() const {return mCoordTransform;}
 
     const QgsRectangle& extent() const {return mExtent;}
 
@@ -106,11 +116,11 @@ class CORE_EXPORT QgsRenderContext
     bool forceVectorOutput() const;
 
     /** Returns true if advanced effects such as blend modes such be used
-    */
+     */
     bool useAdvancedEffects() const;
 
     /** Used to enable or disable advanced effects such as blend modes
-    */
+     */
     void setUseAdvancedEffects( bool enabled );
 
     bool drawEditingInformation() const;
@@ -119,8 +129,9 @@ class CORE_EXPORT QgsRenderContext
 
     QgsLabelingEngineInterface* labelingEngine() const { return mLabelingEngine; }
 
-    //! Get access to new labeling engine (may be NULL)
-    QgsLabelingEngineV2* labelingEngineV2() const { return mLabelingEngine2; }
+    //! Get access to new labeling engine (may be nullptr)
+    //! @note not available in Python bindings
+    QgsLabelingEngine* labelingEngineV2() const { return mLabelingEngine2; }
 
     QColor selectionColor() const { return mSelectionColor; }
 
@@ -129,13 +140,13 @@ class CORE_EXPORT QgsRenderContext
      * @see setShowSelection
      * @see selectionColor
      * @note Added in QGIS v2.4
-    */
+     */
     bool showSelection() const;
 
     //setters
 
-    /** Sets coordinate transformation. QgsRenderContext does not take ownership*/
-    void setCoordinateTransform( const QgsCoordinateTransform* t );
+    //! Sets coordinate transformation.
+    void setCoordinateTransform( const QgsCoordinateTransform& t );
     void setMapToPixel( const QgsMapToPixel& mtp ) {mMapToPixel = mtp;}
     void setExtent( const QgsRectangle& extent ) {mExtent = extent;}
 
@@ -151,7 +162,8 @@ class CORE_EXPORT QgsRenderContext
 
     void setLabelingEngine( QgsLabelingEngineInterface* iface ) { mLabelingEngine = iface; }
     //! Assign new labeling engine
-    void setLabelingEngineV2( QgsLabelingEngineV2* engine2 ) { mLabelingEngine2 = engine2; }
+    //! @note not available in Python bindings
+    void setLabelingEngineV2( QgsLabelingEngine* engine2 ) { mLabelingEngine2 = engine2; }
     void setSelectionColor( const QColor& color ) { mSelectionColor = color; }
 
     /** Sets whether vector selections should be shown in the rendered map
@@ -159,11 +171,11 @@ class CORE_EXPORT QgsRenderContext
      * @see showSelection
      * @see setSelectionColor
      * @note Added in QGIS v2.4
-    */
+     */
     void setShowSelection( const bool showSelection );
 
     /** Returns true if the rendering optimization (geometry simplification) can be executed
-    */
+     */
     bool useRenderingOptimization() const;
 
     void setUseRenderingOptimization( bool enabled );
@@ -194,69 +206,87 @@ class CORE_EXPORT QgsRenderContext
      */
     const QgsExpressionContext& expressionContext() const { return mExpressionContext; }
 
-    /** Returns pointer to the unsegmentized geometry*/
-    const QgsAbstractGeometryV2* geometry() const { return mGeometry; }
-    /** Sets pointer to original (unsegmentized) geometry*/
-    void setGeometry( const QgsAbstractGeometryV2* geometry ) { mGeometry = geometry; }
+    //! Returns pointer to the unsegmentized geometry
+    const QgsAbstractGeometry* geometry() const { return mGeometry; }
+    //! Sets pointer to original (unsegmentized) geometry
+    void setGeometry( const QgsAbstractGeometry* geometry ) { mGeometry = geometry; }
 
-    /** Set a filter feature provider used to filter the features
+    /** Set a filter feature provider used for additional filtering of rendered features.
      * @param ffp the filter feature provider
-     * @note not available in Python bindings
+     * @note added in QGIS 2.14
+     * @see featureFilterProvider()
      */
     void setFeatureFilterProvider( const QgsFeatureFilterProvider* ffp );
 
-    /** Get the filter feature provider used to filter the features
+    /** Get the filter feature provider used for additional filtering of rendered features.
      * @return the filter feature provider
-     * @note not available in Python bindings
+     * @note added in QGIS 2.14
+     * @see setFeatureFilterProvider()
      */
-    const QgsFeatureFilterProvider* featureFilterProvider() { return mFeatureFilterProvider; }
+    const QgsFeatureFilterProvider* featureFilterProvider() const { return mFeatureFilterProvider; }
+
+    /** Sets the segmentation tolerance applied when rendering curved geometries
+    @param tolerance the segmentation tolerance*/
+    void setSegmentationTolerance( double tolerance ) { mSegmentationTolerance = tolerance; }
+    //! Gets the segmentation tolerance applied when rendering curved geometries
+    double segmentationTolerance() const { return mSegmentationTolerance; }
+
+    /** Sets segmentation tolerance type (maximum angle or maximum difference between curve and approximation)
+    @param type the segmentation tolerance typename*/
+    void setSegmentationToleranceType( QgsAbstractGeometry::SegmentationToleranceType type ) { mSegmentationToleranceType = type; }
+    //! Gets segmentation tolerance type (maximum angle or maximum difference between curve and approximation)
+    QgsAbstractGeometry::SegmentationToleranceType segmentationToleranceType() const { return mSegmentationToleranceType; }
 
   private:
 
     Flags mFlags;
 
-    /** Painter for rendering operations*/
+    //! Painter for rendering operations
     QPainter* mPainter;
 
-    /** For transformation between coordinate systems. Can be 0 if on-the-fly reprojection is not used*/
-    const QgsCoordinateTransform* mCoordTransform;
+    //! For transformation between coordinate systems. Can be invalid if on-the-fly reprojection is not used
+    QgsCoordinateTransform mCoordTransform;
 
     QgsRectangle mExtent;
 
     QgsMapToPixel mMapToPixel;
 
-    /** True if the rendering has been canceled*/
+    //! True if the rendering has been canceled
     bool mRenderingStopped;
 
-    /** Factor to scale line widths and point marker sizes*/
+    //! Factor to scale line widths and point marker sizes
     double mScaleFactor;
 
-    /** Factor to scale rasters*/
+    //! Factor to scale rasters
     double mRasterScaleFactor;
 
-    /** Map scale*/
+    //! Map scale
     double mRendererScale;
 
-    /** Labeling engine (can be NULL)*/
+    //! Labeling engine (can be nullptr)
     QgsLabelingEngineInterface* mLabelingEngine;
 
-    /** Newer labeling engine implementation (can be NULL) */
-    QgsLabelingEngineV2* mLabelingEngine2;
+    //! Newer labeling engine implementation (can be nullptr)
+    QgsLabelingEngine* mLabelingEngine2;
 
-    /** Color used for features that are marked as selected */
+    //! Color used for features that are marked as selected
     QColor mSelectionColor;
 
-    /** Simplification object which holds the information about how to simplify the features for fast rendering */
+    //! Simplification object which holds the information about how to simplify the features for fast rendering
     QgsVectorSimplifyMethod mVectorSimplifyMethod;
 
-    /** Expression context */
+    //! Expression context
     QgsExpressionContext mExpressionContext;
 
-    /** Pointer to the (unsegmentized) geometry*/
-    const QgsAbstractGeometryV2* mGeometry;
+    //! Pointer to the (unsegmentized) geometry
+    const QgsAbstractGeometry* mGeometry;
 
-    /** The feature filter provider */
+    //! The feature filter provider
     const QgsFeatureFilterProvider* mFeatureFilterProvider;
+
+    double mSegmentationTolerance;
+
+    QgsAbstractGeometry::SegmentationToleranceType mSegmentationToleranceType;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsRenderContext::Flags )

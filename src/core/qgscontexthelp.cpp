@@ -18,7 +18,6 @@
 
 #include <QString>
 #include <QProcess>
-#include <QTcpSocket>
 #include <QTextStream>
 
 #include "qgscontexthelp.h"
@@ -27,7 +26,7 @@
 #include "qgslogger.h"
 
 
-QgsContextHelp *QgsContextHelp::gContextHelp = 0;  // Singleton instance
+QgsContextHelp *QgsContextHelp::gContextHelp = nullptr;  // Singleton instance
 
 void QgsContextHelp::run( const QString& context )
 {
@@ -60,9 +59,6 @@ QProcess *QgsContextHelp::start()
 
   // Delete this object if the process terminates
   connect( process, SIGNAL( finished( int, QProcess::ExitStatus ) ), SLOT( processExited() ) );
-
-  // Delete the process if the application quits
-  connect( qApp, SIGNAL( aboutToQuit() ), process, SLOT( terminate() ) );
 
   connect( process, SIGNAL( error( QProcess::ProcessError ) ), this, SLOT( error( QProcess::ProcessError ) ) );
 
@@ -103,5 +99,5 @@ void QgsContextHelp::processExited()
 {
   // Delete this object if the process terminates
   delete gContextHelp;
-  gContextHelp = NULL;
+  gContextHelp = nullptr;
 }

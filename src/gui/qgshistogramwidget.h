@@ -21,12 +21,12 @@
 
 #include "qgshistogram.h"
 #include "qgsstatisticalsummary.h"
-#include "qgsgraduatedsymbolrendererv2.h"
+#include "qgsgraduatedsymbolrenderer.h"
 #include <QPen>
 #include <QBrush>
 
 class QgsVectorLayer;
-class QgsGraduatedSymbolRendererV2;
+class QgsGraduatedSymbolRenderer;
 class QwtPlotPicker;
 class QwtPlotMarker;
 class QwtPlot;
@@ -58,7 +58,7 @@ class GUI_EXPORT QgsHistogramWidget : public QWidget, private Ui::QgsHistogramWi
      * @param layer source vector layer
      * @param fieldOrExp field name or expression string
      */
-    QgsHistogramWidget( QWidget *parent = 0, QgsVectorLayer* layer = 0, const QString& fieldOrExp = QString() );
+    QgsHistogramWidget( QWidget *parent = nullptr, QgsVectorLayer* layer = nullptr, const QString& fieldOrExp = QString() );
 
     ~QgsHistogramWidget();
 

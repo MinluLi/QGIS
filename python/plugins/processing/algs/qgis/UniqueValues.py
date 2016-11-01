@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,7 +26,11 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 import codecs
+
+from qgis.PyQt.QtGui import QIcon
+
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterTableField
@@ -33,6 +38,8 @@ from processing.core.outputs import OutputHTML
 from processing.core.outputs import OutputNumber
 from processing.core.outputs import OutputString
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class UniqueValues(GeoAlgorithm):
@@ -43,11 +50,14 @@ class UniqueValues(GeoAlgorithm):
     UNIQUE_VALUES = 'UNIQUE_VALUES'
     OUTPUT = 'OUTPUT'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'unique.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('List unique values')
         self.group, self.i18n_group = self.trAlgorithm('Vector table tools')
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterTableField(self.FIELD_NAME,
                                               self.tr('Target field'),
                                               self.INPUT_LAYER, ParameterTableField.DATA_TYPE_ANY))
@@ -59,21 +69,21 @@ class UniqueValues(GeoAlgorithm):
         layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_LAYER))
         fieldName = self.getParameterValue(self.FIELD_NAME)
         outputFile = self.getOutputValue(self.OUTPUT)
-        values = vector.getUniqueValues(layer, layer.fieldNameIndex(fieldName))
+        values = vector.getUniqueValues(layer, layer.fields().lookupField(fieldName))
         self.createHTML(outputFile, values)
         self.setOutputValue(self.TOTAL_VALUES, len(values))
-        self.setOutputValue(self.UNIQUE_VALUES, ';'.join([unicode(v) for v in
-                            values]))
+        self.setOutputValue(self.UNIQUE_VALUES, ';'.join([str(v) for v in
+                                                          values]))
 
     def createHTML(self, outputFile, algData):
         f = codecs.open(outputFile, 'w', encoding='utf-8')
         f.write('<html><head>')
         f.write('<meta http-equiv="Content-Type" content="text/html; \
                  charset=utf-8" /></head><body>')
-        f.write(self.tr('<p>Total unique values: ') + unicode(len(algData)) + '</p>')
+        f.write(self.tr('<p>Total unique values: ') + str(len(algData)) + '</p>')
         f.write(self.tr('<p>Unique values:</p>'))
         f.write('<ul>')
         for s in algData:
-            f.write('<li>' + unicode(s) + '</li>')
+            f.write('<li>' + str(s) + '</li>')
         f.write('</ul></body></html>')
         f.close()

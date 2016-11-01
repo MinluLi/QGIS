@@ -22,12 +22,11 @@
 #include <QItemDelegate>
 
 class QTableWidget;
-class QgsVariableEditorTree;
-class VariableEditorDelegate;
 class QgsExpressionContextScope;
 class QPushButton;
 class QgsExpressionContext;
-
+class QgsVariableEditorTree;
+class VariableEditorDelegate;
 
 /** \ingroup gui
  * \class QgsVariableEditorWidget
@@ -48,13 +47,13 @@ class GUI_EXPORT QgsVariableEditorWidget : public QWidget
     /** Constructor for QgsVariableEditorWidget.
      * @param parent parent widget
      */
-    QgsVariableEditorWidget( QWidget *parent = 0 );
+    QgsVariableEditorWidget( QWidget *parent = nullptr );
 
     ~QgsVariableEditorWidget();
 
     /** Overwrites the QgsExpressionContext for the widget. Setting a context
      * allows the widget to show all inherited variables for the context,
-     * and highlight any overriden variables within scopes.
+     * and highlight any overridden variables within scopes.
      * @param context expression context
      * @see context()
      */
@@ -65,12 +64,6 @@ class GUI_EXPORT QgsVariableEditorWidget : public QWidget
      * @see setContext()
      */
     QgsExpressionContext* context() const { return mContext.data(); }
-
-    /** Reloads all scopes from the editor's current context. This method should be called
-     * after adding or removing scopes from the attached context.
-     * @see context()
-     */
-    void reloadContext();
 
     /** Sets the editable scope for the widget. Only variables from the editable scope can
      * be modified by users.
@@ -108,6 +101,14 @@ class GUI_EXPORT QgsVariableEditorWidget : public QWidget
      */
     QgsStringMap variablesInActiveScope() const;
 
+  public slots:
+
+    /** Reloads all scopes from the editor's current context. This method should be called
+     * after adding or removing scopes from the attached context.
+     * @see context()
+     */
+    void reloadContext();
+
   signals:
 
     /** Emitted when the user has modified a scope using the widget.
@@ -139,7 +140,7 @@ class GUI_EXPORT QgsVariableEditorWidget : public QWidget
 };
 
 
-/// @cond
+/// @cond PRIVATE
 
 /* QgsVariableEditorTree is NOT part of the public QGIS api. It's only
  * public here as Qt meta objects can't be nested classes
@@ -157,7 +158,7 @@ class QgsVariableEditorTree : public QTreeWidget
       RowBaseColor
     };
 
-    explicit QgsVariableEditorTree( QWidget *parent = 0 );
+    explicit QgsVariableEditorTree( QWidget *parent = nullptr );
 
     QTreeWidgetItem *indexToItem( const QModelIndex &index ) const { return itemFromIndex( index ); }
     QModelIndex itemToIndex( QTreeWidgetItem* item ) const { return indexFromItem( item ); }
@@ -188,7 +189,7 @@ class QgsVariableEditorTree : public QTreeWidget
 
     QModelIndex moveCursor( CursorAction cursorAction, Qt::KeyboardModifiers modifiers ) override;
 
-    static QIcon mExpandIcon;
+    QIcon mExpandIcon;
 
   private:
 
@@ -200,6 +201,30 @@ class QgsVariableEditorTree : public QTreeWidget
 
     void refreshScopeItems( QgsExpressionContextScope* scope, int scopeIndex );
     void refreshScopeVariables( QgsExpressionContextScope* scope, int scopeIndex );
+};
+
+
+class VariableEditorDelegate : public QItemDelegate
+{
+    Q_OBJECT
+
+  public:
+    VariableEditorDelegate( QObject *parent = nullptr, QgsVariableEditorTree *tree = nullptr )
+        : QItemDelegate( parent )
+        , mParentTree( tree )
+    {}
+
+    QWidget *createEditor( QWidget *parent, const QStyleOptionViewItem &option,
+                           const QModelIndex &index ) const override;
+    void updateEditorGeometry( QWidget *editor, const QStyleOptionViewItem &option,
+                               const QModelIndex &index ) const override;
+    QSize sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
+    void setModelData( QWidget* widget, QAbstractItemModel* model,
+                       const QModelIndex & index ) const override;
+    void setEditorData( QWidget *, const QModelIndex & ) const override {}
+
+  private:
+    QgsVariableEditorTree *mParentTree;
 };
 
 /// @endcond

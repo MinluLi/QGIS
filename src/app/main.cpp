@@ -34,9 +34,7 @@
 #include <QString>
 #include <QStringList>
 #include <QStyle>
-#if QT_VERSION < 0x050000
-#include <QPlastiqueStyle>
-#endif
+#include <QDesktopWidget>
 #include <QTranslator>
 #include <QImageReader>
 #include <QMessageBox>
@@ -99,50 +97,63 @@ typedef SInt32 SRefCon;
 #include "qgsrectangle.h"
 #include "qgslogger.h"
 #include "qgsdxfexport.h"
-#include "qgsvisibilitypresets.h"
+#include "qgsmapthemes.h"
 #include "qgsmaplayerregistry.h"
 #include "qgsvectorlayer.h"
 
 /** Print usage text
  */
-void usage( std::string const & appName )
+void usage( const QString& appName )
 {
-  std::cerr << "QGIS - " << VERSION << " '" << RELEASE_NAME << "' ("
-            << QGSVERSION << ")\n"
-            << "QGIS is a user friendly Open Source Geographic Information System.\n"
-            << "Usage: " << appName <<  " [OPTION] [FILE]\n"
-            << "  OPTION:\n"
-            << "\t[--snapshot filename]\temit snapshot of loaded datasets to given file\n"
-            << "\t[--width width]\twidth of snapshot to emit\n"
-            << "\t[--height height]\theight of snapshot to emit\n"
-            << "\t[--lang language]\tuse language for interface text\n"
-            << "\t[--project projectfile]\tload the given QGIS project\n"
-            << "\t[--extent xmin,ymin,xmax,ymax]\tset initial map extent\n"
-            << "\t[--nologo]\thide splash screen\n"
-            << "\t[--noplugins]\tdon't restore plugins on startup\n"
-            << "\t[--nocustomization]\tdon't apply GUI customization\n"
-            << "\t[--customizationfile]\tuse the given ini file as GUI customization\n"
-            << "\t[--optionspath path]\tuse the given QSettings path\n"
-            << "\t[--configpath path]\tuse the given path for all user configuration\n"
-            << "\t[--authdbdirectory path] use the given directory for authentication database\n"
-            << "\t[--code path]\trun the given python file on load\n"
-            << "\t[--defaultui]\tstart by resetting user ui settings to default\n"
-            << "\t[--dxf-export filename.dxf]\temit dxf output of loaded datasets to given file\n"
-            << "\t[--dxf-extent xmin,ymin,xmax,ymax]\tset extent to export to dxf\n"
-            << "\t[--dxf-symbology-mode none|symbollayer|feature]\tsymbology mode for dxf output\n"
-            << "\t[--dxf-scale-denom scale]\tscale for dxf output\n"
-            << "\t[--dxf-encoding encoding]\tencoding to use for dxf output\n"
-            << "\t[--dxf-preset visiblity-preset]\tlayer visibility preset to use for dxf output\n"
-            << "\t[--help]\t\tthis text\n\n"
-            << "  FILE:\n"
-            << "    Files specified on the command line can include rasters,\n"
-            << "    vectors, and QGIS project files (.qgs): \n"
-            << "     1. Rasters - supported formats include GeoTiff, DEM \n"
-            << "        and others supported by GDAL\n"
-            << "     2. Vectors - supported formats include ESRI Shapefiles\n"
-            << "        and others supported by OGR and PostgreSQL layers using\n"
-            << "        the PostGIS extension\n"  ; // OK
+  QStringList msg;
 
+  msg
+  << QStringLiteral( "QGIS - " ) << VERSION << QStringLiteral( " '" ) << RELEASE_NAME << QStringLiteral( "' (" )
+  << QGSVERSION << QStringLiteral( ")\n" )
+  << QStringLiteral( "QGIS is a user friendly Open Source Geographic Information System.\n" )
+  << QStringLiteral( "Usage: " ) << appName <<  QStringLiteral( " [OPTION] [FILE]\n" )
+  << QStringLiteral( "  OPTION:\n" )
+  << QStringLiteral( "\t[--snapshot filename]\temit snapshot of loaded datasets to given file\n" )
+  << QStringLiteral( "\t[--width width]\twidth of snapshot to emit\n" )
+  << QStringLiteral( "\t[--height height]\theight of snapshot to emit\n" )
+  << QStringLiteral( "\t[--lang language]\tuse language for interface text\n" )
+  << QStringLiteral( "\t[--project projectfile]\tload the given QGIS project\n" )
+  << QStringLiteral( "\t[--extent xmin,ymin,xmax,ymax]\tset initial map extent\n" )
+  << QStringLiteral( "\t[--nologo]\thide splash screen\n" )
+  << QStringLiteral( "\t[--noversioncheck]\tdon't check for new version of QGIS at startup\n" )
+  << QStringLiteral( "\t[--noplugins]\tdon't restore plugins on startup\n" )
+  << QStringLiteral( "\t[--nocustomization]\tdon't apply GUI customization\n" )
+  << QStringLiteral( "\t[--customizationfile]\tuse the given ini file as GUI customization\n" )
+  << QStringLiteral( "\t[--optionspath path]\tuse the given QSettings path\n" )
+  << QStringLiteral( "\t[--configpath path]\tuse the given path for all user configuration\n" )
+  << QStringLiteral( "\t[--authdbdirectory path] use the given directory for authentication database\n" )
+  << QStringLiteral( "\t[--code path]\trun the given python file on load\n" )
+  << QStringLiteral( "\t[--defaultui]\tstart by resetting user ui settings to default\n" )
+  << QStringLiteral( "\t[--dxf-export filename.dxf]\temit dxf output of loaded datasets to given file\n" )
+  << QStringLiteral( "\t[--dxf-extent xmin,ymin,xmax,ymax]\tset extent to export to dxf\n" )
+  << QStringLiteral( "\t[--dxf-symbology-mode none|symbollayer|feature]\tsymbology mode for dxf output\n" )
+  << QStringLiteral( "\t[--dxf-scale-denom scale]\tscale for dxf output\n" )
+  << QStringLiteral( "\t[--dxf-encoding encoding]\tencoding to use for dxf output\n" )
+  << QStringLiteral( "\t[--dxf-preset maptheme]\tmap theme to use for dxf output\n" )
+  << QStringLiteral( "\t[--help]\t\tthis text\n" )
+  << QStringLiteral( "\t[--]\t\ttreat all following arguments as FILEs\n\n" )
+  << QStringLiteral( "  FILE:\n" )
+  << QStringLiteral( "    Files specified on the command line can include rasters,\n" )
+  << QStringLiteral( "    vectors, and QGIS project files (.qgs): \n" )
+  << QStringLiteral( "     1. Rasters - supported formats include GeoTiff, DEM \n" )
+  << QStringLiteral( "        and others supported by GDAL\n" )
+  << QStringLiteral( "     2. Vectors - supported formats include ESRI Shapefiles\n" )
+  << QStringLiteral( "        and others supported by OGR and PostgreSQL layers using\n" )
+  << QStringLiteral( "        the PostGIS extension\n" )  ; // OK
+
+#ifdef Q_OS_WIN
+  MessageBox( nullptr,
+              msg.join( QString() ).toLocal8Bit().constData(),
+              "QGIS command line options",
+              MB_OK );
+#else
+  std::cerr << msg.join( QString() ).toLocal8Bit().constData();
+#endif
 
 } // usage()
 
@@ -155,7 +166,7 @@ void usage( std::string const & appName )
 // AppleEvent handler as well as by the main routine argv processing
 
 // This behaviour will cause QGIS to autoload a project
-static QString myProjectFileName = "";
+static QString myProjectFileName = QLatin1String( "" );
 
 // This is the 'leftover' arguments collection
 static QStringList myFileList;
@@ -191,6 +202,14 @@ static void dumpBacktrace( unsigned int depth )
     depth = 20;
 
 #if ((defined(linux) || defined(__linux__)) && !defined(ANDROID)) || defined(__FreeBSD__)
+  // Below there is a bunch of operations that are not safe in multi-threaded
+  // environment (dup()+close() combo, wait(), juggling with file descriptors).
+  // Maybe some problems could be resolved with dup2() and waitpid(), but it seems
+  // that if the operations on descriptors are not serialized, things will get nasty.
+  // That's why there's this lovely mutex here...
+  static QMutex mutex;
+  QMutexLocker locker( &mutex );
+
   int stderr_fd = -1;
   if ( access( "/usr/bin/c++filt", X_OK ) < 0 )
   {
@@ -211,7 +230,7 @@ static void dumpBacktrace( unsigned int depth )
       }
 
       close( fd[1] );        // close writing end
-      execl( "/usr/bin/c++filt", "c++filt", ( char * ) 0 );
+      execl( "/usr/bin/c++filt", "c++filt", static_cast< char * >( nullptr ) );
       perror( "could not start c++filt" );
       exit( 1 );
     }
@@ -256,19 +275,30 @@ static void dumpBacktrace( unsigned int depth )
   SymSetOptions( SYMOPT_DEFERRED_LOADS | SYMOPT_INCLUDE_32BIT_MODULES | SYMOPT_UNDNAME );
   SymInitialize( GetCurrentProcess(), "http://msdl.microsoft.com/download/symbols;http://download.osgeo.org/osgeo4w/symstore", TRUE );
 
-  unsigned short nFrames = CaptureStackBackTrace( 1, depth, buffer, NULL );
+  unsigned short nFrames = CaptureStackBackTrace( 1, depth, buffer, nullptr );
   SYMBOL_INFO *symbol = ( SYMBOL_INFO * ) qgsMalloc( sizeof( SYMBOL_INFO ) + 256 );
   symbol->MaxNameLen = 255;
   symbol->SizeOfStruct = sizeof( SYMBOL_INFO );
+  IMAGEHLP_LINE *line = ( IMAGEHLP_LINE * ) qgsMalloc( sizeof( IMAGEHLP_LINE ) );
+  line->SizeOfStruct = sizeof( IMAGEHLP_LINE );
 
   for ( int i = 0; i < nFrames; i++ )
   {
+    DWORD dwDisplacement;
     SymFromAddr( GetCurrentProcess(), ( DWORD64 )( buffer[ i ] ), 0, symbol );
     symbol->Name[ 255 ] = 0;
-    myPrint( "%d: %s [%x]\n", i, symbol->Name, symbol->Address );
+    if ( SymGetLineFromAddr( GetCurrentProcess(), ( DWORD64 )( buffer[i] ), &dwDisplacement, line ) )
+    {
+      myPrint( "%s(%d) : (%s) frame %d, address %x\n", line->FileName, line->LineNumber, symbol->Name, i, symbol->Address );
+    }
+    else
+    {
+      myPrint( "%s(%d) : (%s) unknown source location, frame %d, address %x [GetLastError()=%d]\n", __FILE__, __LINE__, symbol->Name, i, symbol->Address, GetLastError() );
+    }
   }
 
   qgsFree( symbol );
+  qgsFree( line );
 #else
   Q_UNUSED( depth );
 #endif
@@ -362,7 +392,7 @@ void myMessageOutput( QtMsgType type, const char *msg )
       {
         // TODO: Verify this code in action.
         dumpBacktrace( 20 );
-        QgsMessageLog::logMessage( msg, "Qt" );
+        QgsMessageLog::logMessage( msg, QStringLiteral( "Qt" ) );
       }
 #endif
 
@@ -370,7 +400,7 @@ void myMessageOutput( QtMsgType type, const char *msg )
       if ( 0 == strncmp( msg, "libpng error:", 13 ) )
       {
         // Let the user know
-        QgsMessageLog::logMessage( msg, "libpng" );
+        QgsMessageLog::logMessage( msg, QStringLiteral( "libpng" ) );
       }
 
       break;
@@ -384,9 +414,20 @@ void myMessageOutput( QtMsgType type, const char *msg )
       abort();                    // deliberately dump core
 #endif
     }
+
+#if QT_VERSION >= 0x050500
+    case QtInfoMsg:
+      myPrint( "Info: %s\n", msg );
+      break;
+#endif
   }
 }
 
+#if(ANDROID)
+// On Android, there there is a libqgis.so instead of a qgis executable.
+// The main method symbol of this library needs to be exported so it can be called by java
+APP_EXPORT
+#endif
 int main( int argc, char *argv[] )
 {
 #ifdef Q_OS_MACX
@@ -456,7 +497,7 @@ int main( int argc, char *argv[] )
 #endif
 
   // initialize random number seed
-  qsrand( time( NULL ) );
+  qsrand( time( nullptr ) );
 
   /////////////////////////////////////////////////////////////////
   // Command line options 'behaviour' flag setup
@@ -470,11 +511,12 @@ int main( int argc, char *argv[] )
 
   // This behaviour is used to load the app, snapshot the map,
   // save the image to disk and then exit
-  QString mySnapshotFileName = "";
+  QString mySnapshotFileName = QLatin1String( "" );
   int mySnapshotWidth = 800;
   int mySnapshotHeight = 600;
 
   bool myHideSplash = false;
+  bool mySkipVersionCheck = false;
 #if defined(ANDROID)
   QgsDebugMsg( QString( "Android: Splash hidden" ) );
   myHideSplash = true;
@@ -487,7 +529,7 @@ int main( int argc, char *argv[] )
   QString dxfOutputFile;
   QgsDxfExport::SymbologyExport dxfSymbologyMode = QgsDxfExport::SymbolLayerSymbology;
   double dxfScaleDenom = 50000.0;
-  QString dxfEncoding = "CP1252";
+  QString dxfEncoding = QStringLiteral( "CP1252" );
   QString dxfPreset;
   QgsRectangle dxfExtent;
 
@@ -495,9 +537,9 @@ int main( int argc, char *argv[] )
   // there are no command line arguments. This gives a usable map
   // extent when qgis starts with no layers loaded. When layers are
   // loaded, we let the layers define the initial extent.
-  QString myInitialExtent = "";
+  QString myInitialExtent = QLatin1String( "" );
   if ( argc == 1 )
-    myInitialExtent = "-1,-1,1,1";
+    myInitialExtent = QStringLiteral( "-1,-1,1,1" );
 
   // This behaviour will allow you to force the use of a translation file
   // which is useful for testing
@@ -533,76 +575,80 @@ int main( int argc, char *argv[] )
     {
       const QString &arg = args[i];
 
-      if ( arg == "--help" || arg == "-?" )
+      if ( arg == QLatin1String( "--help" ) || arg == QLatin1String( "-?" ) )
       {
-        usage( args[0].toStdString() );
+        usage( args[0] );
         return 2;
       }
-      else if ( arg == "--nologo" || arg == "-n" )
+      else if ( arg == QLatin1String( "--nologo" ) || arg == QLatin1String( "-n" ) )
       {
         myHideSplash = true;
       }
-      else if ( arg == "--noplugins" || arg == "-P" )
+      else if ( arg == QLatin1String( "--noversioncheck" ) || arg == QLatin1String( "-V" ) )
+      {
+        mySkipVersionCheck = true;
+      }
+      else if ( arg == QLatin1String( "--noplugins" ) || arg == QLatin1String( "-P" ) )
       {
         myRestorePlugins = false;
       }
-      else if ( arg == "--nocustomization" || arg == "-C" )
+      else if ( arg == QLatin1String( "--nocustomization" ) || arg == QLatin1String( "-C" ) )
       {
         myCustomization = false;
       }
-      else if ( i + 1 < argc && ( arg == "--snapshot" || arg == "-s" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--snapshot" ) || arg == QLatin1String( "-s" ) ) )
       {
         mySnapshotFileName = QDir::toNativeSeparators( QFileInfo( args[++i] ).absoluteFilePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--width" || arg == "-w" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--width" ) || arg == QLatin1String( "-w" ) ) )
       {
         mySnapshotWidth = QString( args[++i] ).toInt();
       }
-      else if ( i + 1 < argc && ( arg == "--height" || arg == "-h" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--height" ) || arg == QLatin1String( "-h" ) ) )
       {
         mySnapshotHeight = QString( args[++i] ).toInt();
       }
-      else if ( i + 1 < argc && ( arg == "--lang" || arg == "-l" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--lang" ) || arg == QLatin1String( "-l" ) ) )
       {
         myTranslationCode = args[++i];
       }
-      else if ( i + 1 < argc && ( arg == "--project" || arg == "-p" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--project" ) || arg == QLatin1String( "-p" ) ) )
       {
         myProjectFileName = QDir::toNativeSeparators( QFileInfo( args[++i] ).absoluteFilePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--extent" || arg == "-e" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--extent" ) || arg == QLatin1String( "-e" ) ) )
       {
         myInitialExtent = args[++i];
       }
-      else if ( i + 1 < argc && ( arg == "--optionspath" || arg == "-o" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--optionspath" ) || arg == QLatin1String( "-o" ) ) )
       {
         optionpath = QDir::toNativeSeparators( QDir( args[++i] ).absolutePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--configpath" || arg == "-c" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--configpath" ) || arg == QLatin1String( "-c" ) ) )
       {
         configpath = QDir::toNativeSeparators( QDir( args[++i] ).absolutePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--authdbdirectory" || arg == "-a" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--authdbdirectory" ) || arg == QLatin1String( "-a" ) ) )
       {
         authdbdirectory = QDir::toNativeSeparators( QDir( args[++i] ).absolutePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--code" || arg == "-f" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--code" ) || arg == QLatin1String( "-f" ) ) )
       {
         pythonfile = QDir::toNativeSeparators( QFileInfo( args[++i] ).absoluteFilePath() );
       }
-      else if ( i + 1 < argc && ( arg == "--customizationfile" || arg == "-z" ) )
+      else if ( i + 1 < argc && ( arg == QLatin1String( "--customizationfile" ) || arg == QLatin1String( "-z" ) ) )
       {
         customizationfile = QDir::toNativeSeparators( QFileInfo( args[++i] ).absoluteFilePath() );
       }
-      else if ( arg == "--defaultui" || arg == "-d" )
+      else if ( arg == QLatin1String( "--defaultui" ) || arg == QLatin1String( "-d" ) )
       {
         myRestoreDefaultWindowState = true;
       }
-      else if ( arg == "--dxf-export" )
+      else if ( arg == QLatin1String( "--dxf-export" ) )
       {
         dxfOutputFile = args[++i];
       }
-      else if ( arg == "--dxf-extent" )
+      else if ( arg == QLatin1String( "--dxf-extent" ) )
       {
         QgsLocaleNumC l;
         QString ext( args[++i] );
@@ -643,18 +689,18 @@ int main( int argc, char *argv[] )
           }
         }
       }
-      else if ( arg == "--dxf-symbology-mode" )
+      else if ( arg == QLatin1String( "--dxf-symbology-mode" ) )
       {
         QString mode( args[++i] );
-        if ( mode == "none" )
+        if ( mode == QLatin1String( "none" ) )
         {
           dxfSymbologyMode = QgsDxfExport::NoSymbology;
         }
-        else if ( mode == "symbollayer" )
+        else if ( mode == QLatin1String( "symbollayer" ) )
         {
           dxfSymbologyMode = QgsDxfExport::SymbolLayerSymbology;
         }
-        else if ( mode == "feature" )
+        else if ( mode == QLatin1String( "feature" ) )
         {
           dxfSymbologyMode = QgsDxfExport::FeatureSymbology;
         }
@@ -664,7 +710,7 @@ int main( int argc, char *argv[] )
           return 2;
         }
       }
-      else if ( arg == "--dxf-scale-denom" )
+      else if ( arg == QLatin1String( "--dxf-scale-denom" ) )
       {
         bool ok;
         QString scale( args[++i] );
@@ -675,13 +721,18 @@ int main( int argc, char *argv[] )
           return 2;
         }
       }
-      else if ( arg == "--dxf-encoding" )
+      else if ( arg == QLatin1String( "--dxf-encoding" ) )
       {
         dxfEncoding = args[++i];
       }
-      else if ( arg == "--dxf-preset" )
+      else if ( arg == QLatin1String( "--dxf-preset" ) )
       {
         dxfPreset = args[++i];
+      }
+      else if ( arg == QLatin1String( "--" ) )
+      {
+        for ( i++; i < args.size(); ++i )
+          myFileList.append( QDir::toNativeSeparators( QFileInfo( args[i] ).absoluteFilePath() ) );
       }
       else
       {
@@ -702,7 +753,7 @@ int main( int argc, char *argv[] )
     for ( int i = 0; i < args.size(); i++ )
     {
       QString arg = QDir::toNativeSeparators( QFileInfo( args[i] ).absoluteFilePath() );
-      if ( arg.contains( ".qgs" ) )
+      if ( arg.contains( QLatin1String( ".qgs" ) ) )
       {
         myProjectFileName = arg;
         break;
@@ -720,7 +771,7 @@ int main( int argc, char *argv[] )
   /////////////////////////////////////////////////////////////////////
 
 #if defined(Q_OS_UNIX) && !defined(Q_OS_MAC) && !defined(ANDROID)
-  bool myUseGuiFlag = getenv( "DISPLAY" ) != 0;
+  bool myUseGuiFlag = nullptr != getenv( "DISPLAY" );
 #else
   bool myUseGuiFlag = true;
 #endif
@@ -750,10 +801,7 @@ int main( int argc, char *argv[] )
 
   QgsApplication myApp( argc, argv, myUseGuiFlag, configpath );
 
-// (if Windows/Mac, use icon from resource)
-#if !defined(Q_OS_WIN) && !defined(Q_OS_MAC)
-  myApp.setWindowIcon( QIcon( QgsApplication::iconsPath() + "qgis-icon-60x60.png" ) );
-#endif
+  myApp.setWindowIcon( QIcon( QgsApplication::appIconPath() ) );
 
   //
   // Set up the QSettings environment must be done after qapp is created
@@ -769,11 +817,11 @@ int main( int argc, char *argv[] )
     QSettings::setDefaultFormat( QSettings::IniFormat );
     QString path = optionpath.isEmpty() ? configpath : optionpath;
     QSettings::setPath( QSettings::IniFormat, QSettings::UserScope, path );
-    customizationsettings = new QSettings( QSettings::IniFormat, QSettings::UserScope, "QGIS", "QGISCUSTOMIZATION2" );
+    customizationsettings = new QSettings( QSettings::IniFormat, QSettings::UserScope, QStringLiteral( "QGIS" ), QStringLiteral( "QGISCUSTOMIZATION2" ) );
   }
   else
   {
-    customizationsettings = new QSettings( "QGIS", "QGISCUSTOMIZATION2" );
+    customizationsettings = new QSettings( QStringLiteral( "QGIS" ), QStringLiteral( "QGISCUSTOMIZATION2" ) );
   }
 
   // Using the customizationfile option always overrides the option and config path options.
@@ -818,24 +866,24 @@ int main( int argc, char *argv[] )
   QSettings mySettings;
 
   // update any saved setting for older themes to new default 'gis' theme (2013-04-15)
-  if ( mySettings.contains( "/Themes" ) )
+  if ( mySettings.contains( QStringLiteral( "/Themes" ) ) )
   {
-    QString theme = mySettings.value( "/Themes", "default" ).toString();
-    if ( theme == "gis"
-         || theme == "classic"
-         || theme == "nkids" )
+    QString theme = mySettings.value( QStringLiteral( "/Themes" ), "default" ).toString();
+    if ( theme == QLatin1String( "gis" )
+         || theme == QLatin1String( "classic" )
+         || theme == QLatin1String( "nkids" ) )
     {
-      mySettings.setValue( "/Themes", QString( "default" ) );
+      mySettings.setValue( QStringLiteral( "/Themes" ), QStringLiteral( "default" ) );
     }
   }
 
 
   // custom environment variables
   QMap<QString, QString> systemEnvVars = QgsApplication::systemEnvVars();
-  bool useCustomVars = mySettings.value( "qgis/customEnvVarsUse", QVariant( false ) ).toBool();
+  bool useCustomVars = mySettings.value( QStringLiteral( "qgis/customEnvVarsUse" ), QVariant( false ) ).toBool();
   if ( useCustomVars )
   {
-    QStringList customVarsList = mySettings.value( "qgis/customEnvVars", "" ).toStringList();
+    QStringList customVarsList = mySettings.value( QStringLiteral( "qgis/customEnvVars" ), "" ).toStringList();
     if ( !customVarsList.isEmpty() )
     {
       Q_FOREACH ( const QString &varStr, customVarsList )
@@ -853,17 +901,17 @@ int main( int argc, char *argv[] )
 
         if ( systemEnvVars.contains( envVarName ) )
         {
-          if ( envVarApply == "prepend" )
+          if ( envVarApply == QLatin1String( "prepend" ) )
           {
             envVarValue += systemEnvVars.value( envVarName );
           }
-          else if ( envVarApply == "append" )
+          else if ( envVarApply == QLatin1String( "append" ) )
           {
             envVarValue = systemEnvVars.value( envVarName ) + envVarValue;
           }
         }
 
-        if ( systemEnvVars.contains( envVarName ) && envVarApply == "unset" )
+        if ( systemEnvVars.contains( envVarName ) && envVarApply == QLatin1String( "unset" ) )
         {
 #ifdef Q_OS_WIN
           putenv( envVarName.toUtf8().constData() );
@@ -877,7 +925,7 @@ int main( int argc, char *argv[] )
           if ( envVarApply != "undefined" || !getenv( envVarName.toUtf8().constData() ) )
             putenv( QString( "%1=%2" ).arg( envVarName ).arg( envVarValue ).toUtf8().constData() );
 #else
-          setenv( envVarName.toUtf8().constData(), envVarValue.toUtf8().constData(), envVarApply == "undefined" ? 0 : 1 );
+          setenv( envVarName.toUtf8().constData(), envVarValue.toUtf8().constData(), envVarApply == QLatin1String( "undefined" ) ? 0 : 1 );
 #endif
         }
       }
@@ -885,30 +933,24 @@ int main( int argc, char *argv[] )
   }
 
 #ifdef QGISDEBUG
-  QgsFontUtils::loadStandardTestFonts( QStringList() << "Roman" << "Bold" );
+  QgsFontUtils::loadStandardTestFonts( QStringList() << QStringLiteral( "Roman" ) << QStringLiteral( "Bold" ) );
 #endif
 
   // Set the application style.  If it's not set QT will use the platform style except on Windows
   // as it looks really ugly so we use QPlastiqueStyle.
-  QString style = mySettings.value( "/qgis/style" ).toString();
+  QString style = mySettings.value( QStringLiteral( "/qgis/style" ) ).toString();
   if ( !style.isNull() )
   {
     QApplication::setStyle( style );
-    mySettings.setValue( "/qgis/style", QApplication::style()->objectName() );
+    mySettings.setValue( QStringLiteral( "/qgis/style" ), QApplication::style()->objectName() );
   }
-#ifdef Q_OS_WIN
-#if QT_VERSION < 0x050000
-  else
-    QApplication::setStyle( new QPlastiqueStyle );
-#endif
-#endif
 
   /* Translation file for QGIS.
    */
   QString i18nPath = QgsApplication::i18nPath();
-  QString myUserLocale = mySettings.value( "locale/userLocale", "" ).toString();
-  bool myLocaleOverrideFlag = mySettings.value( "locale/overrideFlag", false ).toBool();
-  QString myLocale;
+  QString myUserLocale = mySettings.value( QStringLiteral( "locale/userLocale" ), "" ).toString();
+  bool myLocaleOverrideFlag = mySettings.value( QStringLiteral( "locale/overrideFlag" ), false ).toBool();
+
   //
   // Priority of translation is:
   //  - command line
@@ -920,7 +962,7 @@ int main( int argc, char *argv[] )
   //
   if ( !myTranslationCode.isNull() && !myTranslationCode.isEmpty() )
   {
-    mySettings.setValue( "locale/userLocale", myTranslationCode );
+    mySettings.setValue( QStringLiteral( "locale/userLocale" ), myTranslationCode );
   }
   else
   {
@@ -929,7 +971,7 @@ int main( int argc, char *argv[] )
       myTranslationCode = QLocale::system().name();
       //setting the locale/userLocale when the --lang= option is not set will allow third party
       //plugins to always use the same locale as the QGIS, otherwise they can be out of sync
-      mySettings.setValue( "locale/userLocale", myTranslationCode );
+      mySettings.setValue( QStringLiteral( "locale/userLocale" ), myTranslationCode );
     }
     else
     {
@@ -937,17 +979,17 @@ int main( int argc, char *argv[] )
     }
   }
 
-  QTranslator qgistor( 0 );
-  QTranslator qttor( 0 );
-  if ( myTranslationCode != "C" )
+  QTranslator qgistor( nullptr );
+  QTranslator qttor( nullptr );
+  if ( myTranslationCode != QLatin1String( "C" ) )
   {
-    if ( qgistor.load( QString( "qgis_" ) + myTranslationCode, i18nPath ) )
+    if ( qgistor.load( QStringLiteral( "qgis_" ) + myTranslationCode, i18nPath ) )
     {
       myApp.installTranslator( &qgistor );
     }
     else
     {
-      qWarning( "loading of qgis translation failed [%s]", QString( "%1/qgis_%2" ).arg( i18nPath, myTranslationCode ).toLocal8Bit().constData() );
+      qWarning( "loading of qgis translation failed [%s]", QStringLiteral( "%1/qgis_%2" ).arg( i18nPath, myTranslationCode ).toLocal8Bit().constData() );
     }
 
     /* Translation file for Qt.
@@ -955,13 +997,13 @@ int main( int argc, char *argv[] )
      * the About, Preferences and Quit items to the Mac Application menu.
      * These items must be translated identically in both qt_ and qgis_ files.
      */
-    if ( qttor.load( QString( "qt_" ) + myTranslationCode, QLibraryInfo::location( QLibraryInfo::TranslationsPath ) ) )
+    if ( qttor.load( QStringLiteral( "qt_" ) + myTranslationCode, QLibraryInfo::location( QLibraryInfo::TranslationsPath ) ) )
     {
       myApp.installTranslator( &qttor );
     }
     else
     {
-      qWarning( "loading of qt translation failed [%s]", QString( "%1/qt_%2" ).arg( QLibraryInfo::location( QLibraryInfo::TranslationsPath ), myTranslationCode ).toLocal8Bit().constData() );
+      qWarning( "loading of qt translation failed [%s]", QStringLiteral( "%1/qt_%2" ).arg( QLibraryInfo::location( QLibraryInfo::TranslationsPath ), myTranslationCode ).toLocal8Bit().constData() );
     }
   }
 
@@ -1003,13 +1045,13 @@ int main( int argc, char *argv[] )
 
   //set up splash screen
   QString mySplashPath( QgsCustomization::instance()->splashPath() );
-  QPixmap myPixmap( mySplashPath + QLatin1String( "splash.png" ) );
-  QSplashScreen *mypSplash = new QSplashScreen( myPixmap );
-  if ( mySettings.value( "/qgis/hideSplash" ).toBool() || myHideSplash )
-  {
-    //splash screen hidden
-  }
-  else
+  QPixmap myPixmap( mySplashPath + QStringLiteral( "splash.png" ) );
+
+  int w = 600 * qApp->desktop()->logicalDpiX() / 96;
+  int h = 300 * qApp->desktop()->logicalDpiY() / 96;
+
+  QSplashScreen *mypSplash = new QSplashScreen( myPixmap.scaled( w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation ) );
+  if ( !myHideSplash && !mySettings.value( QStringLiteral( "/qgis/hideSplash" ) ).toBool() )
   {
     //for win and linux we can just automask and png transparency areas will be used
     mypSplash->setMask( myPixmap.mask() );
@@ -1018,19 +1060,19 @@ int main( int argc, char *argv[] )
 
   // optionally restore default window state
   // use restoreDefaultWindowState setting only if NOT using command line (then it is set already)
-  if ( myRestoreDefaultWindowState || mySettings.value( "/qgis/restoreDefaultWindowState", false ).toBool() )
+  if ( myRestoreDefaultWindowState || mySettings.value( QStringLiteral( "/qgis/restoreDefaultWindowState" ), false ).toBool() )
   {
     QgsDebugMsg( "Resetting /UI/state settings!" );
-    mySettings.remove( "/UI/state" );
-    mySettings.remove( "/qgis/restoreDefaultWindowState" );
+    mySettings.remove( QStringLiteral( "/UI/state" ) );
+    mySettings.remove( QStringLiteral( "/qgis/restoreDefaultWindowState" ) );
   }
 
   // set max. thread count
   // this should be done in QgsApplication::init() but it doesn't know the settings dir.
-  QgsApplication::setMaxThreads( QSettings().value( "/qgis/max_threads", -1 ).toInt() );
+  QgsApplication::setMaxThreads( QSettings().value( QStringLiteral( "/qgis/max_threads" ), -1 ).toInt() );
 
-  QgisApp *qgis = new QgisApp( mypSplash, myRestorePlugins ); // "QgisApp" used to find canonical instance
-  qgis->setObjectName( "QgisApp" );
+  QgisApp *qgis = new QgisApp( mypSplash, myRestorePlugins, mySkipVersionCheck ); // "QgisApp" used to find canonical instance
+  qgis->setObjectName( QStringLiteral( "QgisApp" ) );
 
   myApp.connect(
     &myApp, SIGNAL( preNotify( QObject *, QEvent *, bool * ) ),
@@ -1055,7 +1097,7 @@ int main( int argc, char *argv[] )
     QgsDebugMsg( QString( "Trying to load file : %1" ).arg(( *myIterator ) ) );
     QString myLayerName = *myIterator;
     // don't load anything with a .qgs extension - these are project files
-    if ( !myLayerName.contains( ".qgs" ) )
+    if ( !myLayerName.contains( QLatin1String( ".qgs" ) ) )
     {
       qgis->openLayer( myLayerName );
     }
@@ -1084,7 +1126,7 @@ int main( int argc, char *argv[] )
         break;
       }
 
-      coords[i] = QString( myInitialExtent.mid( posOld, pos - posOld ) ).toDouble( &ok );
+      coords[i] = myInitialExtent.midRef( posOld, pos - posOld ).toDouble( &ok );
       if ( !ok )
         break;
 
@@ -1093,7 +1135,7 @@ int main( int argc, char *argv[] )
 
     // parse last coordinate
     if ( ok )
-      coords[3] = QString( myInitialExtent.mid( posOld ) ).toDouble( &ok );
+      coords[3] = myInitialExtent.midRef( posOld ).toDouble( &ok );
 
     if ( !ok )
     {
@@ -1117,19 +1159,19 @@ int main( int argc, char *argv[] )
     //replace backslashes with forward slashes
     pythonfile.replace( '\\', '/' );
 #endif
-    QgsPythonRunner::run( QString( "execfile('%1')" ).arg( pythonfile ) );
+    QgsPythonRunner::run( QStringLiteral( "exec(open('%1').read())" ).arg( pythonfile ) );
   }
 
   /////////////////////////////////`////////////////////////////////////
   // Take a snapshot of the map view then exit if snapshot mode requested
   /////////////////////////////////////////////////////////////////////
-  if ( mySnapshotFileName != "" )
+  if ( mySnapshotFileName != QLatin1String( "" ) )
   {
     /*You must have at least one paintEvent() delivered for the window to be
       rendered properly.
 
       It looks like you don't run the event loop in non-interactive mode, so the
-      event is never occuring.
+      event is never occurring.
 
       To achieve this without running the event loop: show the window, then call
       qApp->processEvents(), grab the pixmap, save it, hide the window and exit.
@@ -1158,7 +1200,7 @@ int main( int argc, char *argv[] )
     QList< QPair<QgsVectorLayer *, int > > layers;
     if ( !dxfPreset.isEmpty() )
     {
-      Q_FOREACH ( const QString& layer, QgsProject::instance()->visibilityPresetCollection()->presetVisibleLayers( dxfPreset ) )
+      Q_FOREACH ( const QString& layer, QgsProject::instance()->mapThemeCollection()->mapThemeVisibleLayers( dxfPreset ) )
       {
         QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( QgsMapLayerRegistry::instance()->mapLayer( layer ) );
         if ( !vl )
@@ -1169,7 +1211,7 @@ int main( int argc, char *argv[] )
     }
     else
     {
-      Q_FOREACH ( QgsMapLayer *ml, QgsMapLayerRegistry::instance()->mapLayers().values() )
+      Q_FOREACH ( QgsMapLayer *ml, QgsMapLayerRegistry::instance()->mapLayers() )
       {
         QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( ml );
         if ( !vl )
@@ -1185,9 +1227,9 @@ int main( int argc, char *argv[] )
     }
 
     QFile dxfFile;
-    if ( dxfOutputFile == "-" )
+    if ( dxfOutputFile == QLatin1String( "-" ) )
     {
-      if ( !dxfFile.open( stdout, QIODevice::WriteOnly ) )
+      if ( !dxfFile.open( stdout, QIODevice::WriteOnly | QIODevice::Truncate ) )
       {
         std::cerr << "could not open stdout" << std::endl;
         return 2;
@@ -1195,8 +1237,8 @@ int main( int argc, char *argv[] )
     }
     else
     {
-      if ( !dxfOutputFile.endsWith( ".dxf", Qt::CaseInsensitive ) )
-        dxfOutputFile += ".dxf";
+      if ( !dxfOutputFile.endsWith( QLatin1String( ".dxf" ), Qt::CaseInsensitive ) )
+        dxfOutputFile += QLatin1String( ".dxf" );
       dxfFile.setFileName( dxfOutputFile );
     }
 

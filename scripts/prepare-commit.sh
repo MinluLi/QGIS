@@ -14,8 +14,11 @@
 #                                                                         #
 ###########################################################################
 
+TOPLEVEL=$(git rev-parse --show-toplevel)
 
-PATH=$PATH:$(git rev-parse --show-toplevel)/scripts
+PATH=$TOPLEVEL/scripts:$PATH
+
+cd $TOPLEVEL
 
 if ! type -p astyle.sh >/dev/null; then
 	echo astyle.sh not found
@@ -31,20 +34,13 @@ fi
 
 if [ "$1" = "-c" ]; then
 	echo "Cleaning..."
-	find . \( -name "*.prepare" -o -name "*.astyle" -o -name "*.nocopyright" -o -name "astyle.*.diff" -o -name "sha-*.diff" -o -name "*.sortinc" -o -name "*.bom" \) -print -delete
+	remove_temporary_files.sh
 fi
 
 set -e
 
 # determine changed files
-if [ -d .svn ]; then
-	MODIFIED=$(svn status | sed -ne "s/^[MA] *//p")
-elif [ -d .git ]; then
-	MODIFIED=$(git status --porcelain| sed -ne "s/^ *[MA]  *//p" | sort -u)
-else
-	echo No working copy
-	exit 1
-fi
+MODIFIED=$(git status --porcelain| sed -ne "s/^ *[MA]  *//p" | sort -u)
 
 if [ -z "$MODIFIED" ]; then
 	echo nothing was modified
@@ -52,21 +48,20 @@ if [ -z "$MODIFIED" ]; then
 fi
 
 # save original changes
-if [ -d .svn ]; then
-	REV=r$(svn info | sed -ne "s/Revision: //p")
-	svn diff >rev-$REV.diff
-elif [ -d .git ]; then
-	REV=$(git log -n1 --pretty=%H)
-	git diff >sha-$REV.diff
-fi
+REV=$(git log -n1 --pretty=%H)
+git diff >sha-$REV.diff
 
 ASTYLEDIFF=astyle.$REV.diff
 >$ASTYLEDIFF
 
 # reformat
+i=0
+N=$(echo $MODIFIED | wc -w)
 for f in $MODIFIED; do
+	(( i++ )) || true
+
 	case "$f" in
-	src/core/gps/qextserialport/*|src/plugins/dxf2shp_converter/dxflib/src/*|src/plugins/globe/osgEarthQt/*|src/plugins/globe/osgEarthUtil/*)
+	src/core/gps/qextserialport/*|src/plugins/globe/osgEarthQt/*|src/plugins/globe/osgEarthUtil/*)
 		echo $f skipped
 		continue
 		;;
@@ -82,7 +77,7 @@ for f in $MODIFIED; do
 	m=$f.$REV.prepare
 
 	cp $f $m
-	astyle.sh $f
+	ASTYLEPROGRESS=" [$i/$N]" astyle.sh $f
 	if diff -u $m $f >>$ASTYLEDIFF; then
 		# no difference found
 		rm $m

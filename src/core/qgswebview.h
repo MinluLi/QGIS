@@ -24,26 +24,29 @@
 #include <QWebView>
 #include <QDesktopWidget>
 
+/** \ingroup core
+ */
 class CORE_EXPORT QgsWebView : public QWebView
 {
     Q_OBJECT
 
   public:
-    explicit QgsWebView( QWidget* parent = 0 )
+    explicit QgsWebView( QWidget* parent = nullptr )
         : QWebView( parent )
     {
       QDesktopWidget desktop;
       // Apply zoom factor for HiDPI screens
-      if ( desktop.physicalDpiX( ) > 96 )
+      if ( desktop.physicalDpiX() > 96 )
       {
-        setZoomFactor( desktop.physicalDpiX( ) / 96 );
+        setZoomFactor( desktop.physicalDpiX() / 96 );
       }
     }
 };
 #else
 #include "qgswebpage.h"
+#include <QTextBrowser>
 
-/**
+/** \ingroup core
  * @brief The QgsWebView class is a collection of stubs to mimic the API of QWebView on systems where the real
  * library is not available. It should be used instead of QWebView inside QGIS.
  *
@@ -51,17 +54,19 @@ class CORE_EXPORT QgsWebView : public QWebView
  * WITH_QTWEBKIT=OFF then this will be an empty QWidget. If you miss methods in here that you would like to use,
  * please add additional stubs.
  */
-class CORE_EXPORT QgsWebView : public QWidget
+class CORE_EXPORT QgsWebView : public QTextBrowser
 {
 
-/// @cond
+/// @cond NOT_STABLE_API
     Q_OBJECT
   public:
     explicit QgsWebView( QWidget *parent = 0 )
-        : QWidget( parent )
+        : QTextBrowser( parent )
         , mSettings( new QWebSettings() )
-        , mPage( new QWebPage() )
+        , mPage( new QWebPage( this ) )
     {
+      connect( this, SIGNAL( anchorClicked( const QUrl & ) ), this, SIGNAL( linkClicked( const QUrl & ) ) );
+      connect( this, SIGNAL( pageLoadFinished( bool ) ), mPage, SIGNAL( loadFinished( bool ) ) );
     }
 
     ~QgsWebView()
@@ -72,13 +77,12 @@ class CORE_EXPORT QgsWebView : public QWidget
 
     void setUrl( const QUrl& url )
     {
-      Q_UNUSED( url );
-
+      setSource( url );
     }
 
     void load( const QUrl& url )
     {
-      Q_UNUSED( url );
+      setSource( url );
     }
 
     QWebPage* page() const
@@ -91,33 +95,34 @@ class CORE_EXPORT QgsWebView : public QWidget
       return mSettings;
     }
 
-    void setHtml( const QString& html )
-    {
-      Q_UNUSED( html );
-    }
-
     virtual QgsWebView* createWindow( QWebPage::WebWindowType )
     {
       return new QgsWebView();
     }
 
-    void setContent( const QByteArray&, const QString&, const QUrl& )
+    void setContent( const QByteArray& data, const QString& contentType, const QUrl& )
     {
+      QString text = QString::fromUtf8( data );
+      if ( contentType == "text/html" )
+        setHtml( text );
+      else
+        setPlainText( text );
 
+      emit pageLoadFinished( true );
     }
 
     void print( QPrinter* )
     {
-
     }
 
   signals:
+    void linkClicked( const QUrl &link );
 
-  public slots:
+    void pageLoadFinished( bool ok );
 
   private:
-    QWebSettings* mSettings;
-    QWebPage* mPage;
+    QWebSettings *mSettings;
+    QWebPage *mPage;
 
 /// @endcond
 };

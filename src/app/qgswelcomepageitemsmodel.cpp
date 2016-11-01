@@ -48,7 +48,7 @@ void QgsWelcomePageItemDelegate::paint( QPainter* painter, const QStyleOptionVie
     ctx.palette.setColor( QPalette::Text, optionV4.palette.color( QPalette::Active, QPalette::HighlightedText ) );
 
     QStyle *style = QApplication::style();
-    style->drawPrimitive( QStyle::PE_PanelItemViewItem, &option, painter, NULL );
+    style->drawPrimitive( QStyle::PE_PanelItemViewItem, &option, painter, nullptr );
   }
   else if ( option.state & QStyle::State_Enabled )
   {
@@ -56,7 +56,7 @@ void QgsWelcomePageItemDelegate::paint( QPainter* painter, const QStyleOptionVie
     ctx.palette.setColor( QPalette::Text, optionV4.palette.color( QPalette::Active, QPalette::Text ) );
 
     QStyle *style = QApplication::style();
-    style->drawPrimitive( QStyle::PE_PanelItemViewItem, &option, painter, NULL );
+    style->drawPrimitive( QStyle::PE_PanelItemViewItem, &option, painter, nullptr );
   }
   else
   {
@@ -72,7 +72,7 @@ void QgsWelcomePageItemDelegate::paint( QPainter* painter, const QStyleOptionVie
   int titleSize = QApplication::fontMetrics().height() * 1.1;
   int textSize = titleSize * 0.85;
 
-  doc.setHtml( QString( "<div style='font-size:%1px;'><span style='font-size:%2px;font-weight:bold;'>%3</span><br>%4<br>%5</div>" ).arg( textSize ).arg( titleSize )
+  doc.setHtml( QStringLiteral( "<div style='font-size:%1px;'><span style='font-size:%2px;font-weight:bold;'>%3</span><br>%4<br>%5</div>" ).arg( textSize ).arg( titleSize )
                .arg( index.data( QgsWelcomePageItemsModel::TitleRole ).toString(),
                      index.data( QgsWelcomePageItemsModel::PathRole ).toString(),
                      index.data( QgsWelcomePageItemsModel::CrsRole ).toString() ) );
@@ -108,7 +108,7 @@ QSize QgsWelcomePageItemDelegate::sizeHint( const QStyleOptionViewItem & option,
   int titleSize = QApplication::fontMetrics().height() * 1.1;
   int textSize = titleSize * 0.85;
 
-  doc.setHtml( QString( "<div style='font-size:%1px;'><span style='font-size:%2px;font-weight:bold;'>%3</span><br>%4<br>%5</div>" ).arg( textSize ).arg( titleSize )
+  doc.setHtml( QStringLiteral( "<div style='font-size:%1px;'><span style='font-size:%2px;font-weight:bold;'>%3</span><br>%4<br>%5</div>" ).arg( textSize ).arg( titleSize )
                .arg( index.data( QgsWelcomePageItemsModel::TitleRole ).toString(),
                      index.data( QgsWelcomePageItemsModel::PathRole ).toString(),
                      index.data( QgsWelcomePageItemsModel::CrsRole ).toString() ) );
@@ -147,11 +147,10 @@ QVariant QgsWelcomePageItemsModel::data( const QModelIndex& index, int role ) co
     case PathRole:
       return mRecentProjects.at( index.row() ).path;
     case CrsRole:
-      if ( mRecentProjects.at( index.row() ).crs != "" )
+      if ( mRecentProjects.at( index.row() ).crs != QLatin1String( "" ) )
       {
-        QgsCoordinateReferenceSystem crs;
-        crs.createFromOgcWmsCrs( mRecentProjects.at( index.row() ).crs );
-        return  QString( "%1 (%2)" ).arg( mRecentProjects.at( index.row() ).crs, crs.description() );
+        QgsCoordinateReferenceSystem crs = QgsCoordinateReferenceSystem::fromOgcWmsCrs( mRecentProjects.at( index.row() ).crs );
+        return  QStringLiteral( "%1 (%2)" ).arg( mRecentProjects.at( index.row() ).crs, crs.description() );
       }
       else
       {
@@ -159,7 +158,11 @@ QVariant QgsWelcomePageItemsModel::data( const QModelIndex& index, int role ) co
       }
     case Qt::DecorationRole:
     {
-      QImage thumbnail( mRecentProjects.at( index.row() ).previewImagePath );
+      QString filename( mRecentProjects.at( index.row() ).previewImagePath );
+      if ( filename.isEmpty() )
+        return QVariant();
+
+      QImage thumbnail( filename );
       if ( thumbnail.isNull() )
         return QVariant();
 

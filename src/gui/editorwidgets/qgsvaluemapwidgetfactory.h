@@ -18,7 +18,8 @@
 
 #include "qgseditorwidgetfactory.h"
 
-/** \class QgsValueMapWidgetFactory
+/** \ingroup gui
+ * \class QgsValueMapWidgetFactory
  * \note not available in Python bindings
  */
 
@@ -35,7 +36,9 @@ class GUI_EXPORT QgsValueMapWidgetFactory : public QgsEditorWidgetFactory
     QgsEditorWidgetConfig readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx ) override;
     void writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx ) override;
     QString representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const override;
-    virtual QMap<const char*, int> supportedWidgetTypes() override;
+    QVariant sortValue( QgsVectorLayer *vl, int fieldIdx, const QgsEditorWidgetConfig &config, const QVariant &cache, const QVariant &value ) const override;
+    Qt::AlignmentFlag alignmentFlag( QgsVectorLayer *vl, int fieldIdx, const QgsEditorWidgetConfig &config ) const override;
+    virtual QHash<const char *, int> supportedWidgetTypes() override;
 };
 
 #endif // QGSVALUEMAPWIDGETFACTORY_H

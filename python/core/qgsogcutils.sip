@@ -13,11 +13,11 @@ class QgsOgcUtils
        in default namespace (\verbatim {<Point>...</Point> \endverbatim) or in
        "gml" namespace (\verbatim <gml:Point>...</gml:Point> \endverbatim)
      */
-    static QgsGeometry* geometryFromGML( const QString& xmlString ) /Factory/;
+    static QgsGeometry geometryFromGML( const QString& xmlString );
 
     /** Static method that creates geometry from GML
       */
-    static QgsGeometry* geometryFromGML( const QDomNode& geometryNode ) /Factory/;
+    static QgsGeometry geometryFromGML( const QDomNode& geometryNode );
 
     /** Read rectangle from GML2 Box */
     static QgsRectangle rectangleFromGMLBox( const QDomNode& boxNode );
@@ -28,22 +28,22 @@ class QgsOgcUtils
     /** Exports the geometry to GML2 or GML3
         @return QDomElement
      */
-    static QDomElement geometryToGML( const QgsGeometry* geometry, QDomDocument& doc, const QString& format, const int &precision = 17 );
+    static QDomElement geometryToGML( const QgsGeometry* geometry, QDomDocument& doc, const QString& format, int precision = 17 );
 
     /** Exports the geometry to GML2
         @return QDomElement
      */
-    static QDomElement geometryToGML( const QgsGeometry* geometry, QDomDocument& doc, const int &precision = 17 );
+    static QDomElement geometryToGML( const QgsGeometry* geometry, QDomDocument& doc, int precision = 17 );
 
     /** Exports the rectangle to GML2 Box
         @return QDomElement
      */
-    static QDomElement rectangleToGMLBox( QgsRectangle* box, QDomDocument& doc, const int &precision = 17 );
+    static QDomElement rectangleToGMLBox( QgsRectangle* box, QDomDocument& doc, int precision = 17 );
 
     /** Exports the rectangle to GML2 Envelope
         @return QDomElement
      */
-    static QDomElement rectangleToGMLEnvelope( QgsRectangle* env, QDomDocument& doc, const int &precision = 17 );
+    static QDomElement rectangleToGMLEnvelope( QgsRectangle* env, QDomDocument& doc, int precision = 17 );
 
 
     /** Parse XML with OGC fill into QColor */
@@ -58,6 +58,12 @@ class QgsOgcUtils
      * otherwise null QDomElement
      */
     static QDomElement expressionToOgcFilter( const QgsExpression& exp, QDomDocument& doc, QString* errorMessage /Out/ );
+
+    /** Creates an OGC expression XML element.
+     * @return valid OGC expression QDomElement on success,
+     * otherwise null QDomElement
+     */
+    static QDomElement expressionToOgcExpression( const QgsExpression& exp, QDomDocument& doc, QString* errorMessage = nullptr );
 
 };
 

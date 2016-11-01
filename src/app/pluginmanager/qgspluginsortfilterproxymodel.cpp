@@ -58,7 +58,7 @@ void QgsPluginSortFilterProxyModel::setAcceptedSpacers( const QString& spacers )
 
 bool QgsPluginSortFilterProxyModel::filterByStatus( QModelIndex &index ) const
 {
-  if ( mAcceptedStatuses.contains( "invalid" )
+  if ( mAcceptedStatuses.contains( QStringLiteral( "invalid" ) )
        && sourceModel()->data( index, PLUGIN_ERROR_ROLE ).toString().isEmpty() )
   {
     // Don't accept if the "invalid" filter is set and the plugin is ok
@@ -68,7 +68,7 @@ bool QgsPluginSortFilterProxyModel::filterByStatus( QModelIndex &index ) const
   QString status = sourceModel()->data( index, PLUGIN_STATUS_ROLE ).toString();
   if ( status.endsWith( 'Z' ) ) status.chop( 1 );
   if ( ! mAcceptedStatuses.isEmpty()
-       && ! mAcceptedStatuses.contains( "invalid" )
+       && ! mAcceptedStatuses.contains( QStringLiteral( "invalid" ) )
        && ! mAcceptedStatuses.contains( status ) )
   {
     // Don't accept if the status doesn't match
@@ -88,14 +88,12 @@ bool QgsPluginSortFilterProxyModel::filterByPhrase( QModelIndex &index ) const
     case PLUGIN_TAGS_ROLE:
       // search in tags only
       return sourceModel()->data( index, PLUGIN_TAGS_ROLE ).toString().contains( filterRegExp() );
-      break;
     case 0:
       // full search: name + description + tags + author
       return sourceModel()->data( index, PLUGIN_DESCRIPTION_ROLE ).toString().contains( filterRegExp() )
              || sourceModel()->data( index, PLUGIN_AUTHOR_ROLE ).toString().contains( filterRegExp() )
              || sourceModel()->data( index, Qt::DisplayRole ).toString().contains( filterRegExp() )
              || sourceModel()->data( index, PLUGIN_TAGS_ROLE ).toString().contains( filterRegExp() );
-      break;
     default:
       // unknown filter mode, return nothing
       return false;
@@ -149,7 +147,7 @@ void QgsPluginSortFilterProxyModel::sortPluginsByVote()
 
 void QgsPluginSortFilterProxyModel::sortPluginsByStatus()
 {
-  setAcceptedSpacers( "status" );
+  setAcceptedSpacers( QStringLiteral( "status" ) );
   sort( 0, Qt::DescendingOrder );
   setSortRole( PLUGIN_STATUS_ROLE );
 }

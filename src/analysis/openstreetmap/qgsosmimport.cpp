@@ -23,12 +23,12 @@
 QgsOSMXmlImport::QgsOSMXmlImport( const QString& xmlFilename, const QString& dbFilename )
     : mXmlFileName( xmlFilename )
     , mDbFileName( dbFilename )
-    , mDatabase( 0 )
-    , mStmtInsertNode( 0 )
-    , mStmtInsertNodeTag( 0 )
-    , mStmtInsertWay( 0 )
-    , mStmtInsertWayNode( 0 )
-    , mStmtInsertWayTag( 0 )
+    , mDatabase( nullptr )
+    , mStmtInsertNode( nullptr )
+    , mStmtInsertNodeTag( nullptr )
+    , mStmtInsertWay( nullptr )
+    , mStmtInsertWayNode( nullptr )
+    , mStmtInsertWayTag( nullptr )
 {
 
 }
@@ -41,7 +41,7 @@ bool QgsOSMXmlImport::import()
   mInputFile.setFileName( mXmlFileName );
   if ( !mInputFile.open( QIODevice::ReadOnly ) )
   {
-    mError = QString( "Cannot open input file: %1" ).arg( mXmlFileName );
+    mError = QStringLiteral( "Cannot open input file: %1" ).arg( mXmlFileName );
     return false;
   }
 
@@ -51,7 +51,7 @@ bool QgsOSMXmlImport::import()
   {
     if ( !QFile( mDbFileName ).remove() )
     {
-      mError = QString( "Database file cannot be overwritten: %1" ).arg( mDbFileName );
+      mError = QStringLiteral( "Database file cannot be overwritten: %1" ).arg( mDbFileName );
       return false;
     }
   }
@@ -64,7 +64,7 @@ bool QgsOSMXmlImport::import()
 
   qDebug( "starting import" );
 
-  int retX = sqlite3_exec( mDatabase, "BEGIN", NULL, NULL, 0 );
+  int retX = sqlite3_exec( mDatabase, "BEGIN", nullptr, nullptr, nullptr );
   Q_ASSERT( retX == SQLITE_OK );
   Q_UNUSED( retX );
 
@@ -84,11 +84,11 @@ bool QgsOSMXmlImport::import()
       if ( xml.name() == "osm" )
         readRoot( xml );
       else
-        xml.raiseError( "Invalid root tag" );
+        xml.raiseError( QStringLiteral( "Invalid root tag" ) );
     }
   }
 
-  int retY = sqlite3_exec( mDatabase, "COMMIT", NULL, NULL, 0 );
+  int retY = sqlite3_exec( mDatabase, "COMMIT", nullptr, nullptr, nullptr );
   Q_ASSERT( retY == SQLITE_OK );
   Q_UNUSED( retY );
 
@@ -96,7 +96,7 @@ bool QgsOSMXmlImport::import()
 
   if ( xml.hasError() )
   {
-    mError = QString( "XML error: %1" ).arg( xml.errorString() );
+    mError = QStringLiteral( "XML error: %1" ).arg( xml.errorString() );
     return false;
   }
 
@@ -117,10 +117,10 @@ bool QgsOSMXmlImport::createIndexes()
   int count = sizeof( sqlIndexes ) / sizeof( const char* );
   for ( int i = 0; i < count; ++i )
   {
-    int ret = sqlite3_exec( mDatabase, sqlIndexes[i], 0, 0, 0 );
+    int ret = sqlite3_exec( mDatabase, sqlIndexes[i], nullptr, nullptr, nullptr );
     if ( ret != SQLITE_OK )
     {
-      mError = "Error creating indexes!";
+      mError = QStringLiteral( "Error creating indexes!" );
       return false;
     }
   }
@@ -133,11 +133,11 @@ bool QgsOSMXmlImport::createDatabase()
 {
   char **results;
   int rows, columns;
-  if ( QgsSLConnect::sqlite3_open_v2( mDbFileName.toUtf8().data(), &mDatabase, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, 0 ) != SQLITE_OK )
+  if ( QgsSLConnect::sqlite3_open_v2( mDbFileName.toUtf8().data(), &mDatabase, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr ) != SQLITE_OK )
     return false;
 
   bool above41 = false;
-  int ret = sqlite3_get_table( mDatabase, "select spatialite_version()", &results, &rows, &columns, NULL );
+  int ret = sqlite3_get_table( mDatabase, "select spatialite_version()", &results, &rows, &columns, nullptr );
   if ( ret == SQLITE_OK && rows == 1 && columns == 1 )
   {
     QString version = QString::fromUtf8( results[1] );
@@ -166,9 +166,9 @@ bool QgsOSMXmlImport::createDatabase()
   for ( int i = 0; i < initCount; ++i )
   {
     char* errMsg;
-    if ( sqlite3_exec( mDatabase, sqlInitStatements[i], 0, 0, &errMsg ) != SQLITE_OK )
+    if ( sqlite3_exec( mDatabase, sqlInitStatements[i], nullptr, nullptr, &errMsg ) != SQLITE_OK )
     {
-      mError = QString( "Error executing SQL command:\n%1\nSQL:\n%2" )
+      mError = QStringLiteral( "Error executing SQL command:\n%1\nSQL:\n%2" )
                .arg( QString::fromUtf8( errMsg ), QString::fromUtf8( sqlInitStatements[i] ) );
       sqlite3_free( errMsg );
       closeDatabase();
@@ -197,10 +197,10 @@ bool QgsOSMXmlImport::createDatabase()
 
   for ( int i = 0; i < insertCount; ++i )
   {
-    if ( sqlite3_prepare_v2( mDatabase, sqlInsertStatements[i], -1, sqliteInsertStatements[i], 0 ) != SQLITE_OK )
+    if ( sqlite3_prepare_v2( mDatabase, sqlInsertStatements[i], -1, sqliteInsertStatements[i], nullptr ) != SQLITE_OK )
     {
       const char* errMsg = sqlite3_errmsg( mDatabase ); // does not require free
-      mError = QString( "Error preparing SQL command:\n%1\nSQL:\n%2" )
+      mError = QStringLiteral( "Error preparing SQL command:\n%1\nSQL:\n%2" )
                .arg( QString::fromUtf8( errMsg ), QString::fromUtf8( sqlInsertStatements[i] ) );
       closeDatabase();
       return false;
@@ -216,7 +216,7 @@ void QgsOSMXmlImport::deleteStatement( sqlite3_stmt*& stmt )
   if ( stmt )
   {
     sqlite3_finalize( stmt );
-    stmt = 0;
+    stmt = nullptr;
   }
 }
 
@@ -232,10 +232,10 @@ bool QgsOSMXmlImport::closeDatabase()
   deleteStatement( mStmtInsertWayNode );
   deleteStatement( mStmtInsertWayTag );
 
-  Q_ASSERT( mStmtInsertNode == 0 );
+  Q_ASSERT( !mStmtInsertNode );
 
   QgsSLConnect::sqlite3_close( mDatabase );
-  mDatabase = 0;
+  mDatabase = nullptr;
   return true;
 }
 
@@ -280,9 +280,9 @@ void QgsOSMXmlImport::readNode( QXmlStreamReader& xml )
 {
   // <node id="2197214" lat="50.0682113" lon="14.4348483" user="viduka" uid="595326" visible="true" version="10" changeset="10714591" timestamp="2012-02-17T19:58:49Z">
   QXmlStreamAttributes attrs = xml.attributes();
-  QgsOSMId id = attrs.value( "id" ).toString().toLongLong();
-  double lat = attrs.value( "lat" ).toString().toDouble();
-  double lon = attrs.value( "lon" ).toString().toDouble();
+  QgsOSMId id = attrs.value( QStringLiteral( "id" ) ).toString().toLongLong();
+  double lat = attrs.value( QStringLiteral( "lat" ) ).toString().toDouble();
+  double lon = attrs.value( QStringLiteral( "lon" ) ).toString().toDouble();
 
   // insert to DB
   sqlite3_bind_int64( mStmtInsertNode, 1, id );
@@ -291,7 +291,7 @@ void QgsOSMXmlImport::readNode( QXmlStreamReader& xml )
 
   if ( sqlite3_step( mStmtInsertNode ) != SQLITE_DONE )
   {
-    xml.raiseError( QString( "Storing node %1 failed." ).arg( id ) );
+    xml.raiseError( QStringLiteral( "Storing node %1 failed." ).arg( id ) );
   }
 
   sqlite3_reset( mStmtInsertNode );
@@ -308,7 +308,7 @@ void QgsOSMXmlImport::readNode( QXmlStreamReader& xml )
       if ( xml.name() == "tag" )
         readTag( false, id, xml );
       else
-        xml.raiseError( "Invalid tag in <node>" );
+        xml.raiseError( QStringLiteral( "Invalid tag in <node>" ) );
     }
   }
 }
@@ -316,8 +316,8 @@ void QgsOSMXmlImport::readNode( QXmlStreamReader& xml )
 void QgsOSMXmlImport::readTag( bool way, QgsOSMId id, QXmlStreamReader& xml )
 {
   QXmlStreamAttributes attrs = xml.attributes();
-  QByteArray k = attrs.value( "k" ).toString().toUtf8();
-  QByteArray v = attrs.value( "v" ).toString().toUtf8();
+  QByteArray k = attrs.value( QStringLiteral( "k" ) ).toString().toUtf8();
+  QByteArray v = attrs.value( QStringLiteral( "v" ) ).toString().toUtf8();
   xml.skipCurrentElement();
 
   sqlite3_stmt* stmtInsertTag = way ? mStmtInsertWayTag : mStmtInsertNodeTag;
@@ -329,7 +329,7 @@ void QgsOSMXmlImport::readTag( bool way, QgsOSMId id, QXmlStreamReader& xml )
   int res = sqlite3_step( stmtInsertTag );
   if ( res != SQLITE_DONE )
   {
-    xml.raiseError( QString( "Storing tag failed [%1]" ).arg( res ) );
+    xml.raiseError( QStringLiteral( "Storing tag failed [%1]" ).arg( res ) );
   }
 
   sqlite3_reset( stmtInsertTag );
@@ -350,14 +350,14 @@ void QgsOSMXmlImport::readWay( QXmlStreamReader& xml )
    </way>
   */
   QXmlStreamAttributes attrs = xml.attributes();
-  QgsOSMId id = attrs.value( "id" ).toString().toLongLong();
+  QgsOSMId id = attrs.value( QStringLiteral( "id" ) ).toString().toLongLong();
 
   // insert to DB
   sqlite3_bind_int64( mStmtInsertWay, 1, id );
 
   if ( sqlite3_step( mStmtInsertWay ) != SQLITE_DONE )
   {
-    xml.raiseError( QString( "Storing way %1 failed." ).arg( id ) );
+    xml.raiseError( QStringLiteral( "Storing way %1 failed." ).arg( id ) );
   }
 
   sqlite3_reset( mStmtInsertWay );
@@ -375,7 +375,7 @@ void QgsOSMXmlImport::readWay( QXmlStreamReader& xml )
     {
       if ( xml.name() == "nd" )
       {
-        QgsOSMId node_id = xml.attributes().value( "ref" ).toString().toLongLong();
+        QgsOSMId node_id = xml.attributes().value( QStringLiteral( "ref" ) ).toString().toLongLong();
 
         sqlite3_bind_int64( mStmtInsertWayNode, 1, id );
         sqlite3_bind_int64( mStmtInsertWayNode, 2, node_id );
@@ -383,7 +383,7 @@ void QgsOSMXmlImport::readWay( QXmlStreamReader& xml )
 
         if ( sqlite3_step( mStmtInsertWayNode ) != SQLITE_DONE )
         {
-          xml.raiseError( QString( "Storing ways_nodes %1 - %2 failed." ).arg( id ).arg( node_id ) );
+          xml.raiseError( QStringLiteral( "Storing ways_nodes %1 - %2 failed." ).arg( id ).arg( node_id ) );
         }
 
         sqlite3_reset( mStmtInsertWayNode );

@@ -117,7 +117,7 @@ static CPLErr rescalePostWarpChunkProcessor( void* pKern, void* pArg )
 
 
 QgsAlignRaster::QgsAlignRaster()
-    : mProgressHandler( 0 )
+    : mProgressHandler( nullptr )
 {
   // parameters
   mCellSizeX = mCellSizeY = 0;
@@ -193,7 +193,7 @@ bool QgsAlignRaster::setParametersFromRaster( const RasterInfo& rasterInfo, cons
     else
     {
       mGridOffsetX = customGridOffset.x();
-      mGridOffsetY = customGridOffset.x();
+      mGridOffsetY = customGridOffset.y();
     }
   }
   else
@@ -202,7 +202,7 @@ bool QgsAlignRaster::setParametersFromRaster( const RasterInfo& rasterInfo, cons
     QPointF go;
     if ( !suggestedWarpOutput( rasterInfo, customCRSWkt, &cs, &go ) )
     {
-      mCrsWkt = "_error_";
+      mCrsWkt = QStringLiteral( "_error_" );
       mCellSizeX = mCellSizeY = 0;
       mGridOffsetX = mGridOffsetY = 0;
       return false;
@@ -240,7 +240,7 @@ bool QgsAlignRaster::checkInputParameters()
 {
   mErrorMessage.clear();
 
-  if ( mCrsWkt == "_error_" )
+  if ( mCrsWkt == QLatin1String( "_error_" ) )
   {
     mErrorMessage = QObject::tr( "Unable to reproject." );
     return false;
@@ -253,8 +253,7 @@ bool QgsAlignRaster::checkInputParameters()
   }
 
   mXSize = mYSize = 0;
-  for ( int i = 0; i < 6; ++i )
-    mGeoTransform[i] = 0;
+  std::fill_n( mGeoTransform, 6, 0 );
 
   double finalExtent[4] = { 0, 0, 0, 0 };
 
@@ -267,7 +266,7 @@ bool QgsAlignRaster::checkInputParameters()
 
     QSizeF cs;
     QgsRectangle extent;
-    if ( !suggestedWarpOutput( info, mCrsWkt, &cs, 0, &extent ) )
+    if ( !suggestedWarpOutput( info, mCrsWkt, &cs, nullptr, &extent ) )
     {
       mErrorMessage = QString( "Failed to get suggested warp output.\n\n"
                                "File:\n%1\n\n"
@@ -378,14 +377,14 @@ bool QgsAlignRaster::run()
 void QgsAlignRaster::dump() const
 {
   qDebug( "---ALIGN------------------" );
-  qDebug( "wkt %s", mCrsWkt.toAscii().constData() );
+  qDebug( "wkt %s", mCrsWkt.toLatin1().constData() );
   qDebug( "w/h %d,%d", mXSize, mYSize );
   qDebug( "transform" );
   qDebug( "%6.2f %6.2f %6.2f", mGeoTransform[0], mGeoTransform[1], mGeoTransform[2] );
   qDebug( "%6.2f %6.2f %6.2f", mGeoTransform[3], mGeoTransform[4], mGeoTransform[5] );
 
   QgsRectangle e = transform_to_extent( mGeoTransform, mXSize, mYSize );
-  qDebug( "extent %s", e.toString().toAscii().constData() );
+  qDebug( "extent %s", e.toString().toLatin1().constData() );
 }
 
 int QgsAlignRaster::suggestedReferenceLayer() const
@@ -398,7 +397,7 @@ int QgsAlignRaster::suggestedReferenceLayer() const
   // using WGS84 as a destination CRS... but maybe some projected CRS
   // would be a better a choice to more accurately compute areas?
   // (Why earth is not flat???)
-  QgsCoordinateReferenceSystem destCRS( "EPSG:4326" );
+  QgsCoordinateReferenceSystem destCRS( QStringLiteral( "EPSG:4326" ) );
   QString destWkt = destCRS.toWkt();
 
   Q_FOREACH ( const Item& raster, mRasters )
@@ -424,7 +423,7 @@ bool QgsAlignRaster::createAndWarp( const Item& raster )
   GDALDriverH hDriver = GDALGetDriverByName( "GTiff" );
   if ( !hDriver )
   {
-    mErrorMessage = QString( "GDALGetDriverByName(GTiff) failed." );
+    mErrorMessage = QStringLiteral( "GDALGetDriverByName(GTiff) failed." );
     return false;
   }
 
@@ -432,7 +431,7 @@ bool QgsAlignRaster::createAndWarp( const Item& raster )
   GDALDatasetH hSrcDS = GDALOpen( raster.inputFilename.toLocal8Bit().constData(), GA_ReadOnly );
   if ( !hSrcDS )
   {
-    mErrorMessage = QObject::tr( "Unable to open input file: " ) + raster.inputFilename;
+    mErrorMessage = QObject::tr( "Unable to open input file: %1" ).arg( raster.inputFilename );
     return false;
   }
 
@@ -444,21 +443,21 @@ bool QgsAlignRaster::createAndWarp( const Item& raster )
   // Create the output file.
   GDALDatasetH hDstDS;
   hDstDS = GDALCreate( hDriver, raster.outputFilename.toLocal8Bit().constData(), mXSize, mYSize,
-                       bandCount, eDT, NULL );
+                       bandCount, eDT, nullptr );
   if ( !hDstDS )
   {
     GDALClose( hSrcDS );
-    mErrorMessage = QObject::tr( "Unable to create output file: " ) + raster.outputFilename;
+    mErrorMessage = QObject::tr( "Unable to create output file: %1" ).arg( raster.outputFilename );
     return false;
   }
 
   // Write out the projection definition.
-  GDALSetProjection( hDstDS, mCrsWkt.toAscii().constData() );
-  GDALSetGeoTransform( hDstDS, ( double* )mGeoTransform );
+  GDALSetProjection( hDstDS, mCrsWkt.toLatin1().constData() );
+  GDALSetGeoTransform( hDstDS, mGeoTransform );
 
   // Copy the color table, if required.
   GDALColorTableH hCT = GDALGetRasterColorTable( GDALGetRasterBand( hSrcDS, 1 ) );
-  if ( hCT != NULL )
+  if ( hCT )
     GDALSetRasterColorTable( GDALGetRasterBand( hDstDS, 1 ), hCT );
 
   // -----------------------------------------------------------------------
@@ -477,7 +476,7 @@ bool QgsAlignRaster::createAndWarp( const Item& raster )
     psWarpOptions->panDstBands[i] = i + 1;
   }
 
-  psWarpOptions->eResampleAlg = ( GDALResampleAlg ) raster.resampleMethod;
+  psWarpOptions->eResampleAlg = static_cast< GDALResampleAlg >( raster.resampleMethod );
 
   // our progress function
   psWarpOptions->pfnProgress = _progress;
@@ -521,8 +520,8 @@ bool QgsAlignRaster::suggestedWarpOutput( const QgsAlignRaster::RasterInfo& info
   // Create a transformer that maps from source pixel/line coordinates
   // to destination georeferenced coordinates (not destination
   // pixel line).  We do that by omitting the destination dataset
-  // handle (setting it to NULL).
-  void* hTransformArg = GDALCreateGenImgProjTransformer( info.mDataset, info.mCrsWkt.toAscii().constData(), NULL, destWkt.toAscii().constData(), FALSE, 0, 1 );
+  // handle (setting it to nullptr).
+  void* hTransformArg = GDALCreateGenImgProjTransformer( info.mDataset, info.mCrsWkt.toLatin1().constData(), nullptr, destWkt.toLatin1().constData(), FALSE, 0, 1 );
   if ( !hTransformArg )
     return false;
 
@@ -605,12 +604,12 @@ QPointF QgsAlignRaster::RasterInfo::origin() const
 void QgsAlignRaster::RasterInfo::dump() const
 {
   qDebug( "---RASTER INFO------------------" );
-  qDebug( "wkt %s", mCrsWkt.toAscii().constData() );
+  qDebug( "wkt %s", mCrsWkt.toLatin1().constData() );
   qDebug( "w/h %d,%d", mXSize, mYSize );
   qDebug( "cell x/y %f,%f", cellSize().width(), cellSize().width() );
 
   QgsRectangle r = extent();
-  qDebug( "extent %s", r.toString().toAscii().constData() );
+  qDebug( "extent %s", r.toString().toLatin1().constData() );
 
   qDebug( "transform" );
   qDebug( "%6.2f %6.2f %6.2f", mGeoTransform[0], mGeoTransform[1], mGeoTransform[2] );

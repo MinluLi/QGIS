@@ -20,12 +20,16 @@
 
 class QgsVectorLayer;
 
+/** \ingroup gui
+ * \class QgsVectorLayerSelectionManager
+ * \note not available in Python bindings
+ */
 class GUI_EXPORT QgsVectorLayerSelectionManager : public QgsIFeatureSelectionManager
 {
     Q_OBJECT
 
   public:
-    explicit QgsVectorLayerSelectionManager( QgsVectorLayer* layer, QObject *parent = 0 );
+    explicit QgsVectorLayerSelectionManager( QgsVectorLayer* layer, QObject *parent = nullptr );
     /**
      * The number of features that are selected in this layer
      *

@@ -25,9 +25,9 @@
 
 QgsWebViewWidgetWrapper::QgsWebViewWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
     : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
-    , mWebView( NULL )
-    , mLineEdit( NULL )
-    , mButton( NULL )
+    , mWebView( nullptr )
+    , mLineEdit( nullptr )
+    , mButton( nullptr )
 {
 }
 
@@ -42,13 +42,13 @@ void QgsWebViewWidgetWrapper::loadUrl( const QString &url )
     mWebView->load( path );
 }
 
-QVariant QgsWebViewWidgetWrapper::value()
+QVariant QgsWebViewWidgetWrapper::value() const
 {
   QVariant v;
 
   if ( mLineEdit )
   {
-    if ( mLineEdit->text() == QSettings().value( "qgis/nullValue", "NULL" ).toString() )
+    if ( mLineEdit->text() == QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() )
       v = QVariant( QVariant::String );
     else
       v = mLineEdit->text();
@@ -57,19 +57,32 @@ QVariant QgsWebViewWidgetWrapper::value()
   return v;
 }
 
+void QgsWebViewWidgetWrapper::showIndeterminateState()
+{
+  if ( mLineEdit )
+  {
+    whileBlocking( mLineEdit )->clear();
+  }
+
+  if ( mWebView )
+    mWebView->load( QString() );
+}
+
 QWidget* QgsWebViewWidgetWrapper::createWidget( QWidget* parent )
 {
   QWidget* container = new QWidget( parent );
-  QGridLayout* layout = new QGridLayout( container );
-  QgsFilterLineEdit* le = new QgsFilterLineEdit( container );
-  QWebView* webView = new QWebView( parent );
-  webView->setObjectName( "EditorWebView" );
-  QPushButton* pb = new QPushButton( tr( "..." ), container );
-  pb->setObjectName( "FileChooserButton" );
+  QGridLayout* layout = new QGridLayout();
+  QgsFilterLineEdit* le = new QgsFilterLineEdit();
+  QWebView* webView = new QWebView();
+  webView->setObjectName( QStringLiteral( "EditorWebView" ) );
+  QPushButton* pb = new QPushButton( tr( "..." ) );
+  pb->setObjectName( QStringLiteral( "FileChooserButton" ) );
 
   layout->addWidget( webView, 0, 0, 1, 2 );
   layout->addWidget( le, 1, 0 );
   layout->addWidget( pb, 1, 1 );
+  layout->setMargin( 0 );
+  layout->setContentsMargins( 0, 0, 0, 0 );
 
   container->setLayout( layout );
 
@@ -88,7 +101,7 @@ void QgsWebViewWidgetWrapper::initWidget( QWidget* editor )
     QgsFilterLineEdit* fle = qobject_cast<QgsFilterLineEdit*>( mLineEdit );
     if ( fle )
     {
-      fle->setNullValue( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      fle->setNullValue( QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() );
     }
 
     container = qobject_cast<QWidget*>( mLineEdit->parent() );
@@ -99,11 +112,11 @@ void QgsWebViewWidgetWrapper::initWidget( QWidget* editor )
     mLineEdit = container->findChild<QLineEdit*>();
   }
 
-  mButton = container->findChild<QPushButton*>( "FileChooserButton" );
+  mButton = container->findChild<QPushButton*>( QStringLiteral( "FileChooserButton" ) );
   if ( !mButton )
     mButton = container->findChild<QPushButton*>();
 
-  mWebView = container->findChild<QWebView*>( "EditorWebView" );
+  mWebView = container->findChild<QWebView*>( QStringLiteral( "EditorWebView" ) );
   if ( !mWebView )
     mWebView = container->findChild<QWebView*>();
 
@@ -112,6 +125,7 @@ void QgsWebViewWidgetWrapper::initWidget( QWidget* editor )
     mWebView->page()->setNetworkAccessManager( QgsNetworkAccessManager::instance() );
     mWebView->settings()->setAttribute( QWebSettings::LocalContentCanAccessRemoteUrls, true );
     mWebView->settings()->setAttribute( QWebSettings::JavascriptCanOpenWindows, true );
+    mWebView->settings()->setAttribute( QWebSettings::PluginsEnabled, true );
 #ifdef QGISDEBUG
     mWebView->settings()->setAttribute( QWebSettings::DeveloperExtrasEnabled, true );
 #endif
@@ -127,7 +141,7 @@ void QgsWebViewWidgetWrapper::initWidget( QWidget* editor )
   }
 }
 
-bool QgsWebViewWidgetWrapper::valid()
+bool QgsWebViewWidgetWrapper::valid() const
 {
   return mWebView || mButton || mLineEdit;
 }
@@ -137,7 +151,7 @@ void QgsWebViewWidgetWrapper::setValue( const QVariant& value )
   if ( mLineEdit )
   {
     if ( value.isNull() )
-      mLineEdit->setText( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      mLineEdit->setText( QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() );
     else
       mLineEdit->setText( value.toString() );
   }
@@ -174,4 +188,17 @@ void QgsWebViewWidgetWrapper::selectFileName()
 
   if ( mLineEdit )
     mLineEdit->setText( filePath );
+}
+
+void QgsWebViewWidgetWrapper::updateConstraintWidgetStatus( bool constraintValid )
+{
+  if ( mLineEdit )
+  {
+    if ( constraintValid )
+      mLineEdit->setStyleSheet( QString() );
+    else
+    {
+      mLineEdit->setStyleSheet( QStringLiteral( "QgsFilterLineEdit { background-color: #dd7777; }" ) );
+    }
+  }
 }

@@ -22,7 +22,8 @@
 class QgsMapCanvas;
 class QgsMessageBar;
 
-/** \class QgsRelationReferenceFactory
+/** \ingroup gui
+ * \class QgsRelationReferenceFactory
  * \note not available in Python bindings
  */
 
@@ -44,6 +45,8 @@ class GUI_EXPORT QgsRelationReferenceFactory : public QgsEditorWidgetFactory
      * @return         A new widget wrapper
      */
     virtual QgsEditorWidgetWrapper* create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const override;
+
+    QgsSearchWidgetWrapper* createSearchWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const override;
 
     /**
      * Override this in your implementation.
@@ -79,7 +82,11 @@ class GUI_EXPORT QgsRelationReferenceFactory : public QgsEditorWidgetFactory
      */
     virtual void writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx ) override;
 
-    virtual QMap<const char*, int> supportedWidgetTypes() override;
+    virtual QString representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const override;
+
+    virtual QVariant sortValue( QgsVectorLayer *vl, int fieldIdx, const QgsEditorWidgetConfig &config, const QVariant &cache, const QVariant &value ) const override;
+
+    virtual QHash<const char *, int> supportedWidgetTypes() override;
 
   private:
     QgsAttributeEditorContext mEditorContext;

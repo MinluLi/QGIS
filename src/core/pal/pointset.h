@@ -30,11 +30,10 @@
 #ifndef POINTSET_H
 #define POINTSET_H
 
-#include "qgsgeometry.h"
-#include "rtree.hpp"
 #include <cfloat>
 #include <cmath>
 #include <QLinkedList>
+#include <geos_c.h>
 
 namespace pal
 {
@@ -59,6 +58,7 @@ namespace pal
   /**
    * \class pal::PointSet
    * \note not available in Python bindings
+   * \ingroup core
    */
   class CORE_EXPORT PointSet
   {
@@ -98,7 +98,7 @@ namespace pal
        */
       static void splitPolygons( QLinkedList<PointSet *> &shapes_toProcess,
                                  QLinkedList<PointSet *> &shapes_final,
-                                 double xrm, double yrm, const QgsFeatureId &uid );
+                                 double xrm, double yrm );
 
       /** Returns the squared minimum distance between the point set geometry and the point (px,py)
        * Optionally, the nearest point is stored in (rx,ry).
@@ -108,7 +108,7 @@ namespace pal
        * @param ry pointer to y coorinates of the nearest point (can be NULL)
        * @returns minimum distance
        */
-      double minDistanceToPoint( double px, double py, double *rx = 0, double *ry = 0 ) const;
+      double minDistanceToPoint( double px, double py, double *rx = nullptr, double *ry = nullptr ) const;
 
       void getCentroid( double &px, double &py, bool forceInside = false ) const;
 
@@ -116,11 +116,13 @@ namespace pal
 
       void getBoundingBox( double min[2], double max[2] ) const
       {
-        min[0] = xmin; min[1] = ymin;
-        max[0] = xmax; max[1] = ymax;
+        min[0] = xmin;
+        min[1] = ymin;
+        max[0] = xmax;
+        max[1] = ymax;
       }
 
-      /** Returns NULL if this isn't a hole. Otherwise returns pointer to parent pointset. */
+      //! Returns NULL if this isn't a hole. Otherwise returns pointer to parent pointset.
       PointSet* getHoleOf() { return holeOf; }
 
       int getNumPoints() const { return nbPoints; }

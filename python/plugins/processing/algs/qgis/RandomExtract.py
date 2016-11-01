@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -51,7 +52,7 @@ class RandomExtract(GeoAlgorithm):
                         self.tr('Percentage of selected features')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterSelection(self.METHOD,
                                              self.tr('Method'), self.methods, 0))
         self.addParameter(ParameterNumber(self.NUMBER,
@@ -80,13 +81,14 @@ class RandomExtract(GeoAlgorithm):
                             "different value and try again."))
             value = int(round(value / 100.0000, 4) * featureCount)
 
-        selran = random.sample(xrange(0, featureCount), value)
+        selran = random.sample(list(range(featureCount)), value)
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            layer.pendingFields().toList(), layer.wkbType(), layer.crs())
+            layer.fields().toList(), layer.wkbType(), layer.crs())
 
-        for (i, feat) in enumerate(features):
+        total = 100.0 / featureCount
+        for i, feat in enumerate(features):
             if i in selran:
                 writer.addFeature(feat)
-            progress.setPercentage(100 * i / float(featureCount))
+            progress.setPercentage(int(i * total))
         del writer

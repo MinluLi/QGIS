@@ -21,7 +21,7 @@
 
 class QgsVectorLayerCache;
 
-/**
+/** \ingroup core
  * @brief
  * Delivers features from the cache
  *
@@ -29,18 +29,6 @@ class QgsVectorLayerCache;
 class CORE_EXPORT QgsCachedFeatureIterator : public QgsAbstractFeatureIterator
 {
   public:
-    /**
-     * This constructor creates a feature iterator, that delivers only cached information, based on the
-     * @link QgsFeatureIds @endlink. No request is made to the backend.
-     *
-     * @param vlCache          The vector layer cache to use
-     * @param featureRequest   The feature request to answer
-     * @param featureIds       The feature ids to return
-     *
-     * @deprecated Use QgsCachedFeatureIterator( QgsVectorLayerCache* vlCache, QgsFeatureRequest featureRequest )
-     *             instead
-     */
-    QgsCachedFeatureIterator( QgsVectorLayerCache* vlCache, const QgsFeatureRequest& featureRequest, const QgsFeatureIds& featureIds );
 
     /**
      * This constructor creates a feature iterator, that delivers all cached features. No request is made to the backend.
@@ -90,7 +78,7 @@ class CORE_EXPORT QgsCachedFeatureIterator : public QgsAbstractFeatureIterator
     QgsFeatureIds::ConstIterator mFeatureIdIterator;
 };
 
-/**
+/** \ingroup core
  * @brief
  * Uses another iterator as backend and writes features to the cache
  *

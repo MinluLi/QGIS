@@ -19,12 +19,15 @@
 #ifndef QGSRASTERCALCNODE_H
 #define QGSRASTERCALCNODE_H
 
-#include "qgsrastermatrix.h"
 #include <QMap>
 #include <QString>
 
 class QgsRasterBlock;
+class QgsRasterMatrix;
 
+/** \ingroup analysis
+ * \class QgsRasterCalcNode
+ */
 class ANALYSIS_EXPORT QgsRasterCalcNode
 {
   public:
@@ -89,10 +92,6 @@ class ANALYSIS_EXPORT QgsRasterCalcNode
      */
     bool calculate( QMap<QString, QgsRasterBlock* >& rasterData, QgsRasterMatrix& result, int row = -1 ) const;
 
-    /** @deprecated use method which accepts QgsRasterBlocks instead
-     */
-    Q_DECL_DEPRECATED bool calculate( QMap<QString, QgsRasterMatrix*>& rasterData, QgsRasterMatrix& result ) const;
-
     static QgsRasterCalcNode* parseRasterCalcString( const QString& str, QString& parserErrorMsg );
 
   private:
@@ -103,6 +102,9 @@ class ANALYSIS_EXPORT QgsRasterCalcNode
     QString mRasterName;
     QgsRasterMatrix* mMatrix;
     Operator mOperator;
+
+    QgsRasterCalcNode( const QgsRasterCalcNode& rh );
+    QgsRasterCalcNode& operator=( const QgsRasterCalcNode& rh );
 };
 
 

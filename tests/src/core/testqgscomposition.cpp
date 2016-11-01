@@ -22,9 +22,10 @@
 #include "qgscomposerarrow.h"
 #include "qgscomposerhtml.h"
 #include "qgscomposerframe.h"
+#include "qgscomposermap.h"
 #include "qgsmapsettings.h"
-#include "qgscompositionchecker.h"
-#include "qgsfillsymbollayerv2.h"
+#include "qgsmultirenderchecker.h"
+#include "qgsfillsymbollayer.h"
 
 #include <QObject>
 #include <QtTest/QtTest>
@@ -51,6 +52,8 @@ class TestQgsComposition : public QObject
     void resizeToContents();
     void resizeToContentsMargin();
     void resizeToContentsMultiPage();
+    void georeference();
+    void variablesEdited();
 
   private:
     QgsComposition *mComposition;
@@ -74,12 +77,12 @@ void TestQgsComposition::initTestCase()
 
   //create composition
   mMapSettings->setCrsTransformEnabled( true );
-  mMapSettings->setMapUnits( QGis::Meters );
+  mMapSettings->setMapUnits( QgsUnitTypes::DistanceMeters );
   mComposition = new QgsComposition( *mMapSettings );
   mComposition->setPaperSize( 297, 210 ); //A4 landscape
   mComposition->setNumPages( 3 );
 
-  mReport = "<h1>Composition Tests</h1>\n";
+  mReport = QStringLiteral( "<h1>Composition Tests</h1>\n" );
 
 }
 
@@ -210,21 +213,21 @@ void TestQgsComposition::shouldExportPage()
   htmlItem->addFrame( frame2 );
   htmlItem->setContentMode( QgsComposerHtml::ManualHtml );
   //short content, so frame 2 should be empty
-  htmlItem->setHtml( QString( "<p><i>Test manual <b>html</b></i></p>" ) );
+  htmlItem->setHtml( QStringLiteral( "<p><i>Test manual <b>html</b></i></p>" ) );
   htmlItem->loadHtml();
 
   QCOMPARE( mComposition->shouldExportPage( 1 ), true );
   QCOMPARE( mComposition->shouldExportPage( 2 ), false );
 
   //long content, so frame 2 should not be empty
-  htmlItem->setHtml( QString( "<p style=\"height: 10000px\"><i>Test manual <b>html</b></i></p>" ) );
+  htmlItem->setHtml( QStringLiteral( "<p style=\"height: 10000px\"><i>Test manual <b>html</b></i></p>" ) );
   htmlItem->loadHtml();
 
   QCOMPARE( mComposition->shouldExportPage( 1 ), true );
   QCOMPARE( mComposition->shouldExportPage( 2 ), true );
 
   //...and back again...
-  htmlItem->setHtml( QString( "<p><i>Test manual <b>html</b></i></p>" ) );
+  htmlItem->setHtml( QStringLiteral( "<p><i>Test manual <b>html</b></i></p>" ) );
   htmlItem->loadHtml();
 
   QCOMPARE( mComposition->shouldExportPage( 1 ), true );
@@ -270,20 +273,20 @@ void TestQgsComposition::customProperties()
 
   QCOMPARE( composition->customProperty( "noprop", "defaultval" ).toString(), QString( "defaultval" ) );
   QVERIFY( composition->customProperties().isEmpty() );
-  composition->setCustomProperty( "testprop", "testval" );
+  composition->setCustomProperty( QStringLiteral( "testprop" ), "testval" );
   QCOMPARE( composition->customProperty( "testprop", "defaultval" ).toString(), QString( "testval" ) );
   QCOMPARE( composition->customProperties().length(), 1 );
   QCOMPARE( composition->customProperties().at( 0 ), QString( "testprop" ) );
 
   //test no crash
-  composition->removeCustomProperty( "badprop" );
+  composition->removeCustomProperty( QStringLiteral( "badprop" ) );
 
-  composition->removeCustomProperty( "testprop" );
+  composition->removeCustomProperty( QStringLiteral( "testprop" ) );
   QVERIFY( composition->customProperties().isEmpty() );
   QCOMPARE( composition->customProperty( "noprop", "defaultval" ).toString(), QString( "defaultval" ) );
 
-  composition->setCustomProperty( "testprop1", "testval1" );
-  composition->setCustomProperty( "testprop2", "testval2" );
+  composition->setCustomProperty( QStringLiteral( "testprop1" ), "testval1" );
+  composition->setCustomProperty( QStringLiteral( "testprop2" ), "testval2" );
   QStringList keys = composition->customProperties();
   QCOMPARE( keys.length(), 2 );
   QVERIFY( keys.contains( "testprop1" ) );
@@ -295,26 +298,26 @@ void TestQgsComposition::customProperties()
 void TestQgsComposition::writeRetrieveCustomProperties()
 {
   QgsComposition* composition = new QgsComposition( *mMapSettings );
-  composition->setCustomProperty( "testprop", "testval" );
-  composition->setCustomProperty( "testprop2", 5 );
+  composition->setCustomProperty( QStringLiteral( "testprop" ), "testval" );
+  composition->setCustomProperty( QStringLiteral( "testprop2" ), 5 );
 
   //test writing composition with custom properties
   QDomImplementation DomImplementation;
   QDomDocumentType documentType =
     DomImplementation.createDocumentType(
-      "qgis", "http://mrcc.com/qgis.dtd", "SYSTEM" );
+      QStringLiteral( "qgis" ), QStringLiteral( "http://mrcc.com/qgis.dtd" ), QStringLiteral( "SYSTEM" ) );
   QDomDocument doc( documentType );
-  QDomElement rootNode = doc.createElement( "qgis" );
-  QVERIFY( composition->writeXML( rootNode, doc ) );
+  QDomElement rootNode = doc.createElement( QStringLiteral( "qgis" ) );
+  QVERIFY( composition->writeXml( rootNode, doc ) );
 
   //check if composition node was written
-  QDomNodeList evalNodeList = rootNode.elementsByTagName( "Composition" );
+  QDomNodeList evalNodeList = rootNode.elementsByTagName( QStringLiteral( "Composition" ) );
   QCOMPARE( evalNodeList.count(), 1 );
   QDomElement compositionElem = evalNodeList.at( 0 ).toElement();
 
   //test reading node containing custom properties
   QgsComposition* readComposition = new QgsComposition( *mMapSettings );
-  QVERIFY( readComposition->readXML( compositionElem, doc ) );
+  QVERIFY( readComposition->readXml( compositionElem, doc ) );
 
   //test retrieved custom properties
   QCOMPARE( readComposition->customProperties().length(), 2 );
@@ -389,8 +392,8 @@ void TestQgsComposition::resizeToContents()
 {
   //add some items to a composition
   QgsComposition* composition = new QgsComposition( *mMapSettings );
-  QgsSimpleFillSymbolLayerV2* simpleFill = new QgsSimpleFillSymbolLayerV2();
-  QgsFillSymbolV2* fillSymbol = new QgsFillSymbolV2();
+  QgsSimpleFillSymbolLayer* simpleFill = new QgsSimpleFillSymbolLayer();
+  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, simpleFill );
   simpleFill->setColor( Qt::yellow );
   simpleFill->setBorderColor( Qt::transparent );
@@ -417,9 +420,9 @@ void TestQgsComposition::resizeToContents()
   //resize to contents, no margin
   composition->resizePageToContents();
 
-  QgsCompositionChecker checker( "composition_bounds", composition );
+  QgsCompositionChecker checker( QStringLiteral( "composition_bounds" ), composition );
   checker.setSize( QSize( 774, 641 ) );
-  checker.setControlPathPrefix( "composition" );
+  checker.setControlPathPrefix( QStringLiteral( "composition" ) );
   QVERIFY( checker.testComposition( mReport ) );
 
   delete composition;
@@ -430,8 +433,8 @@ void TestQgsComposition::resizeToContentsMargin()
   //resize to contents, with margin
 
   QgsComposition* composition = new QgsComposition( *mMapSettings );
-  QgsSimpleFillSymbolLayerV2* simpleFill = new QgsSimpleFillSymbolLayerV2();
-  QgsFillSymbolV2* fillSymbol = new QgsFillSymbolV2();
+  QgsSimpleFillSymbolLayer* simpleFill = new QgsSimpleFillSymbolLayer();
+  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, simpleFill );
   simpleFill->setColor( Qt::yellow );
   simpleFill->setBorderColor( Qt::transparent );
@@ -458,9 +461,9 @@ void TestQgsComposition::resizeToContentsMargin()
   //resize to contents, with margin
   composition->resizePageToContents( 30, 20, 50, 40 );
 
-  QgsCompositionChecker checker( "composition_bounds_margin", composition );
+  QgsCompositionChecker checker( QStringLiteral( "composition_bounds_margin" ), composition );
   checker.setSize( QSize( 1000, 942 ) );
-  checker.setControlPathPrefix( "composition" );
+  checker.setControlPathPrefix( QStringLiteral( "composition" ) );
   QVERIFY( checker.testComposition( mReport ) );
 
   delete composition;
@@ -471,8 +474,8 @@ void TestQgsComposition::resizeToContentsMultiPage()
   //resize to contents with multi-page composition, should result in a single page
 
   QgsComposition* composition = new QgsComposition( *mMapSettings );
-  QgsSimpleFillSymbolLayerV2* simpleFill = new QgsSimpleFillSymbolLayerV2();
-  QgsFillSymbolV2* fillSymbol = new QgsFillSymbolV2();
+  QgsSimpleFillSymbolLayer* simpleFill = new QgsSimpleFillSymbolLayer();
+  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, simpleFill );
   simpleFill->setColor( Qt::yellow );
   simpleFill->setBorderColor( Qt::transparent );
@@ -503,12 +506,96 @@ void TestQgsComposition::resizeToContentsMultiPage()
 
   QCOMPARE( composition->numPages(), 1 );
 
-  QgsCompositionChecker checker( "composition_bounds_multipage", composition );
+  QgsCompositionChecker checker( QStringLiteral( "composition_bounds_multipage" ), composition );
   checker.setSize( QSize( 394, 996 ) );
-  checker.setControlPathPrefix( "composition" );
+  checker.setControlPathPrefix( QStringLiteral( "composition" ) );
   QVERIFY( checker.testComposition( mReport ) );
 
   delete composition;
+}
+
+void TestQgsComposition::georeference()
+{
+  QgsRectangle extent( 2000, 2800, 2500, 2900 );
+  QgsMapSettings ms;
+  ms.setExtent( extent );
+  QgsComposition* composition = new QgsComposition( ms );
+
+  // no map
+  double* t = composition->computeGeoTransform( nullptr );
+  QVERIFY( !t );
+
+  QgsComposerMap* map = new QgsComposerMap( composition );
+  map->setNewExtent( extent );
+  map->setSceneRect( QRectF( 30, 60, 200, 100 ) );
+  composition->addComposerMap( map );
+
+  t = composition->computeGeoTransform( map );
+  QVERIFY( qgsDoubleNear( t[0], 1925.0, 1.0 ) );
+  QVERIFY( qgsDoubleNear( t[1], 0.211719, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[2], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[3], 3200, 1 ) );
+  QVERIFY( qgsDoubleNear( t[4], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[5], -0.211694, 0.0001 ) );
+  delete[] t;
+
+  // don't specify map
+  composition->setWorldFileMap( map );
+  t = composition->computeGeoTransform();
+  QVERIFY( qgsDoubleNear( t[0], 1925.0, 1.0 ) );
+  QVERIFY( qgsDoubleNear( t[1], 0.211719, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[2], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[3], 3200, 1 ) );
+  QVERIFY( qgsDoubleNear( t[4], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[5], -0.211694, 0.0001 ) );
+  delete[] t;
+
+  // specify extent
+  t = composition->computeGeoTransform( map, QRectF( 70, 100, 50, 60 ) );
+  QVERIFY( qgsDoubleNear( t[0], 2100.0, 1.0 ) );
+  QVERIFY( qgsDoubleNear( t[1], 0.211864, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[2], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[3], 2950, 1 ) );
+  QVERIFY( qgsDoubleNear( t[4], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[5], -0.211864, 0.0001 ) );
+  delete[] t;
+
+  // specify dpi
+  t = composition->computeGeoTransform( map, QRectF(), 75 );
+  QVERIFY( qgsDoubleNear( t[0], 1925.0, 1 ) );
+  QVERIFY( qgsDoubleNear( t[1], 0.847603, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[2], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[3], 3200.0, 1 ) );
+  QVERIFY( qgsDoubleNear( t[4], 0.0 ) );
+  QVERIFY( qgsDoubleNear( t[5], -0.846774, 0.0001 ) );
+  delete[] t;
+
+  // rotation
+  map->setMapRotation( 45 );
+  t = composition->computeGeoTransform( map );
+  QVERIFY( qgsDoubleNear( t[0], 1825.7, 1 ) );
+  QVERIFY( qgsDoubleNear( t[1], 0.149708, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[2], 0.149708, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[3], 2889.64, 1 ) );
+  QVERIFY( qgsDoubleNear( t[4], 0.14969, 0.0001 ) );
+  QVERIFY( qgsDoubleNear( t[5], -0.14969, 0.0001 ) );
+  delete[] t;
+
+  delete composition;
+}
+
+void TestQgsComposition::variablesEdited()
+{
+  QgsMapSettings ms;
+  QgsComposition c( ms );
+  QSignalSpy spyVariablesChanged( &c, SIGNAL( variablesChanged() ) );
+
+  c.setCustomProperty( QStringLiteral( "not a variable" ), "1" );
+  QVERIFY( spyVariablesChanged.count() == 0 );
+  c.setCustomProperty( QStringLiteral( "variableNames" ), "1" );
+  QVERIFY( spyVariablesChanged.count() == 1 );
+  c.setCustomProperty( QStringLiteral( "variableValues" ), "1" );
+  QVERIFY( spyVariablesChanged.count() == 2 );
 }
 
 QTEST_MAIN( TestQgsComposition )

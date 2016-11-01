@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,13 +24,13 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import QObject, SIGNAL, QCoreApplication
-from PyQt4.QtGui import QWidget
+from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtWidgets import QWidget
 from qgis.core import QgsRaster
 
-from ui_widgetOverview import Ui_GdalToolsWidget as Ui_Widget
-from widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
-import GdalTools_utils as Utils
+from .ui_widgetOverview import Ui_GdalToolsWidget as Ui_Widget
+from .widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
@@ -50,14 +51,14 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         self.base.loadCheckBox.hide()
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.cleanCheck, SIGNAL("stateChanged(int)"), None, 1700),
-            (self.mPyramidOptionsWidget, SIGNAL("overviewListChanged()")),
-            (self.mPyramidOptionsWidget, SIGNAL("someValueChanged()"))
+            (self.inSelector, "filenameChanged"),
+            (self.cleanCheck, "stateChanged", None, 1700),
+            (self.mPyramidOptionsWidget, "overviewListChanged"),
+            (self.mPyramidOptionsWidget, "someValueChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
-        self.connect(self.batchCheck, SIGNAL("stateChanged( int )"), self.switchToolMode)
+        self.inSelector.selectClicked.connect(self.fillInputFile)
+        self.batchCheck.stateChanged.connect(self.switchToolMode)
 
         self.init = False  # workaround bug that pyramid options widgets are not initialized at first
 
@@ -77,13 +78,13 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
             self.inFileLabel = self.label.text()
             self.label.setText(QCoreApplication.translate("GdalTools", "&Input directory"))
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
+            self.inSelector.selectClicked.disconnect(self.fillInputFile)
+            self.inSelector.selectClicked.connect(self.fillInputDir)
         else:
             self.label.setText(self.inFileLabel)
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
+            self.inSelector.selectClicked.disconnect(self.fillInputDir)
+            self.inSelector.selectClicked.connect(self.fillInputFile)
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getRasterLayers())
@@ -123,8 +124,8 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         for option in self.mPyramidOptionsWidget.configOptions():
             (k, v) = option.split("=")
             arguments.append("--config")
-            arguments.append(unicode(k))
-            arguments.append(unicode(v))
+            arguments.append(str(k))
+            arguments.append(str(v))
 
         if self.cleanCheck.isChecked():
             arguments.append("-clean")
@@ -137,7 +138,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
 
         if len(self.mPyramidOptionsWidget.overviewList()) > 0:
             for level in self.mPyramidOptionsWidget.overviewList():
-                arguments.append(unicode(level))
+                arguments.append(str(level))
 
         # set creation options filename/layer for validation
         if self.init:
@@ -168,7 +169,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
             arguments.extend(["2", "4", "8", "16", "32"])
         else:
             for level in self.mPyramidOptionsWidget.overviewList():
-                arguments.append(unicode(level))
+                arguments.append(str(level))
         return arguments
 
     def isBatchEnabled(self):
@@ -176,11 +177,11 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
 
     def onFinished(self, exitCode, status):
         if not self.isBatchEnabled():
-            from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+            from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
             BasePluginWidget.onFinished(self, exitCode, status)
             return
 
-        msg = unicode(self.base.process.readAllStandardError())
+        msg = str(self.base.process.readAllStandardError())
         if msg != '':
             self.errors.append(">> " + self.inFiles[self.batchIndex] + "<br>" + msg.replace("\n", "<br>"))
 

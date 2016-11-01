@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'September 2013'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterNumber
@@ -69,7 +72,7 @@ class lasoverlap(LAStoolsAlgorithm):
         step = self.getParameterValue(lasoverlap.CHECK_STEP)
         if step != 0.0:
             commands.append("-step")
-            commands.append(unicode(step))
+            commands.append(str(step))
         commands.append("-values")
         attribute = self.getParameterValue(lasoverlap.ATTRIBUTE)
         if attribute != 0:

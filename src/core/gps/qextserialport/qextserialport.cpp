@@ -52,7 +52,7 @@ QextSerialPort::QextSerialPort(QextSerialPort::QueryMode mode)
     setPortName("/dev/tty00");
 
 #else
-    setPortName("/dev/ttyS0");
+    setPortName(QStringLiteral("/dev/ttyS0"));
 #endif
 
     construct();
@@ -166,7 +166,7 @@ QByteArray QextSerialPort::readAll()
 Returns the baud rate of the serial port.  For a list of possible return values see
 the definition of the enum BaudRateType.
 */
-BaudRateType QextSerialPort::baudRate(void) const
+BaudRateType QextSerialPort::baudRate() const
 {
     return Settings.BaudRate;
 }

@@ -39,12 +39,12 @@ class CORE_EXPORT QgsColorEffect : public QgsPaintEffect
      * @param map encoded properties string map
      * @returns new QgsColorEffect
      */
-    static QgsPaintEffect* create( const QgsStringMap& );
+    static QgsPaintEffect* create( const QgsStringMap& map );
 
     QgsColorEffect();
     virtual ~QgsColorEffect();
 
-    virtual QString type() const override { return QString( "color" ); }
+    virtual QString type() const override { return QStringLiteral( "color" ); }
     virtual QgsStringMap properties() const override;
     virtual void readProperties( const QgsStringMap& props ) override;
     virtual QgsColorEffect* clone() const override;

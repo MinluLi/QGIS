@@ -20,6 +20,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -28,13 +31,15 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterSelection
+
+from processing.tools import dataobjects
 
 
 class lasclip(LAStoolsAlgorithm):
@@ -51,7 +56,7 @@ class lasclip(LAStoolsAlgorithm):
         self.addParametersVerboseGUI()
         self.addParametersPointInputGUI()
         self.addParameter(ParameterVector(lasclip.POLYGON,
-                                          self.tr("Input polygon(s)"), ParameterVector.VECTOR_TYPE_POLYGON))
+                                          self.tr("Input polygon(s)"), [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterBoolean(lasclip.INTERIOR,
                                            self.tr("interior"), False))
         self.addParameter(ParameterSelection(lasclip.OPERATION,
@@ -75,7 +80,7 @@ class lasclip(LAStoolsAlgorithm):
         if operation != 0:
             commands.append("-classify")
             classify_as = self.getParameterValue(lasclip.CLASSIFY_AS)
-            commands.append(unicode(classify_as))
+            commands.append(str(classify_as))
         self.addParametersPointOutputCommands(commands)
         self.addParametersAdditionalCommands(commands)
 

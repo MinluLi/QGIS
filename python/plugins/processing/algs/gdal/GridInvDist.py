@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2013'
@@ -28,6 +29,8 @@ __revision__ = '$Format:%H$'
 
 import os
 
+from qgis.PyQt.QtGui import QIcon
+
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterTableField
@@ -35,6 +38,9 @@ from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterSelection
 from processing.core.outputs import OutputRaster
 from processing.algs.gdal.GdalUtils import GdalUtils
+from processing.tools import dataobjects
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class GridInvDist(GdalAlgorithm):
@@ -54,6 +60,9 @@ class GridInvDist(GdalAlgorithm):
 
     TYPE = ['Byte', 'Int16', 'UInt16', 'UInt32', 'Int32', 'Float32', 'Float64']
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'grid.png'))
+
     def commandLineName(self):
         return "gdalogr:gridinvdist"
 
@@ -61,7 +70,7 @@ class GridInvDist(GdalAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Grid (Inverse distance to a power)')
         self.group, self.i18n_group = self.trAlgorithm('[GDAL] Analysis')
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterTableField(self.Z_FIELD,
                                               self.tr('Z field'), self.INPUT,
                                               ParameterTableField.DATA_TYPE_NUMBER, True))
@@ -90,7 +99,7 @@ class GridInvDist(GdalAlgorithm):
         arguments = ['-l']
         arguments.append(
             os.path.basename(os.path.splitext(
-                unicode(self.getParameterValue(self.INPUT)))[0]))
+                str(self.getParameterValue(self.INPUT)))[0]))
 
         fieldName = self.getParameterValue(self.Z_FIELD)
         if fieldName is not None and fieldName != '':
@@ -111,7 +120,7 @@ class GridInvDist(GdalAlgorithm):
         arguments.append(params)
         arguments.append('-ot')
         arguments.append(self.TYPE[self.getParameterValue(self.RTYPE)])
-        arguments.append(unicode(self.getParameterValue(self.INPUT)))
-        arguments.append(unicode(self.getOutputValue(self.OUTPUT)))
+        arguments.append(str(self.getParameterValue(self.INPUT)))
+        arguments.append(str(self.getOutputValue(self.OUTPUT)))
 
         return ['gdal_grid', GdalUtils.escapeAndJoin(arguments)]

@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = "Niccolo' Marchi"
 __date__ = 'May 2014'
@@ -30,8 +33,8 @@ from processing.core.parameters import ParameterFile
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterNumber
 from processing.core.outputs import OutputFile
-from FusionAlgorithm import FusionAlgorithm
-from FusionUtils import FusionUtils
+from .FusionAlgorithm import FusionAlgorithm
+from .FusionUtils import FusionUtils
 
 
 class ASCII2DTM(FusionAlgorithm):
@@ -71,8 +74,8 @@ class ASCII2DTM(FusionAlgorithm):
         commands.append(outFile)
         commands.append(self.UNITS[self.getParameterValue(self.XYUNITS)][0])
         commands.append(self.UNITS[self.getParameterValue(self.ZUNITS)][0])
-        commands.append(unicode(self.getParameterValue(self.COORDSYS)))
-        commands.append(unicode(self.getParameterValue(self.ZONE)))
+        commands.append(str(self.getParameterValue(self.COORDSYS)))
+        commands.append(str(self.getParameterValue(self.ZONE)))
         commands.append('0')
         commands.append('0')
         files = self.getParameterValue(self.INPUT).split(';')

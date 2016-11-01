@@ -12,7 +12,7 @@ __copyright__ = 'Copyright 2013, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-import qgis
+import qgis  # NOQA
 
 from qgis.core import (QgsVectorLayer,
                        QgsFeature,
@@ -21,12 +21,9 @@ from qgis.core import (QgsVectorLayer,
                        QgsPoint,
                        QgsMapLayerRegistry
                        )
-from utilities import (getQgisTestApp,
-                       TestCase,
-                       unittest
-                       )
+from qgis.testing import start_app, unittest
 
-QGISAPP, CANVAS, IFACE, PARENT = getQgisTestApp()
+start_app()
 
 
 def createReferencingLayer():
@@ -67,10 +64,10 @@ def createReferencedLayer():
 
 
 def formatAttributes(attrs):
-    return repr([unicode(a) for a in attrs])
+    return repr([str(a) for a in attrs])
 
 
-class TestQgsRelation(TestCase):
+class TestQgsRelation(unittest.TestCase):
 
     def setUp(self):
         self.referencedLayer = createReferencedLayer()
@@ -108,11 +105,12 @@ class TestQgsRelation(TestCase):
         rel.setReferencedLayer(self.referencedLayer.id())
         rel.addFieldPair('foreignkey', 'y')
 
-        feat = self.referencedLayer.getFeatures().next()
+        feat = next(self.referencedLayer.getFeatures())
+
+        self.assertEqual(rel.getRelatedFeaturesFilter(feat), '"foreignkey" = 123')
 
         it = rel.getRelatedFeatures(feat)
-
-        assert [a.attributes() for a in it] == [[u'test1', 123], [u'test2', 123]]
+        assert [a.attributes() for a in it] == [['test1', 123], ['test2', 123]]
 
     def test_getReferencedFeature(self):
         rel = QgsRelation()
@@ -122,7 +120,7 @@ class TestQgsRelation(TestCase):
         rel.setReferencedLayer(self.referencedLayer.id())
         rel.addFieldPair('foreignkey', 'y')
 
-        feat = self.referencingLayer.getFeatures().next()
+        feat = next(self.referencingLayer.getFeatures())
 
         f = rel.getReferencedFeature(feat)
 

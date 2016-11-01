@@ -18,15 +18,22 @@
 
 #include <QObject>
 #include <QMap>
-
+#include "qgseditorwidgetconfig.h"
 #include "qgseditorwidgetfactory.h"
+#include "qgsattributeeditorcontext.h"
+#include "qgseditorwidgetautoconf.h"
 
 class QgsMapLayer;
 class QDomNode;
 class QgsMapCanvas;
 class QgsMessageBar;
+class QgsSearchWidgetWrapper;
+class QgsEditorWidgetWrapper;
+class QgsEditorConfigWidget;
+class QgsVectorLayer;
 
-/**
+
+/** \ingroup gui
  * This class manages all known edit widget factories
  */
 class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
@@ -52,7 +59,7 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
      * @note Added in QGIS 2.8
      * @note Not required for plugins, the QGIS application does that already
      */
-    static void initEditors( QgsMapCanvas* mapCanvas = 0, QgsMessageBar* messageBar = 0 );
+    static void initEditors( QgsMapCanvas* mapCanvas = nullptr, QgsMessageBar* messageBar = nullptr );
 
     /**
      * Destructor
@@ -60,6 +67,16 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
      * Deletes all the registered widgets
      */
     ~QgsEditorWidgetRegistry();
+
+    /**
+     * Find the best editor widget and its configuration for a given field.
+     *
+     * @param vl        The vector layer for which this widget will be created
+     * @param fieldName The field name on the specified layer for which this widget will be created
+     *
+     * @return The id of the widget type to use and its config
+     */
+    QgsEditorWidgetSetup findBest( const QgsVectorLayer* vl, const QString& fieldName ) const;
 
     /**
      * Create an attribute editor widget wrapper of a given type for a given field.
@@ -79,6 +96,24 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
                                     QgsVectorLayer* vl,
                                     int fieldIdx,
                                     const QgsEditorWidgetConfig& config,
+                                    QWidget* editor,
+                                    QWidget* parent,
+                                    const QgsAttributeEditorContext& context = QgsAttributeEditorContext() );
+
+    /**
+     * Create an attribute editor widget wrapper of the best type for a given field.
+     * The editor may be NULL if you want the widget wrapper to create a default widget.
+     *
+     * @param vl        The vector layer for which this widget will be created
+     * @param fieldIdx  The field index on the specified layer for which this widget will be created
+     * @param editor    An editor widget which will be used instead of an autocreated widget
+     * @param parent    The parent which will be used for the created wrapper and the created widget
+     * @param context   The editor context (not available in python bindings)
+     *
+     * @return A new widget wrapper
+     */
+    QgsEditorWidgetWrapper* create( QgsVectorLayer* vl,
+                                    int fieldIdx,
                                     QWidget* editor,
                                     QWidget* parent,
                                     const QgsAttributeEditorContext& context = QgsAttributeEditorContext() );
@@ -135,6 +170,13 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
      */
     bool registerWidget( const QString& widgetId, QgsEditorWidgetFactory* widgetFactory );
 
+    /**
+     * Register a new auto-conf plugin.
+     *
+     * @param plugin The plugin (ownership is transfered)
+     */
+    void registerAutoConfPlugin( QgsEditorWidgetAutoConfPlugin* plugin ) { mAutoConf.registerPlugin( plugin ); }
+
   protected:
     QgsEditorWidgetRegistry();
 
@@ -145,17 +187,6 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
      * @param layerElem
      */
     void readMapLayer( QgsMapLayer* mapLayer, const QDomElement& layerElem );
-
-    /**
-     * Read all old-style editor widget configuration from a map node. Will update
-     * a project file to the new version on next save
-     * @param vl         The layer in question
-     * @param layerElem  The layer element from the project file
-     * @param cfg        Writable config element
-     *
-     * @deprecated
-     */
-    Q_DECL_DEPRECATED const QString readLegacyConfig( QgsVectorLayer* vl, const QDomElement& layerElem, QgsEditorWidgetConfig& cfg );
 
     /**
      * Write all the widget config to a layer XML node
@@ -172,6 +203,13 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
      * @param mapLayer The layer to connect
      */
     void mapLayerAdded( QgsMapLayer* mapLayer );
+
+    /**
+     * Will disconnect to appropriate signals from map layers to load and save style
+     *
+     * @param mapLayer The layer to disconnect
+     */
+    void mapLayerWillBeRemoved( QgsMapLayer* mapLayer );
 
     /**
      * Loads layer symbology for the layer that emitted the signal
@@ -197,6 +235,7 @@ class GUI_EXPORT QgsEditorWidgetRegistry : public QObject
 
     QMap<QString, QgsEditorWidgetFactory*> mWidgetFactories;
     QMap<const char*, QPair<int, QString> > mFactoriesByType;
+    QgsEditorWidgetAutoConf mAutoConf;
 };
 
 #endif // QGSEDITORWIDGETREGISTRY_H

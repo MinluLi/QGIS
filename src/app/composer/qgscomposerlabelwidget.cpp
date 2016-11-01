@@ -20,21 +20,23 @@
 #include "qgscomposeritemwidget.h"
 #include "qgscomposition.h"
 #include "qgsexpressionbuilderdialog.h"
+#include "qgisgui.h"
 
 #include <QColorDialog>
 #include <QFontDialog>
 #include <QWidget>
 
-QgsComposerLabelWidget::QgsComposerLabelWidget( QgsComposerLabel* label ): QgsComposerItemBaseWidget( 0, label ), mComposerLabel( label )
+QgsComposerLabelWidget::QgsComposerLabelWidget( QgsComposerLabel* label ): QgsComposerItemBaseWidget( nullptr, label ), mComposerLabel( label )
 {
   setupUi( this );
+  setPanelTitle( tr( "Label properties" ) );
 
   //add widget for general composer item properties
   QgsComposerItemWidget* itemPropertiesWidget = new QgsComposerItemWidget( this, label );
   mainLayout->addWidget( itemPropertiesWidget );
 
   mFontColorButton->setColorDialogTitle( tr( "Select font color" ) );
-  mFontColorButton->setContext( "composer" );
+  mFontColorButton->setContext( QStringLiteral( "composer" ) );
 
   mMarginXDoubleSpinBox->setClearValue( 0.0 );
   mMarginYDoubleSpinBox->setClearValue( 0.0 );
@@ -50,18 +52,10 @@ void QgsComposerLabelWidget::on_mHtmlCheckBox_stateChanged( int state )
 {
   if ( mComposerLabel )
   {
-    if ( state )
-    {
-      mFontButton->setEnabled( false );
-      mFontColorButton->setEnabled( false );
-      mAppearanceGroup->setEnabled( false );
-    }
-    else
-    {
-      mFontButton->setEnabled( true );
-      mFontColorButton->setEnabled( true );
-      mAppearanceGroup->setEnabled( true );
-    }
+    mVerticalAlignementLabel->setDisabled( state );
+    mTopRadioButton->setDisabled( state );
+    mMiddleRadioButton->setDisabled( state );
+    mBottomRadioButton->setDisabled( state );
 
     mComposerLabel->beginCommand( tr( "Label text HTML state changed" ), QgsComposerMergeCommand::ComposerLabelSetText );
     mComposerLabel->blockSignals( true );
@@ -131,7 +125,7 @@ void QgsComposerLabelWidget::on_mFontColorButton_colorChanged( const QColor &new
     return;
   }
 
-  mComposerLabel->beginCommand( tr( "Label color changed" ) );
+  mComposerLabel->beginCommand( tr( "Label color changed" ), QgsComposerMergeCommand::ComposerLabelFontColor );
   mComposerLabel->setFontColor( newLabelColor );
   mComposerLabel->update();
   mComposerLabel->endCommand();
@@ -147,13 +141,13 @@ void QgsComposerLabelWidget::on_mInsertExpressionButton_clicked()
   QString selText = mTextEdit->textCursor().selectedText();
 
   // edit the selected expression if there's one
-  if ( selText.startsWith( "[%" ) && selText.endsWith( "%]" ) )
+  if ( selText.startsWith( QLatin1String( "[%" ) ) && selText.endsWith( QLatin1String( "%]" ) ) )
     selText = selText.mid( 2, selText.size() - 4 );
 
   // use the atlas coverage layer, if any
   QgsVectorLayer* coverageLayer = atlasCoverageLayer();
-  QScopedPointer<QgsExpressionContext> context( mComposerLabel->createExpressionContext() );
-  QgsExpressionBuilderDialog exprDlg( coverageLayer, selText, this, "generic", *context );
+  QgsExpressionContext context = mComposerLabel->createExpressionContext();
+  QgsExpressionBuilderDialog exprDlg( coverageLayer, selText, this, QStringLiteral( "generic" ), context );
 
   exprDlg.setWindowTitle( tr( "Insert expression" ) );
   if ( exprDlg.exec() == QDialog::Accepted )
@@ -249,6 +243,13 @@ void QgsComposerLabelWidget::setGuiElementValues()
   mCenterRadioButton->setChecked( mComposerLabel->hAlign() == Qt::AlignHCenter );
   mRightRadioButton->setChecked( mComposerLabel->hAlign() == Qt::AlignRight );
   mFontColorButton->setColor( mComposerLabel->fontColor() );
+
+
+  mVerticalAlignementLabel->setDisabled( mComposerLabel->htmlState() );
+  mTopRadioButton->setDisabled( mComposerLabel->htmlState() );
+  mMiddleRadioButton->setDisabled( mComposerLabel->htmlState() );
+  mBottomRadioButton->setDisabled( mComposerLabel->htmlState() );
+
   blockAllSignals( false );
 }
 

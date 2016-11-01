@@ -18,10 +18,11 @@
 #define QGSPAINTEFFECT_H
 
 #include "qgis.h"
-#include "qgsrendercontext.h"
 #include <QPainter>
 #include <QDomDocument>
 #include <QDomElement>
+
+class QgsRenderContext;
 
 /** \ingroup core
  * \class QgsPaintEffect
@@ -54,12 +55,12 @@ class CORE_EXPORT QgsPaintEffect
     /** Drawing modes for effects. These modes are used only when effects are
      * drawn as part of an effects stack
      * @see QgsEffectStack
-    */
+     */
     enum DrawMode
     {
-      Modifier, /*!< the result of the effect is not rendered, but is passed on to following effects in the stack */
-      Render, /*!< the result of the effect is rendered on the destination, but does not affect subsequent effects in the stack */
-      ModifyAndRender /*!< the result of the effect is both rendered and passed on to subsequent effects in the stack */
+      Modifier, //!< The result of the effect is not rendered, but is passed on to following effects in the stack
+      Render, //!< The result of the effect is rendered on the destination, but does not affect subsequent effects in the stack
+      ModifyAndRender //!< The result of the effect is both rendered and passed on to subsequent effects in the stack
     };
 
     QgsPaintEffect();
@@ -168,7 +169,7 @@ class CORE_EXPORT QgsPaintEffect
      * the source QPicture and draw the result using the context's painter.
      * @param context destination render context
      * @see drawSource
-    */
+     */
     virtual void draw( QgsRenderContext& context ) = 0;
 
     /** Draws the source QPicture onto the specified painter. Handles scaling of the picture
@@ -265,7 +266,7 @@ class CORE_EXPORT QgsDrawSourceEffect : public QgsPaintEffect
      */
     static QgsPaintEffect* create( const QgsStringMap& map );
 
-    virtual QString type() const override { return QString( "drawSource" ); }
+    virtual QString type() const override { return QStringLiteral( "drawSource" ); }
     virtual QgsDrawSourceEffect* clone() const override;
     virtual QgsStringMap properties() const override;
     virtual void readProperties( const QgsStringMap& props ) override;

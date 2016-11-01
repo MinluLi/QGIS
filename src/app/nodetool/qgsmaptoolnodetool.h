@@ -26,7 +26,7 @@ class QgsVertexEntry;
 class QgsSelectedFeature;
 class QgsNodeEditor;
 
-/** A maptool to move/deletes/adds vertices of line or polygon features*/
+//! A maptool to move/deletes/adds vertices of line or polygon features
 class QgsMapToolNodeTool: public QgsMapToolEdit
 {
     Q_OBJECT
@@ -51,6 +51,11 @@ class QgsMapToolNodeTool: public QgsMapToolEdit
     void selectedFeatureDestroyed();
 
     /*
+     * the geometry for the selected feature has changed
+     */
+    void geometryChanged( QgsFeatureId fid, const QgsGeometry& geom );
+
+    /*
      * the current layer changed
      */
     void currentLayerChanged( QgsMapLayer *layer );
@@ -59,6 +64,11 @@ class QgsMapToolNodeTool: public QgsMapToolEdit
      * the current edition state changed
      */
     void editingToggled();
+
+    /*
+     * delete all selected nodes and select next available node
+     */
+    void deleteNodeSelection();
 
   private:
     /**
@@ -70,6 +80,11 @@ class QgsMapToolNodeTool: public QgsMapToolEdit
      * Update select feature rubber band
      */
     void updateSelectFeature();
+
+    /**
+     * Update select feature rubber band using a certain geometry
+     */
+    void updateSelectFeature( const QgsGeometry &geom );
 
     /**
      * Deletes the rubber band pointers and clears mRubberBands
@@ -109,7 +124,7 @@ class QgsMapToolNodeTool: public QgsMapToolEdit
     snapping results. If the list is empty, the screen coordinates are transformed into map coordinates and returned
     @param snapResults results collected from the snapping operation.
     @return the snapped point in map coordinates*/
-    QgsPoint snapPointFromResults( const QList<QgsSnappingResult>& snapResults, const QPoint& screenCoords );
+    QgsPoint snapPointFromResults( const QList<QgsSnappingResult>& snapResults, QPoint screenCoords );
 
     /** Inserts vertices to the snapped segments of the editing layer.
          This is useful for topological editing if snap to segment is enabled.
@@ -123,46 +138,46 @@ class QgsMapToolNodeTool: public QgsMapToolEdit
     and applies it to the map canvas*/
     QgsMapCanvasSnapper mSnapper;
 
-    /** Rubber bands during node move */
+    //! Rubber bands during node move
     QMap<QgsFeatureId, QgsGeometryRubberBand*> mMoveRubberBands;
 
-    /** Rubber band for selected feature */
+    //! Rubber band for selected feature
     QgsGeometryRubberBand* mSelectRubberBand;
 
-    /** Vertices of features to move */
+    //! Vertices of features to move
     QMap<QgsFeatureId, QList< QPair<QgsVertexId, QgsPointV2> > > mMoveVertices;
 
-    /** Object containing selected feature and it's vertexes */
+    //! Object containing selected feature and it's vertexes
     QgsSelectedFeature *mSelectedFeature;
 
-    /** Dock widget which allows to edit vertices */
+    //! Dock widget which allows editing vertices
     QgsNodeEditor* mNodeEditor;
 
-    /** Flag if moving of vertexes is occuring */
+    //! Flag if moving of vertexes is occurring
     bool mMoving;
 
-    /** Flag if selection of another feature can occur */
+    //! Flag if selection of another feature can occur
     bool mSelectAnother;
 
-    /** Feature id of another feature where user clicked */
+    //! Feature id of another feature where user clicked
     QgsFeatureId mAnother;
 
-    /** Stored position of last press down action to count how much vertexes should be moved */
+    //! Stored position of last press down action to count how much vertexes should be moved
     QPoint mPressCoordinates;
 
-    /** Closest vertex to click in map coordinates */
+    //! Closest vertex to click in map coordinates
     QgsPoint mClosestMapVertex;
 
-    /** Active rubberband for selecting vertexes */
+    //! Active rubberband for selecting vertexes
     QRubberBand *mSelectionRubberBand;
 
-    /** Rectangle defining area for selecting vertexes */
+    //! Rectangle defining area for selecting vertexes
     QRect* mRect;
 
-    /** Flag to tell if edition points */
+    //! Flag to tell if edition points
     bool mIsPoint;
 
-    /** Vertex to deselect on release */
+    //! Vertex to deselect on release
     int mDeselectOnRelease;
 };
 

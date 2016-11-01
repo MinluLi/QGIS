@@ -22,6 +22,7 @@ SET ( qgis_mapserv_SRCS
   qgscapabilitiescache.cpp
   qgsconfigcache.cpp
   qgshttprequesthandler.cpp
+#  qgshttptransaction.cpp
   qgsgetrequesthandler.cpp
   qgspostrequesthandler.cpp
   qgssoaprequesthandler.cpp
@@ -30,8 +31,8 @@ SET ( qgis_mapserv_SRCS
   qgswfsserver.cpp
   qgswcsserver.cpp
   qgsmapserviceexception.cpp
+  qgsmaprenderer.cpp
   qgsmslayercache.cpp
-  qgsftptransaction.cpp
   qgsmslayerbuilder.cpp
   qgshostedvdsbuilder.cpp
   qgsinterpolationlayerbuilder.cpp
@@ -50,19 +51,33 @@ SET ( qgis_mapserv_SRCS
   qgssldconfigparser.cpp
   qgsconfigparserutils.cpp
   qgsserver.cpp
+)
+IF("${Qt5Network_VERSION}" VERSION_LESS "5.0.0")
+  SET (qgis_mapserv_SRCS ${qgis_mapserv_SRCS}
+    qgsftptransaction.cpp
   )
+ENDIF("${Qt5Network_VERSION}" VERSION_LESS "5.0.0")
+
 
 # SET (qgis_mapserv_UIS
 # none used
 # )
 
 SET (qgis_mapserv_MOC_HDRS
-  qgsftptransaction.h
   qgscapabilitiescache.h
   qgsconfigcache.h
+#  qgshttptransaction.h
+  qgsmaprenderer.h
   qgsmslayercache.h
   qgsserverlogger.h
+  qgsserverstreamingdevice.h
 )
+
+IF("${Qt5Network_VERSION}" VERSION_LESS "5.0.0")
+  SET (qgis_mapserv_MOC_HDRS ${qgis_mapserv_MOC_HDRS}
+    qgsftptransaction.h
+  )
+ENDIF("${Qt5Network_VERSION}" VERSION_LESS "5.0.0")
 
 SET (qgis_mapserv_RCCS
   # not used
@@ -89,16 +104,18 @@ SET(qgis_mapserv_SRCS ${qgis_mapserv_SRCS}
 )
 ENDIF (WITH_SERVER_PLUGINS)
 
-IF (NOT MSVC)
-  ADD_DEFINITIONS("-USERVER_EXPORT")
-  IF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
-  ENDIF()
-ENDIF (NOT MSVC)
+REMOVE_DEFINITIONS("-DSERVER_EXPORT=${DLLIMPORT}")
 ADD_DEFINITIONS("\"-DSERVER_EXPORT=${DLLEXPORT}\"")
 
 
-QT4_WRAP_CPP(qgis_mapserv_MOC_SRCS ${qgis_mapserv_MOC_HDRS})
+QT5_WRAP_CPP(qgis_mapserv_MOC_SRCS ${qgis_mapserv_MOC_HDRS})
+
+IF(MSVC)
+  SET_SOURCE_FILES_PROPERTIES(${qgis_mapserv_MOC_SRCS} PROPERTIES COMPILE_FLAGS "/wd4512 /wd4996" )
+ELSE(MSVC)
+  SET_SOURCE_FILES_PROPERTIES(${qgis_mapserv_MOC_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations" )
+ENDIF(MSVC)
+
 
 ADD_LIBRARY(qgis_server SHARED ${qgis_mapserv_SRCS} ${qgis_mapserv_MOC_SRCS} ${qgis_mapserv_HDRS} ${qgis_mapserv_MOC_HDRS})
 
@@ -147,14 +164,14 @@ INCLUDE_DIRECTORIES(
 
 # end qgis_server library
 
-QT4_WRAP_UI (qgis_mapserv_UIS_H  ${qgis_mapserv_UIS})
+QT5_WRAP_UI (qgis_mapserv_UIS_H  ${qgis_mapserv_UIS})
 
 
-QT4_ADD_RESOURCES(qgis_mapserv_RCC_SRCS ${qgis_mapserv_RCCS})
+QT5_ADD_RESOURCES(qgis_mapserv_RCC_SRCS ${qgis_mapserv_RCCS})
 
 # add test resources, e.g. standard test font
 SET(qgis_mapserv_TESTRCCS ../../tests/testdata/testdata.qrc)
-QT4_ADD_RESOURCES(qgis_mapserv_TESTRCC_SRCS ${qgis_mapserv_TESTRCCS})
+QT5_ADD_RESOURCES(qgis_mapserv_TESTRCC_SRCS ${qgis_mapserv_TESTRCCS})
 
 ADD_EXECUTABLE(qgis_mapserv.fcgi
   ${qgis_mapserv_SRCS}

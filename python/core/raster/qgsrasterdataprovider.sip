@@ -10,25 +10,27 @@ class QgsImageFetcher : QObject
 #include <qgsrasterdataprovider.h>
 %End
   public:
-
-    QgsImageFetcher();
+    /** Constructor */
+    QgsImageFetcher( QObject* parent = 0 );
+    /** Destructor */
     virtual ~QgsImageFetcher();
 
-    // Make sure to connect to "finish" and "error" before starting
+    /** Starts the image download
+     * @note Make sure to connect to "finish" and "error" before starting */
     virtual void start() = 0;
 
   signals:
-
+    /** Emitted when the download completes
+     *  @param legend The downloaded legend image */
     void finish( const QImage& legend );
+    /** Emitted to report progress */
     void progress( qint64 received, qint64 total );
+    /** Emitted when an error occurs */
     void error( const QString& msg );
 };
 
-/** Base class for raster data providers
- *
- *  \note  This class has been copied and pasted from
- *         QgsVectorDataProvider, and does not yet make
- *         sense for Raster layers.
+/** \ingroup core
+ * Base class for raster data providers.
  */
 class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
 {
@@ -51,24 +53,26 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     bool setInput( QgsRasterInterface* input );
 
     /** \brief   Renders the layer as an image
-    \note When render caching (/qgis/enable_render_caching) is on the wms
-       provider doesn't wait for the reply of the getmap request or all
-       tiles replies and can return incomplete images.
-       Temporarily disable render caching if you require the complete
-       wms image in the first call.
-      */
+     * \note When render caching (/qgis/enable_render_caching) is on the wms
+     * provider doesn't wait for the reply of the getmap request or all
+     * tiles replies and can return incomplete images.
+     * Temporarily disable render caching if you require the complete
+     * wms image in the first call.
+     */
     virtual QImage* draw( const QgsRectangle & viewExtent, int pixelWidth, int pixelHeight ) = 0;
 
     /** Get the extent of the data source.
-     * @return QgsRectangle containing the extent of the layer */
-    virtual QgsRectangle extent() = 0;
+     * @return QgsRectangle containing the extent of the layer
+     */
+    virtual QgsRectangle extent() const = 0;
 
     /** Returns data type for the band specified by number */
-    virtual QGis::DataType dataType( int bandNo ) const = 0;
+    virtual Qgis::DataType dataType( int bandNo ) const = 0;
 
     /** Returns source data type for the band specified by number,
-     *  source data type may be shorter than dataType */
-    virtual QGis::DataType srcDataType( int bandNo ) const = 0;
+     *  source data type may be shorter than dataType
+     */
+    virtual Qgis::DataType sourceDataType( int bandNo ) const = 0;
 
     /** Returns data type for the band specified by number */
     virtual int colorInterpretation( int theBandNo ) const;
@@ -81,10 +85,12 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     virtual QString colorInterpretationName( int theBandNo ) const;
 
     /** Read band scale for raster value
-     * @@note added in 2.3 */
+     * @note added in 2.3
+     */
     virtual double bandScale( int bandNo ) const;
     /** Read band offset for raster value
-     * @@note added in 2.3 */
+     * @note added in 2.3
+     */
     virtual double bandOffset( int bandNo ) const;
 
     /** Get block size */
@@ -96,19 +102,19 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     virtual int ySize() const;
 
     /** Read block of data using given extent and size. */
-    virtual QgsRasterBlock *block( int theBandNo, const QgsRectangle &theExtent, int theWidth, int theHeight ) / Factory /;
+    virtual QgsRasterBlock *block( int theBandNo, const QgsRectangle &theExtent, int theWidth, int theHeight, QgsRasterBlockFeedback* feedback = nullptr ) / Factory /;
 
     /** Return true if source band has no data value */
-    virtual bool srcHasNoDataValue( int bandNo ) const;
+    virtual bool sourceHasNoDataValue( int bandNo ) const;
 
     /** \brief Get source nodata value usage */
-    virtual bool useSrcNoDataValue( int bandNo ) const;
+    virtual bool useSourceNoDataValue( int bandNo ) const;
 
     /** \brief Set source nodata value usage */
-    virtual void setUseSrcNoDataValue( int bandNo, bool use );
+    virtual void setUseSourceNoDataValue( int bandNo, bool use );
 
     /** Value representing no data value. */
-    virtual double srcNoDataValue( int bandNo ) const;
+    virtual double sourceNoDataValue( int bandNo ) const;
 
     virtual void setUserNoDataValue( int bandNo, const QgsRasterRangeList& noData );
 
@@ -120,6 +126,9 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     /** \brief Returns the sublayers of this layer - useful for providers that manage
      *  their own layers, such as WMS */
     virtual QStringList subLayers() const;
+
+    /** \brief Returns whether the provider supplies a legend graphic */
+    virtual bool supportsLegendGraphic() const;
 
     /** \brief Returns the legend rendered as pixmap
      *
@@ -159,7 +168,7 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
      * ACTUALLY exists you need to look at the existsFlag member in each struct stored in the
      * list.
      */
-    virtual QList<QgsRasterPyramid> buildPyramidList( QList<int> overviewList = QList<int>() );
+    virtual QList<QgsRasterPyramid> buildPyramidList( const QList<int>& overviewList = QList<int>() );
 
     /** \brief Returns true if raster has at least one populated histogram. */
     bool hasPyramids();
@@ -185,6 +194,7 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
      * @param theExtent context extent
      * @param theWidth context width
      * @param theHeight context height
+     * @param theDpi context dpi
      * @return QgsRaster::IdentifyFormatValue: map of values for each band, keys are band numbers
      *         (from 1).
      *         QgsRaster::IdentifyFormatFeature: map of QgsRasterFeatureList for each sublayer
@@ -193,7 +203,7 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
      *         Empty if failed or there are no results (TODO: better error reporting).
      */
     //virtual QMap<int, QVariant> identify( const QgsPoint & thePoint, QgsRaster::IdentifyFormat theFormat, const QgsRectangle &theExtent = QgsRectangle(), int theWidth = 0, int theHeight = 0 );
-    virtual QgsRasterIdentifyResult identify( const QgsPoint & thePoint, QgsRaster::IdentifyFormat theFormat, const QgsRectangle &theExtent = QgsRectangle(), int theWidth = 0, int theHeight = 0 );
+    virtual QgsRasterIdentifyResult identify( const QgsPoint & thePoint, QgsRaster::IdentifyFormat theFormat, const QgsRectangle &theExtent = QgsRectangle(), int theWidth = 0, int theHeight = 0, int theDpi = 96 );
 
     /**
      * \brief   Returns the caption error text for the last error in this provider
@@ -240,7 +250,7 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     static QgsRasterDataProvider* create( const QString &providerKey,
                                           const QString &uri,
                                           const QString& format, int nBands,
-                                          QGis::DataType type,
+                                          Qgis::DataType type,
                                           int width, int height, double* geoTransform,
                                           const QgsCoordinateReferenceSystem& crs,
                                           const QStringList& createOptions = QStringList() );
@@ -255,16 +265,19 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     virtual bool remove();
 
     /** Returns a list of pyramid resampling method name and label pairs
-     * for given provider */
+     * for given provider
+     */
     static QList<QPair<QString, QString> > pyramidResamplingMethods( const QString& providerKey );
 
     /** Validates creation options for a specific dataset and destination format.
      * @note used by GDAL provider only
-     * @note see also validateCreationOptionsFormat() in gdal provider for validating options based on format only */
+     * @note see also validateCreationOptionsFormat() in gdal provider for validating options based on format only
+     */
     virtual QString validateCreationOptions( const QStringList& createOptions, const QString& format );
 
     /** Validates pyramid creation options for a specific dataset and destination format
-     * @note used by GDAL provider only */
+     * @note used by GDAL provider only
+     */
     virtual QString validatePyramidsConfigOptions( QgsRaster::RasterPyramidsFormat pyramidsFormat,
         const QStringList & theConfigOptions, const QString & fileFormat );
 
@@ -279,21 +292,36 @@ class QgsRasterDataProvider : QgsDataProvider, QgsRasterInterface
     void progress( int theType, double theProgress, const QString& theMessage );
     void progressUpdate( int theProgress );
 
+    /** Emit a message to be displayed on status bar, usually used by network providers (WMS,WCS)
+     * @note added in 2.14
+     */
+    void statusChanged( const QString& ) const;
+
   protected:
+    /** Read block of data
+     * @note not available in python bindings
+     */
+    virtual void readBlock( int bandNo, int xBlock, int yBlock, void *data );
 
-    /** Fill in histogram defaults if not specified */
-    void initHistogram( QgsRasterHistogram &theHistogram, int theBandNo,
-                        int theBinCount,
-                        double theMinimum,
-                        double theMaximum,
-                        const QgsRectangle & theExtent = QgsRectangle(),
-                        int theSampleSize = 0,
-                        bool theIncludeOutOfRange = false );
+    /** Read block of data using give extent and size
+     * @note not available in python bindings
+     */
+    //virtual void readBlock( int bandNo, QgsRectangle  const & viewExtent, int width, int height, void *data, QgsRasterBlockFeedback* feedback = nullptr );
 
-    /** Fill in statistics defaults if not specified */
-    void initStatistics( QgsRasterBandStats &theStatistics, int theBandNo,
-                         int theStats = QgsRasterBandStats::All,
-                         const QgsRectangle & theExtent = QgsRectangle(),
-                         int theBinCount = 0 );
+    /** Returns true if user no data contains value */
+    bool userNoDataValuesContains( int bandNo, double value ) const;
+
+    /** Copy member variables from other raster data provider. Useful for implementation of clone() method in subclasses */
+    void copyBaseSettings( const QgsRasterDataProvider& other );
+
+    //! @note not available in Python bindings
+    //static QStringList cStringList2Q_( char ** stringList );
+
+    static QString makeTableCell( const QString & value );
+    static QString makeTableCells( const QStringList & values );
+
+    /** Source no data value is available and is set to be used or internal no data
+     *  is available. Used internally only  */
+    //bool hasNoDataValue ( int theBandNo );
 
 };

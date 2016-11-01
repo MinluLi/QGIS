@@ -31,12 +31,11 @@ int main( int argc, char ** argv )
   QgsApplication a( argc, argv, true );
 
   // Set up the QSettings environment must be done after qapp is created
-  QCoreApplication::setOrganizationName( "QGIS" );
-  QCoreApplication::setOrganizationDomain( "qgis.org" );
-  QCoreApplication::setApplicationName( "QGIS2" );
+  QCoreApplication::setOrganizationName( QStringLiteral( "QGIS" ) );
+  QCoreApplication::setOrganizationDomain( QStringLiteral( "qgis.org" ) );
+  QCoreApplication::setApplicationName( QStringLiteral( "QGIS3" ) );
 
-  QString context = QString::null;
-  QString myTranslationCode = "";
+  QString myTranslationCode = QLatin1String( "" );
 
   if ( argc == 2 )
   {
@@ -61,17 +60,17 @@ int main( int argc, char ** argv )
     myTranslationCode = QLocale::system().name();
 
     QSettings settings;
-    if ( settings.value( "locale/overrideFlag", false ).toBool() )
+    if ( settings.value( QStringLiteral( "locale/overrideFlag" ), false ).toBool() )
     {
-      myTranslationCode = settings.value( "locale/userLocale", "en_US" ).toString();
+      myTranslationCode = settings.value( QStringLiteral( "locale/userLocale" ), "en_US" ).toString();
     }
   }
   QgsDebugMsg( QString( "Setting translation to %1/qgis_%2" ).arg( i18nPath, myTranslationCode ) );
 
   /* Translation file for QGIS.
    */
-  QTranslator qgistor( 0 );
-  if ( qgistor.load( QString( "qgis_" ) + myTranslationCode, i18nPath ) )
+  QTranslator qgistor( nullptr );
+  if ( qgistor.load( QStringLiteral( "qgis_" ) + myTranslationCode, i18nPath ) )
   {
     a.installTranslator( &qgistor );
   }
@@ -81,8 +80,8 @@ int main( int argc, char ** argv )
    * the About, Preferences and Quit items to the Mac Application menu.
    * These items must be translated identically in both qt_ and qgis_ files.
    */
-  QTranslator qttor( 0 );
-  if ( qttor.load( QString( "qt_" ) + myTranslationCode, QLibraryInfo::location( QLibraryInfo::TranslationsPath ) ) )
+  QTranslator qttor( nullptr );
+  if ( qttor.load( QStringLiteral( "qt_" ) + myTranslationCode, QLibraryInfo::location( QLibraryInfo::TranslationsPath ) ) )
   {
     a.installTranslator( &qttor );
   }

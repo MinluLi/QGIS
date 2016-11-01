@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,14 +24,14 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import Qt, QObject, SIGNAL, QCoreApplication, QFile, QFileInfo
-from PyQt4.QtGui import QWidget, QMessageBox
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QFile, QFileInfo
+from qgis.PyQt.QtWidgets import QWidget, QMessageBox
 from qgis.core import QgsMapLayerRegistry, QgsMapLayer
 
-from ui_widgetProjection import Ui_GdalToolsWidget as Ui_Widget
-from widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
-from dialogSRS import GdalToolsSRSDialog as SRSDialog
-import GdalTools_utils as Utils
+from .ui_widgetProjection import Ui_GdalToolsWidget as Ui_Widget
+from .widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
+from .dialogSRS import GdalToolsSRSDialog as SRSDialog
+from . import GdalTools_utils as Utils
 
 import re
 
@@ -42,7 +43,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         self.iface = iface
 
         self.setupUi(self)
-        BaseBatchWidget.__init__(self, self.iface, "gdalwarp")
+        BaseBatchWidget.__init__(self, self.iface, "gdal_translate")
 
         self.inSelector.setType(self.inSelector.FILE)
 
@@ -53,14 +54,14 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         self.recurseCheck.hide()
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.desiredSRSEdit, SIGNAL("textChanged( const QString & )"))
+            (self.inSelector, "filenameChanged"),
+            (self.desiredSRSEdit, "textChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.selectDesiredSRSButton, SIGNAL("clicked()"), self.fillDesiredSRSEdit)
-        self.connect(self.batchCheck, SIGNAL("stateChanged( int )"), self.switchToolMode)
-        self.connect(self.recurseCheck, SIGNAL("stateChanged( int )"), self.enableRecurse)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.selectDesiredSRSButton.clicked.connect(self.fillDesiredSRSEdit)
+        self.batchCheck.stateChanged.connect(self.switchToolMode)
+        self.recurseCheck.stateChanged.connect(self.enableRecurse)
 
     def switchToolMode(self):
         self.setCommandViewerEnabled(not self.batchCheck.isChecked())
@@ -73,13 +74,13 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
             self.inFileLabel = self.label.text()
             self.label.setText(QCoreApplication.translate("GdalTools", "&Input directory"))
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
+            self.inSelector.selectClicked.disconnect(self.fillInputFileEdit)
+            self.inSelector.selectClicked.connect(self.fillInputDir)
         else:
             self.label.setText(self.inFileLabel)
 
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
+            self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+            self.inSelector.selectClicked.disconnect(self.fillInputDir)
 
     def enableRecurse(self):
         if self.recurseCheck.isChecked():
@@ -112,7 +113,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
     def getArguments(self):
         arguments = []
         if self.desiredSRSEdit.text():
-            arguments.append("-t_srs")
+            arguments.append("-a_srs")
             arguments.append(self.desiredSRSEdit.text())
         if self.batchCheck.isChecked():
             return arguments
@@ -164,11 +165,11 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         layerList = []
 
         layerMap = QgsMapLayerRegistry.instance().mapLayers()
-        for name, layer in layerMap.iteritems():
+        for name, layer in layerMap.items():
             if layer.type() == QgsMapLayer.RasterLayer:
-                layerList.append(unicode(layer.source()))
+                layerList.append(str(layer.source()))
 
-        if unicode(self.inputFileEdit.text()) in layerList:
+        if str(self.inputFileEdit.text()) in layerList:
             QMessageBox.warning(self, self.tr("Assign projection"), self.tr("This raster already found in map canvas"))
             return
 

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import next
 
 __author__ = 'Alexander Bruy'
 __date__ = 'April 2014'
@@ -25,10 +26,13 @@ __copyright__ = '(C) 2014, Alexander Bruy'
 
 __revision__ = '$Format:%H$'
 
+import os
 import random
 
-from PyQt4.QtCore import QVariant
-from qgis.core import QGis, QgsGeometry, QgsFields, QgsField, QgsSpatialIndex, QgsPoint, QgsFeature, QgsFeatureRequest
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QVariant
+from qgis.core import (Qgis, QgsGeometry, QgsFields, QgsField, QgsSpatialIndex, QgsWkbTypes,
+                       QgsPoint, QgsFeature, QgsFeatureRequest)
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingLog import ProcessingLog
@@ -36,6 +40,8 @@ from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterNumber
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class RandomPointsLayer(GeoAlgorithm):
@@ -45,17 +51,20 @@ class RandomPointsLayer(GeoAlgorithm):
     MIN_DISTANCE = 'MIN_DISTANCE'
     OUTPUT = 'OUTPUT'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'random_points.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Random points in layer bounds')
         self.group, self.i18n_group = self.trAlgorithm('Vector creation tools')
         self.addParameter(ParameterVector(self.VECTOR,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_POLYGON]))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterNumber(self.POINT_NUMBER,
                                           self.tr('Points number'), 1, None, 1))
         self.addParameter(ParameterNumber(self.MIN_DISTANCE,
                                           self.tr('Minimum distance'), 0.0, None, 0.0))
 
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Random points')))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Random points'), datatype=[dataobjects.TYPE_VECTOR_POINT]))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
@@ -69,7 +78,7 @@ class RandomPointsLayer(GeoAlgorithm):
         fields = QgsFields()
         fields.append(QgsField('id', QVariant.Int, '', 10, 0))
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, QGis.WKBPoint, layer.dataProvider().crs())
+            fields, QgsWkbTypes.Point, layer.crs())
 
         nPoints = 0
         nIterations = 0
@@ -78,8 +87,6 @@ class RandomPointsLayer(GeoAlgorithm):
 
         index = QgsSpatialIndex()
         points = dict()
-
-        request = QgsFeatureRequest()
 
         random.seed()
 
@@ -92,9 +99,9 @@ class RandomPointsLayer(GeoAlgorithm):
             ids = idxLayer.intersects(geom.buffer(5, 5).boundingBox())
             if len(ids) > 0 and \
                     vector.checkMinDistance(pnt, index, minDistance, points):
-                for i in ids:
-                    f = layer.getFeatures(request.setFilterFid(i)).next()
-                    tmpGeom = QgsGeometry(f.geometry())
+                request = QgsFeatureRequest().setFilterFids(ids).setSubsetOfAttributes([])
+                for f in layer.getFeatures(request):
+                    tmpGeom = f.geometry()
                     if geom.within(tmpGeom):
                         f = QgsFeature(nPoints)
                         f.initAttributes(1)

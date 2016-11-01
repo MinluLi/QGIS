@@ -17,10 +17,9 @@
 #define QGSEXPRESSIONSELECTIONDIALOG_H
 
 #include <QDialog>
-#include "qgsdistancearea.h"
 #include "ui_qgsexpressionselectiondialogbase.h"
 
-/**
+/** \ingroup gui
  * This class offers a dialog to change feature selections.
  * To do so, a QgsExpressionBuilderWidget is shown in a dialog.
  * It offers the possibilities to create a new selection, add to the current selection
@@ -37,7 +36,7 @@ class GUI_EXPORT QgsExpressionSelectionDialog : public QDialog, private Ui::QgsE
      * @param startText A default expression text to be applied (Defaults to empty)
      * @param parent parent object (owner)
      */
-    QgsExpressionSelectionDialog( QgsVectorLayer* layer, const QString& startText = QString(), QWidget* parent = 0 );
+    QgsExpressionSelectionDialog( QgsVectorLayer* layer, const QString& startText = QString(), QWidget* parent = nullptr );
 
     /**
      * The builder widget that is used by the dialog

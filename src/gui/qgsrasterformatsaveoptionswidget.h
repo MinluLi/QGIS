@@ -19,8 +19,7 @@
 #define QGSRASTERFORMATSAVEOPTIONSWIDGET_H
 
 #include "ui_qgsrasterformatsaveoptionswidgetbase.h"
-
-#include "qgsrasterdataprovider.h"
+#include "qgsraster.h"
 
 class QgsRasterLayer;
 
@@ -43,7 +42,7 @@ class GUI_EXPORT QgsRasterFormatSaveOptionsWidget: public QWidget,
       ProfileLineEdit // Profile + LineEdit
     };
 
-    QgsRasterFormatSaveOptionsWidget( QWidget* parent = 0, const QString& format = "GTiff",
+    QgsRasterFormatSaveOptionsWidget( QWidget* parent = nullptr, const QString& format = "GTiff",
                                       QgsRasterFormatSaveOptionsWidget::Type type = Default,
                                       const QString& provider = "gdal" );
     ~QgsRasterFormatSaveOptionsWidget();
@@ -51,7 +50,7 @@ class GUI_EXPORT QgsRasterFormatSaveOptionsWidget: public QWidget,
     void setFormat( const QString& format );
     void setProvider( const QString& provider );
     void setRasterLayer( QgsRasterLayer* rasterLayer ) { mRasterLayer = rasterLayer; mRasterFileName = QString(); }
-    void setRasterFileName( const QString& file ) { mRasterLayer = 0; mRasterFileName = file; }
+    void setRasterFileName( const QString& file ) { mRasterLayer = nullptr; mRasterFileName = file; }
     QStringList options() const;
     void setType( QgsRasterFormatSaveOptionsWidget::Type type = Default );
     void setPyramidsFormat( QgsRaster::RasterPyramidsFormat format )
@@ -104,6 +103,7 @@ class GUI_EXPORT QgsRasterFormatSaveOptionsWidget: public QWidget,
     void setCreateOptions( const QString& profile, const QStringList& list );
     QStringList profiles() const;
     bool eventFilter( QObject *obj, QEvent *event ) override;
+    QString pseudoFormat() const;
 
 };
 

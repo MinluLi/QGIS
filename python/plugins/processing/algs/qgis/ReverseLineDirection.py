@@ -25,10 +25,10 @@ __copyright__ = '(C) 2015, Nyall Dawson'
 
 __revision__ = '$Format:%H$'
 
-from qgis.core import QGis, QgsGeometry, QgsFeature
+from qgis.core import QgsGeometry, QgsFeature
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
-from processing.core.parameters import ParameterVector, ParameterNumber
+from processing.core.parameters import ParameterVector
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
 
@@ -43,34 +43,31 @@ class ReverseLineDirection(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector geometry tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_LINE]))
-        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Reversed')))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_LINE]))
+        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Reversed'), datatype=[dataobjects.TYPE_VECTOR_LINE]))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT_LAYER))
-        provider = layer.dataProvider()
 
         writer = self.getOutputFromName(
             self.OUTPUT_LAYER).getVectorWriter(
                 layer.fields().toList(),
-                provider.geometryType(),
+                layer.wkbType(),
                 layer.crs())
 
         outFeat = QgsFeature()
 
         features = vector.features(layer)
-        total = 100.0 / float(len(features))
-        current = 0
-
-        for inFeat in features:
-            inGeom = inFeat.constGeometry()
+        total = 100.0 / len(features)
+        for current, inFeat in enumerate(features):
+            inGeom = inFeat.geometry()
             attrs = inFeat.attributes()
 
             outGeom = None
-            if inGeom and not inGeom.isEmpty():
+            if not inGeom.isEmpty():
                 reversedLine = inGeom.geometry().reversed()
-                if reversedLine is None:
+                if not reversedLine:
                     raise GeoAlgorithmExecutionException(
                         self.tr('Error reversing line'))
                 outGeom = QgsGeometry(reversedLine)
@@ -78,7 +75,6 @@ class ReverseLineDirection(GeoAlgorithm):
             outFeat.setGeometry(outGeom)
             outFeat.setAttributes(attrs)
             writer.addFeature(outFeat)
-            current += 1
             progress.setPercentage(int(current * total))
 
         del writer

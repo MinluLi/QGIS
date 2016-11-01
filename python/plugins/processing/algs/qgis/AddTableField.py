@@ -25,8 +25,8 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import QVariant
-from qgis.core import QgsField, QgsFeature, QgsGeometry
+from qgis.PyQt.QtCore import QVariant
+from qgis.core import QgsField, QgsFeature
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterString
@@ -56,7 +56,7 @@ class AddTableField(GeoAlgorithm):
                            self.tr('String')]
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterString(self.FIELD_NAME,
                                           self.tr('Field name')))
         self.addParameter(ParameterSelection(self.FIELD_TYPE,
@@ -78,23 +78,19 @@ class AddTableField(GeoAlgorithm):
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT_LAYER))
 
-        provider = layer.dataProvider()
-        fields = provider.fields()
+        fields = layer.fields()
         fields.append(QgsField(fieldName, self.TYPES[fieldType], '',
-                      fieldLength, fieldPrecision))
-        writer = output.getVectorWriter(fields, provider.geometryType(),
+                               fieldLength, fieldPrecision))
+        writer = output.getVectorWriter(fields, layer.wkbType(),
                                         layer.crs())
         outFeat = QgsFeature()
-        inGeom = QgsGeometry()
-        nElement = 0
         features = vector.features(layer)
-        nFeat = len(features)
-        for inFeat in features:
-            progress.setPercentage(int(100 * nElement / nFeat))
-            nElement += 1
-            inGeom = inFeat.geometry()
-            outFeat.setGeometry(inGeom)
-            atMap = inFeat.attributes()
+        total = 100.0 / len(features)
+        for current, feat in enumerate(features):
+            progress.setPercentage(int(current * total))
+            geom = feat.geometry()
+            outFeat.setGeometry(geom)
+            atMap = feat.attributes()
             atMap.append(None)
             outFeat.setAttributes(atMap)
             writer.addFeature(outFeat)

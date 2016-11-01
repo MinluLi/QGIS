@@ -24,6 +24,9 @@
 #include <QValidator>
 #include <QLocale>
 
+/** \ingroup gui
+ * \class QgsLongLongValidator
+ */
 class GUI_EXPORT QgsLongLongValidator : public QValidator
 {
     Q_OBJECT
@@ -55,7 +58,7 @@ class GUI_EXPORT QgsLongLongValidator : public QValidator
       if ( t < 0 && input.startsWith( '+' ) )
         return Invalid;
 
-      if ( input == "-" || input == "+" )
+      if ( input == QLatin1String( "-" ) || input == QLatin1String( "+" ) )
         return Intermediate;
 
 

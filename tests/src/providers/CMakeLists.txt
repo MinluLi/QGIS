@@ -9,12 +9,17 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/src/core/auth
   ${CMAKE_SOURCE_DIR}/src/core/geometry
   ${CMAKE_SOURCE_DIR}/src/core/raster
+  ${CMAKE_SOURCE_DIR}/src/providers/wms
+  ${CMAKE_SOURCE_DIR}/src/providers/postgres
+)
+INCLUDE_DIRECTORIES(SYSTEM
   ${QT_INCLUDE_DIR}
   ${GDAL_INCLUDE_DIR}
   ${PROJ_INCLUDE_DIR}
   ${GEOS_INCLUDE_DIR}
   ${QCA_INCLUDE_DIR}
-  )
+  ${POSTGRES_INCLUDE_DIR}
+)
 
 #############################################################
 # Compiler defines
@@ -82,6 +87,20 @@ SET_TARGET_PROPERTIES(qgis_wcsprovidertest PROPERTIES
 
 ADD_QGIS_TEST(gdalprovidertest testqgsgdalprovider.cpp)
 
+ADD_QGIS_TEST(wmscapabilititestest
+              testqgswmscapabilities.cpp)
+TARGET_LINK_LIBRARIES(qgis_wmscapabilititestest wmsprovider_a)
+
+ADD_QGIS_TEST(wmsprovidertest
+              testqgswmsprovider.cpp)
+TARGET_LINK_LIBRARIES(qgis_wmsprovidertest wmsprovider_a)
+
+ADD_QGIS_TEST(postgresprovidertest testqgspostgresprovider.cpp)
+TARGET_LINK_LIBRARIES(qgis_postgresprovidertest postgresprovider_a)
+
+ADD_QGIS_TEST(postgresconntest testqgspostgresconn.cpp)
+TARGET_LINK_LIBRARIES(qgis_postgresconntest postgresprovider_a)
+
 #############################################################
 # WCS public servers test:
 # No need to test on all platforms
@@ -95,7 +114,7 @@ IF(UNIX AND NOT ANDROID AND CMAKE_BUILD_TYPE MATCHES Debug)
         testqgswcspublicservers.h
   )
 
-  QT4_WRAP_CPP ( WCSTEST_MOC_SRCS  ${WCSTEST_MOC_HDRS})
+  QT5_WRAP_CPP ( WCSTEST_MOC_SRCS  ${WCSTEST_MOC_HDRS})
 
   ADD_EXECUTABLE ( qgis_wcstest ${WCSTEST_SRCS} ${WCSTEST_MOC_SRCS} )
 
@@ -103,6 +122,8 @@ IF(UNIX AND NOT ANDROID AND CMAKE_BUILD_TYPE MATCHES Debug)
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/core/raster
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/providers/wcs
+  )
+  INCLUDE_DIRECTORIES(SYSTEM
     ${QT_QTSCRIPT_INCLUDE_DIR}
   )
 

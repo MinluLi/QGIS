@@ -31,7 +31,7 @@ class QgsVectorLayerCache;
 class QgsFeatureListViewDelegate;
 class QRect;
 
-/**
+/** \ingroup gui
  * Shows a list of features and renders a edit button next to each feature.
  *
  * @brief
@@ -49,7 +49,7 @@ class GUI_EXPORT QgsFeatureListView : public QListView
      *
      * @param parent   owner
      */
-    explicit QgsFeatureListView( QWidget* parent = 0 );
+    explicit QgsFeatureListView( QWidget* parent = nullptr );
 
     /**
      * Destructor
@@ -141,6 +141,7 @@ class GUI_EXPORT QgsFeatureListView : public QListView
      */
     void displayExpressionChanged( const QString& expression );
 
+    //! @note not available in Python bindings
     void aboutToChangeEditSelection( bool& ok );
 
   public slots:
@@ -157,7 +158,7 @@ class GUI_EXPORT QgsFeatureListView : public QListView
      * @param index The selection to set
      * @param command selection update mode
      */
-    void setEditSelection( const QModelIndex& index, const QItemSelectionModel::SelectionFlags& command );
+    void setEditSelection( const QModelIndex& index, QItemSelectionModel::SelectionFlags command );
 
     /**
      * Select all currently visible features
@@ -168,7 +169,7 @@ class GUI_EXPORT QgsFeatureListView : public QListView
     void repaintRequested();
 
   private slots:
-    void editSelectionChanged( QItemSelection deselected, QItemSelection selected );
+    void editSelectionChanged( const QItemSelection& deselected, const QItemSelection& selected );
 
   private:
     void selectRow( const QModelIndex &index, bool anchor );
@@ -178,7 +179,7 @@ class GUI_EXPORT QgsFeatureListView : public QListView
     QgsFeatureSelectionModel* mFeatureSelectionModel;
     QgsIFeatureSelectionManager* mFeatureSelectionManager;
     QgsFeatureListViewDelegate* mItemDelegate;
-    bool mEditSelectionDrag; // Is set to true when the user initiated a left button click over an edit button and still keeps pressing /**< TODO */
+    bool mEditSelectionDrag; // Is set to true when the user initiated a left button click over an edit button and still keeps pressing //!< TODO
     int mRowAnchor;
     QItemSelectionModel::SelectionFlags mCtrlDragSelectionFlag;
 };

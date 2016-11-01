@@ -19,15 +19,10 @@
 #define QGSOVERLAYANALYZERH
 
 #include "qgsvectorlayer.h"
-#include "qgsfield.h"
-#include "qgsspatialindex.h"
-#include "qgsfeature.h"
-#include "qgsgeometry.h"
-#include "qgsdistancearea.h"
 
 class QgsVectorFileWriter;
 class QProgressDialog;
-
+class QgsSpatialIndex;
 
 /** \ingroup analysis
  * The QGis class provides vector overlay analysis functions
@@ -46,7 +41,7 @@ class ANALYSIS_EXPORT QgsOverlayAnalyzer
       */
     bool intersection( QgsVectorLayer* layerA, QgsVectorLayer* layerB,
                        const QString& shapefileName, bool onlySelectedFeatures = false,
-                       QProgressDialog* p = 0 );
+                       QProgressDialog* p = nullptr );
 
   private:
 

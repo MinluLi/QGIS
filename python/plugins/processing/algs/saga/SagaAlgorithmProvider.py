@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -26,15 +27,15 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingConfig import ProcessingConfig, Setting
 from processing.core.ProcessingLog import ProcessingLog
-from SagaAlgorithm212 import SagaAlgorithm212
-from SagaAlgorithm213 import SagaAlgorithm213
-from SagaAlgorithm214 import SagaAlgorithm214
-from SplitRGBBands import SplitRGBBands
-import SagaUtils
+from .SagaAlgorithm212 import SagaAlgorithm212
+from .SagaAlgorithm213 import SagaAlgorithm213
+from .SagaAlgorithm214 import SagaAlgorithm214
+from .SplitRGBBands import SplitRGBBands
+from . import SagaUtils
 from processing.tools.system import isWindows, isMac
 
 
@@ -49,7 +50,8 @@ class SagaAlgorithmProvider(AlgorithmProvider):
                          "2.1.4": ("2.1.4", SagaAlgorithm214),
                          "2.2.0": ("2.2.0", SagaAlgorithm214),
                          "2.2.1": ("2.2.0", SagaAlgorithm214),
-                         "2.2.2": ("2.2.2", SagaAlgorithm214)}
+                         "2.2.2": ("2.2.2", SagaAlgorithm214),
+                         "2.2.3": ("2.2.3", SagaAlgorithm214)}
 
     def __init__(self):
         AlgorithmProvider.__init__(self)
@@ -72,7 +74,7 @@ class SagaAlgorithmProvider(AlgorithmProvider):
                                             self.tr('Log console output'), True))
         ProcessingConfig.settingIcons["SAGA"] = self.getIcon()
         ProcessingConfig.addSetting(Setting("SAGA", "ACTIVATE_SAGA",
-                                    self.tr('Activate'), self.activate))
+                                            self.tr('Activate'), self.activate))
 
     def unload(self):
         AlgorithmProvider.unload(self)
@@ -116,7 +118,7 @@ class SagaAlgorithmProvider(AlgorithmProvider):
                                        self.tr('Could not open SAGA algorithm: %s' % descriptionFile))
         except Exception as e:
             ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
-                                   self.tr('Could not open SAGA algorithm: %s\n%s' % (descriptionFile, unicode(e))))
+                                   self.tr('Could not open SAGA algorithm: %s\n%s' % (descriptionFile, str(e))))
 
     def getDescription(self):
         version = SagaUtils.getSagaInstalledVersion()

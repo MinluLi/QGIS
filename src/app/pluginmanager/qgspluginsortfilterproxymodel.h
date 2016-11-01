@@ -30,6 +30,7 @@ const int PLUGIN_STATUS_ROLE = Qt::UserRole + 6;       // for filtering and sort
 const int PLUGIN_DOWNLOADS_ROLE = Qt::UserRole + 7;    // for sorting
 const int PLUGIN_VOTE_ROLE = Qt::UserRole + 8;         // for sorting
 const int PLUGIN_REPOSITORY_ROLE = Qt::UserRole + 9;   // for sorting
+const int PLUGIN_TRUSTED_ROLE = Qt::UserRole + 10;     // for highlighting
 const int SPACER_ROLE = Qt::UserRole + 20;  // for sorting
 
 
@@ -42,7 +43,7 @@ class QgsPluginSortFilterProxyModel : public QSortFilterProxyModel
     Q_OBJECT
 
   public:
-    explicit QgsPluginSortFilterProxyModel( QObject *parent = 0 );
+    explicit QgsPluginSortFilterProxyModel( QObject *parent = nullptr );
 
     //! (Re)configire the status filter
     void setAcceptedStatuses( const QStringList& statuses );

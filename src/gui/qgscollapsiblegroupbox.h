@@ -18,8 +18,6 @@
 #ifndef QGSCOLLAPSIBLEGROUPBOX_H
 #define QGSCOLLAPSIBLEGROUPBOX_H
 
-#include "qgisgui.h"
-
 #include <QGroupBox>
 #include <QSettings>
 #include <QPointer>
@@ -29,13 +27,19 @@
 class QToolButton;
 class QScrollArea;
 
+/** \ingroup gui
+ * \class QgsGroupBoxCollapseButton
+ */
 class GUI_EXPORT QgsGroupBoxCollapseButton : public QToolButton
 {
     Q_OBJECT
 
   public:
-    QgsGroupBoxCollapseButton( QWidget *parent = 0 )
-        : QToolButton( parent ), mAltDown( false ), mShiftDown( false ) {}
+    QgsGroupBoxCollapseButton( QWidget *parent = nullptr )
+        : QToolButton( parent )
+        , mAltDown( false )
+        , mShiftDown( false )
+    {}
 
     ~QgsGroupBoxCollapseButton() {}
 
@@ -91,8 +95,8 @@ class GUI_EXPORT QgsCollapsibleGroupBoxBasic : public QGroupBox
     Q_PROPERTY( bool scrollOnExpand READ scrollOnExpand WRITE setScrollOnExpand )
 
   public:
-    QgsCollapsibleGroupBoxBasic( QWidget *parent = 0 );
-    QgsCollapsibleGroupBoxBasic( const QString &title, QWidget *parent = 0 );
+    QgsCollapsibleGroupBoxBasic( QWidget *parent = nullptr );
+    QgsCollapsibleGroupBoxBasic( const QString &title, QWidget *parent = nullptr );
     ~QgsCollapsibleGroupBoxBasic();
 
     /**
@@ -123,7 +127,7 @@ class GUI_EXPORT QgsCollapsibleGroupBoxBasic : public QGroupBox
     bool scrollOnExpand() {return mScrollOnExpand;}
 
   signals:
-    /** Signal emitted when groupbox collapsed/expanded state is changed, and when first shown */
+    //! Signal emitted when groupbox collapsed/expanded state is changed, and when first shown
     void collapsedStateChanged( bool collapsed );
 
   public slots:
@@ -134,7 +138,7 @@ class GUI_EXPORT QgsCollapsibleGroupBoxBasic : public QGroupBox
   protected:
     void init();
 
-    /** Visual fixes for when group box is collapsed/expanded */
+    //! Visual fixes for when group box is collapsed/expanded
     void collapseExpandFixes();
 
     void showEvent( QShowEvent *event ) override;
@@ -159,8 +163,8 @@ class GUI_EXPORT QgsCollapsibleGroupBoxBasic : public QGroupBox
     bool mShiftDown;
     bool mTitleClicked;
 
-    static QIcon mCollapseIcon;
-    static QIcon mExpandIcon;
+    QIcon mCollapseIcon;
+    QIcon mExpandIcon;
 };
 
 /** \ingroup gui
@@ -189,8 +193,8 @@ class GUI_EXPORT QgsCollapsibleGroupBox : public QgsCollapsibleGroupBoxBasic
     Q_PROPERTY( bool saveCheckedState READ saveCheckedState WRITE setSaveCheckedState )
 
   public:
-    QgsCollapsibleGroupBox( QWidget *parent = 0, QSettings* settings = 0 );
-    QgsCollapsibleGroupBox( const QString &title, QWidget *parent = 0, QSettings* settings = 0 );
+    QgsCollapsibleGroupBox( QWidget *parent = nullptr, QSettings* settings = nullptr );
+    QgsCollapsibleGroupBox( const QString &title, QWidget *parent = nullptr, QSettings* settings = nullptr );
     ~QgsCollapsibleGroupBox();
 
     // set custom QSettings pointer if group box was already created from QtDesigner promotion

@@ -26,7 +26,8 @@
 class QgsAccessControlPlugin;
 
 
-/** \ingroup server
+/**
+ * \ingroup server
  * \class QgsAccessControl
  * \brief A helper class that centralise the restrictions given by all the
  *        access control filter plugins.
@@ -34,21 +35,23 @@ class QgsAccessControlPlugin;
 class SERVER_EXPORT QgsAccessControl : public QgsFeatureFilterProvider
 {
   public:
-    /** Constructor */
+    //! Constructor
     QgsAccessControl()
     {
       mPluginsAccessControls = new QgsAccessControlFilterMap();
-    };
-    /** Constructor */
+    }
+
+    //! Constructor
     QgsAccessControl( const QgsAccessControl& copy )
     {
       mPluginsAccessControls = new QgsAccessControlFilterMap( *copy.mPluginsAccessControls );
-    };
-    /** Destructor */
+    }
+
+    //! Destructor
     ~QgsAccessControl()
     {
       delete mPluginsAccessControls;
-    };
+    }
 
     /** Filter the features of the layer
      * @param layer the layer to control
@@ -65,7 +68,7 @@ class SERVER_EXPORT QgsAccessControl : public QgsFeatureFilterProvider
      * @param layer the layer to control
      * @return the subset string to use
      */
-    const QString extraSubsetString( const QgsVectorLayer* layer ) const;
+    QString extraSubsetString( const QgsVectorLayer* layer ) const;
 
     /** Return the layer read right
      * @param layer the layer to control
@@ -96,7 +99,7 @@ class SERVER_EXPORT QgsAccessControl : public QgsFeatureFilterProvider
      * @param attributes the list of attribute
      * @return the list of visible attributes
      */
-    const QStringList layerAttributes( const QgsVectorLayer* layer, const QStringList attributes ) const;
+    QStringList layerAttributes( const QgsVectorLayer* layer, const QStringList& attributes ) const;
 
     /** Are we authorized to modify the following geometry
      * @param layer the layer to control
@@ -118,7 +121,7 @@ class SERVER_EXPORT QgsAccessControl : public QgsFeatureFilterProvider
     void registerAccessControl( QgsAccessControlFilter* accessControl, int priority = 0 );
 
   private:
-    /** The AccessControl plugins registry */
+    //! The AccessControl plugins registry
     QgsAccessControlFilterMap* mPluginsAccessControls;
 };
 

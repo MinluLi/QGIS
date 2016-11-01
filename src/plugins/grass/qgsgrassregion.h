@@ -127,7 +127,7 @@ class QgsGrassRegion: public QWidget, private Ui::QgsGrassRegionBase
     QgsGrassRegionEdit* mRegionEdit;
 };
 
-/** Map tool which uses rubber band for changing grass region */
+//! Map tool which uses rubber band for changing grass region
 class QgsGrassRegionEdit : public QgsMapTool
 {
     Q_OBJECT
@@ -157,15 +157,16 @@ class QgsGrassRegionEdit : public QgsMapTool
     void setRegion( const QgsPoint&, const QgsPoint& );
     void setSrcRegion( const QgsRectangle &rect );
 
-    void setTransform();
-    static void drawRegion( QgsMapCanvas *canvas, QgsRubberBand* rubberBand, const QgsRectangle &rect, QgsCoordinateTransform *coordinateTransform = 0, bool isPolygon = false );
+    static void drawRegion( QgsMapCanvas *canvas, QgsRubberBand* rubberBand, const QgsRectangle &rect, const QgsCoordinateTransform& coordinateTransform = QgsCoordinateTransform(), bool isPolygon = false );
     void calcSrcRegion();
-    static void transform( QgsMapCanvas *canvas, QVector<QgsPoint> &points, QgsCoordinateTransform *coordinateTransform, QgsCoordinateTransform::TransformDirection direction = QgsCoordinateTransform::ForwardTransform );
+    static void transform( QgsMapCanvas *canvas, QVector<QgsPoint> &points, const QgsCoordinateTransform &coordinateTransform, QgsCoordinateTransform::TransformDirection direction = QgsCoordinateTransform::ForwardTransform );
 
   signals:
     void captureStarted();
     void captureEnded();
 
+  public slots:
+    void setTransform();
 
   private:
     //! Rubber band for selecting grass region

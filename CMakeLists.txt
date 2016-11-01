@@ -1,5 +1,5 @@
 SET(CPACK_PACKAGE_VERSION_MAJOR "2")
-SET(CPACK_PACKAGE_VERSION_MINOR "13")
+SET(CPACK_PACKAGE_VERSION_MINOR "99")
 SET(CPACK_PACKAGE_VERSION_PATCH "0")
 SET(COMPLETE_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH})
 SET(RELEASE_NAME "Master")
@@ -150,6 +150,11 @@ IF (MSVC AND CMAKE_GENERATOR MATCHES "NMake")
   SET (USING_NMAKE TRUE)
 ENDIF (MSVC AND CMAKE_GENERATOR MATCHES "NMake")
 
+IF (CMAKE_GENERATOR MATCHES "Ninja")
+  # following variable is also used in qgsconfig.h
+  SET (USING_NINJA TRUE)
+ENDIF (CMAKE_GENERATOR MATCHES "Ninja")
+
 #############################################################
 # check if lexer and parser are not missing
 # http://www.mail-archive.com/cmake@cmake.org/msg02861.html
@@ -209,10 +214,10 @@ ENDIF (NOT SQLITE3_FOUND)
 
 # optional
 IF (WITH_POSTGRESQL)
-  FIND_PACKAGE(Postgres) # PostgreSQL provider, SPIT plugin
+  FIND_PACKAGE(Postgres) # PostgreSQL provider
 ENDIF (WITH_POSTGRESQL)
 
-FIND_PACKAGE(SPATIALITE REQUIRED)
+FIND_PACKAGE(SpatiaLite REQUIRED)
 
 IF(SPATIALITE_VERSION_GE_4_0_0)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSPATIALITE_VERSION_GE_4_0_0")
@@ -225,7 +230,7 @@ IF(SPATIALITE_HAS_INIT_EX)
 ENDIF(SPATIALITE_HAS_INIT_EX)
 
 IF (NOT PROJ_FOUND OR NOT GEOS_FOUND OR NOT GDAL_FOUND)
-  MESSAGE (SEND_ERROR "Some dependencies were not found!")
+  MESSAGE (SEND_ERROR "Some dependencies were not found! Proj: ${PROJ_FOUND}, Geos: ${GEOS_FOUND}, GDAL: ${GDAL_FOUND}")
 ENDIF (NOT PROJ_FOUND OR NOT GEOS_FOUND OR NOT GDAL_FOUND)
 
 IF (POSTGRES_FOUND)
@@ -233,56 +238,35 @@ IF (POSTGRES_FOUND)
   SET (HAVE_POSTGRESQL TRUE)
 ENDIF (POSTGRES_FOUND)
 
-# following variable is used in qgsconfig.h
-SET (HAVE_SPATIALITE TRUE)
-
-# following variable is used in qgsconfig.h
-SET (HAVE_MSSQL TRUE)
-
-SET (WITH_QTWEBKIT TRUE CACHE INTERNAL "Enable QtWebkit support")
+SET (WITH_QTWEBKIT TRUE CACHE BOOL "Enable QtWebkit support")
 IF (WITH_QTWEBKIT)
   ADD_DEFINITIONS(-DWITH_QTWEBKIT)
+  MESSAGE(STATUS "Qt WebKit support enabled")
+ELSE (WITH_QTWEBKIT)
+  MESSAGE(STATUS "Qt WebKit support DISABLED.")
 ENDIF(WITH_QTWEBKIT)
 #############################################################
-# search for Qt4
-SET(QT_MIN_VERSION 4.8.0)
-SET (ENABLE_QT5 FALSE CACHE BOOL "If enabled will try to find Qt5 before looking for Qt4")
-IF (ENABLE_QT5)
-  FIND_PACKAGE(Qt5Core QUIET)
-  FIND_PACKAGE(Qt5Gui REQUIRED)
-  FIND_PACKAGE(Qt5Widgets REQUIRED)
-  FIND_PACKAGE(Qt5Network REQUIRED)
-  FIND_PACKAGE(Qt5Xml REQUIRED)
-  FIND_PACKAGE(Qt5Svg REQUIRED)
-  FIND_PACKAGE(Qt5Concurrent REQUIRED)
-  FIND_PACKAGE(Qt5PrintSupport REQUIRED)
-  FIND_PACKAGE(Qt5Positioning)
-  IF (WITH_QTWEBKIT)
-    FIND_PACKAGE(Qt5WebKit REQUIRED)
-    FIND_PACKAGE(Qt5WebKitWidgets REQUIRED)
-  ENDIF(WITH_QTWEBKIT)
-  FIND_PACKAGE(Qt5Test REQUIRED)
-  FIND_PACKAGE(Qt5UiTools REQUIRED)
-  FIND_PACKAGE(Qt5Script REQUIRED)
-  FIND_PACKAGE(Qt5Sql REQUIRED)
-  SET(QT5_BUILD TRUE)
-  INCLUDE("cmake/modules/ECMQt4To5Porting.cmake")
-  MESSAGE(STATUS "Found Qt version: ${Qt5Core_VERSION_STRING}")
-ELSE()
-  FIND_PACKAGE(Qt4 ${QT_MIN_VERSION} REQUIRED)
-  SET(QT_USE_QTXML 1)
-  SET(QT_USE_QTNETWORK 1)
-  SET(QT_USE_QTSVG 1)
-  SET(QT_USE_QTSQL 1)
-  SET(QT_USE_QTWEBKIT 1)
-  IF (NOT QT_QTXML_FOUND OR NOT QT_QTNETWORK_FOUND OR NOT QT_QTSVG_FOUND OR NOT QT_QTSQL_FOUND OR NOT QT_QTWEBKIT_FOUND OR (WITH_CUSTOM_WIDGETS AND NOT QT_QTDESIGNER_FOUND))
-    MESSAGE(SEND_ERROR "Some Qt4 modules haven't been found!")
-  ENDIF (NOT QT_QTXML_FOUND OR NOT QT_QTNETWORK_FOUND OR NOT QT_QTSVG_FOUND OR NOT QT_QTSQL_FOUND OR NOT QT_QTWEBKIT_FOUND OR (WITH_CUSTOM_WIDGETS AND NOT QT_QTDESIGNER_FOUND))
-
-  INCLUDE( ${QT_USE_FILE} )
-
-  MESSAGE(STATUS "Found Qt version: ${QTVERSION}")
-ENDIF()
+# search for Qt5
+SET(QT_MIN_VERSION 5.2.0)
+FIND_PACKAGE(Qt5Core QUIET)
+FIND_PACKAGE(Qt5Gui REQUIRED)
+FIND_PACKAGE(Qt5Widgets REQUIRED)
+FIND_PACKAGE(Qt5Network REQUIRED)
+FIND_PACKAGE(Qt5Xml REQUIRED)
+FIND_PACKAGE(Qt5Svg REQUIRED)
+FIND_PACKAGE(Qt5Concurrent REQUIRED)
+FIND_PACKAGE(Qt5PrintSupport REQUIRED)
+FIND_PACKAGE(Qt5Positioning)
+IF (WITH_QTWEBKIT)
+FIND_PACKAGE(Qt5WebKit REQUIRED)
+FIND_PACKAGE(Qt5WebKitWidgets REQUIRED)
+ENDIF(WITH_QTWEBKIT)
+FIND_PACKAGE(Qt5Test REQUIRED)
+FIND_PACKAGE(Qt5UiTools REQUIRED)
+FIND_PACKAGE(Qt5Script REQUIRED)
+FIND_PACKAGE(Qt5Sql REQUIRED)
+INCLUDE("cmake/modules/ECMQt4To5Porting.cmake")
+MESSAGE(STATUS "Found Qt version: ${Qt5Core_VERSION_STRING}")
 
 IF (WITH_QTMOBILITY)
     FIND_PACKAGE(QtMobility 1.1.0)
@@ -322,6 +306,7 @@ SET(ENABLE_MODELTEST FALSE CACHE BOOL "Enable QT ModelTest (not for production)"
 
 IF (ENABLE_TESTS)
   SET( QT_USE_QTTEST  TRUE )
+  ADD_DEFINITIONS(-DENABLE_TESTS)
   ENABLE_TESTING()
   # Adds some testing specific build targets e.g. make Experimental
   INCLUDE(Dart)
@@ -361,29 +346,7 @@ FIND_PROGRAM(QT_LRELEASE_EXECUTABLE
 #   or definitely Apple LLVM 5.0 (based on LLVM 3.3svn, in Xcode 5+):
 #   https://gist.github.com/yamaya/2924292
 
-IF (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
-  IF (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7)
-    SET(USE_CXX_11 TRUE)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-  ENDIF()
-ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  IF ((NOT APPLE AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "3.2")
-       OR (APPLE AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "4.1"))
-    SET(USE_CXX_11 TRUE)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wno-error=c++11-narrowing")
-  ENDIF()
-ELSEIF (MSVC AND MSVC_VERSION GREATER 1600)
-  SET(USE_CXX_11 TRUE)
-ELSE()
-  SET(USE_CXX_11 FALSE)
-ENDIF()
-
-#allow override keyword if available
-IF (NOT USE_CXX_11)
-  ADD_DEFINITIONS("-Doverride=")
-ENDIF()
-
+SET(CMAKE_CXX_STANDARD 11)
 
 #############################################################
 # enable warnings
@@ -392,9 +355,9 @@ IF (PEDANTIC)
   MESSAGE (STATUS "Pedantic compiler settings enabled")
   IF(MSVC)
     SET(_warnings "")
-    IF (NOT USING_NMAKE)
+    IF (NOT USING_NMAKE AND NOT USING_NINJA)
       SET(_warnings "${_warnings} /W4" )
-    ENDIF (NOT USING_NMAKE)
+    ENDIF (NOT USING_NMAKE AND NOT USING_NINJA)
 
     # disable warnings
     SET(_warnings "${_warnings} /wd4100 ")  # unused formal parameters
@@ -501,10 +464,10 @@ IF (WIN32)
     ADD_DEFINITIONS(-D_CRT_NONSTDC_NO_WARNINGS)
 
     IF (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-      IF (NOT USING_NMAKE)
+      IF (NOT USING_NMAKE AND NOT USING_NINJA)
         MESSAGE (STATUS "Generating browse files")
         ADD_DEFINITIONS( /FR )
-      ENDIF (NOT USING_NMAKE)
+      ENDIF (NOT USING_NMAKE AND NOT USING_NINJA)
     ENDIF (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
     IF (INSTALL_DEPS)
@@ -589,6 +552,7 @@ ENDIF (WIN32)
 IF (ANDROID)
     SET (DEFAULT_PLUGIN_SUBDIR  lib)
     SET (DEFAULT_DATA_SUBDIR    files/share)
+    string(REPLACE "<CMAKE_SHARED_LIBRARY_SONAME_CXX_FLAG><TARGET_SONAME>" "" CMAKE_CXX_CREATE_SHARED_MODULE "${CMAKE_CXX_CREATE_SHARED_MODULE}")
 ENDIF (ANDROID)
 
 #assume we have escaped compiler directives
@@ -598,6 +562,9 @@ ENDIF (ANDROID)
 IF(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
   cmake_policy(SET CMP0005 OLD)
+  IF(NOT "${CMAKE_VERSION}" VERSION_LESS "3.3")
+    cmake_policy(SET CMP0063 NEW)
+  ENDIF(NOT "${CMAKE_VERSION}" VERSION_LESS "3.3")
 ENDIF(COMMAND cmake_policy)
 
 IF (WIN32)
@@ -625,6 +592,8 @@ ADD_DEFINITIONS("-DANALYSIS_EXPORT=${DLLIMPORT}")
 ADD_DEFINITIONS("-DAPP_EXPORT=${DLLIMPORT}")
 ADD_DEFINITIONS("-DCUSTOMWIDGETS_EXPORT=${DLLIMPORT}")
 ADD_DEFINITIONS("-DSERVER_EXPORT=${DLLIMPORT}")
+
+SET(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 #############################################################
 # user-changeable settings which can be used to customize
@@ -670,15 +639,16 @@ IF (UNIX AND NOT APPLE)
   SET (QGIS_MANUAL_DIR  ${CMAKE_INSTALL_PREFIX}/${QGIS_MANUAL_SUBDIR})
 ENDIF (UNIX AND NOT APPLE)
 
+SET (DISABLE_DEPRECATED FALSE CACHE BOOL "If set to true, it will disable deprecated functionality to prepare for the next generation of QGIS")
+IF (DISABLE_DEPRECATED)
+  ADD_DEFINITIONS(-DQGIS_DISABLE_DEPRECATED)
+ENDIF (DISABLE_DEPRECATED)
+
 
 #############################################################
 # Python build dependency
 
-IF(ENABLE_QT5)
-  SET(PYTHON_VER 3)
-ELSE(ENABLE_QT5)
-  SET(PYTHON_VER 2)
-ENDIF(ENABLE_QT5)
+SET(PYTHON_VER 3 CACHE STRING "Python version")
 
 FIND_PACKAGE(PythonInterp ${PYTHON_VER} REQUIRED)
 
@@ -689,17 +659,10 @@ IF (WITH_BINDINGS)
 
   FIND_PACKAGE(PythonLibrary REQUIRED)
 
-  # python support: check for interpreter, sip, pyqt4
-  IF(ENABLE_QT5)
-    FIND_PACKAGE(PyQt5 REQUIRED)
-    SET(PYQT_SIP_FLAGS ${PYQT5_SIP_FLAGS})
-    SET(PYQT_SIP_DIR ${PYQT5_SIP_DIR})
-  ELSE(ENABLE_QT5)
-    FIND_PACKAGE(PyQt4 REQUIRED)
-    # setup SIP variables
-    SET(PYQT_SIP_FLAGS ${PYQT4_SIP_FLAGS})
-    SET(PYQT_SIP_DIR ${PYQT4_SIP_DIR})
-  ENDIF(ENABLE_QT5)
+  # python support: check for interpreter, sip, pyqt5
+  FIND_PACKAGE(PyQt5 REQUIRED)
+  SET(PYQT_SIP_FLAGS ${PYQT5_SIP_FLAGS})
+  SET(PYQT_SIP_DIR ${PYQT5_SIP_DIR})
   SEPARATE_ARGUMENTS(PYQT_SIP_FLAGS) # convert space separated values to a list
 
   FIND_PACKAGE(SIP REQUIRED)
@@ -716,7 +679,7 @@ IF (WITH_BINDINGS)
   ENDIF (NOT BINDINGS_GLOBAL_INSTALL)
 
   IF (WITH_CUSTOM_WIDGETS)
-    SET(PYUIC_WIDGET_PLUGIN_DIRECTORY ${PYQT4_MOD_DIR}/uic/widget-plugins/)
+    SET(PYUIC_WIDGET_PLUGIN_DIRECTORY ${PYQT5_MOD_DIR}/uic/widget-plugins/)
   ENDIF (WITH_CUSTOM_WIDGETS)
 
 ENDIF (WITH_BINDINGS)
@@ -734,37 +697,49 @@ LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/src/core ${CMAKE_BINARY_DIR}/src/gui)
 
 #############################################################
 # create qgsversion.h
-FIND_FILE(GIT_MARKER index PATHS ${CMAKE_SOURCE_DIR}/.git)
-IF (GIT_MARKER)
+IF (EXISTS ${CMAKE_SOURCE_DIR}/.git/index)
   FIND_PROGRAM(GITCOMMAND git PATHS c:/cygwin/bin)
   IF(GITCOMMAND)
     IF(WIN32)
+      IF(USING_NINJA)
+       SET(ARG %a)
+      ELSE(USING_NINJA)
+       SET(ARG %%a)
+      ENDIF(USING_NINJA)
       ADD_CUSTOM_COMMAND(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h
-        COMMAND for /f \"usebackq tokens=1\" %%a in "(`\"${GITCOMMAND}\" log -n1 --oneline`)" do echo \#define QGSVERSION \"%%a\" >${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc
+        COMMAND for /f \"usebackq tokens=1\" ${ARG} in "(`\"${GITCOMMAND}\" log -n1 --oneline`)" do echo \#define QGSVERSION \"${ARG}\" >${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp
+        COMMAND for /f \"usebackq tokens=1\" ${ARG} in "(`\"${GITCOMMAND}\" log -n1 --oneline`)" do echo PROJECT_NUMBER = \"${COMPLETE_VERSION}-${RELEASE_NAME} \(${ARG}\)\" >${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc
         COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp -DDST=${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h -P ${CMAKE_SOURCE_DIR}/cmake/CopyIfChanged.cmake
-        MAIN_DEPENDENCY ${GIT_MARKER}
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/.git/index
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       )
     ELSE(WIN32)
       ADD_CUSTOM_COMMAND(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc
         COMMAND ${GITCOMMAND} log -n1 --pretty=\#define\\ QGSVERSION\\ \\"%h\\" >${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp
+        COMMAND ${GITCOMMAND} log -n1 --pretty='PROJECT_NUMBER = \"${COMPLETE_VERSION}-${RELEASE_NAME} \(%h\)\"' >${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc
         COMMAND ${GITCOMMAND} config remote.$$\(${GITCOMMAND} config branch.$$\(${GITCOMMAND} name-rev --name-only HEAD\).remote\).url | sed -e 's/^/\#define QGS_GIT_REMOTE_URL \"/' -e 's/$$/\"/' >>${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp
         COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h.temp -DDST=${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h -P ${CMAKE_SOURCE_DIR}/cmake/CopyIfChanged.cmake
-        MAIN_DEPENDENCY ${GIT_MARKER}
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/.git/index
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       )
     ENDIF(WIN32)
   ELSE(GITCOMMAND)
     MESSAGE(STATUS "git marker, but no git found - version will be unknown")
-    SET(REVISION "unknown")
-    FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h "#define QGSVERSION \"unknown\"")
+    IF(NOT SHA)
+      SET(SHA "unknown")
+    ENDIF(NOT SHA)
+    FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h "#define QGSVERSION \"${SHA}\"\n")
+    FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc "PROJECT_NUMBER = \"${COMPLETE_VERSION}-${RELEASE_NAME} (${SHA})\"\n")
   ENDIF(GITCOMMAND)
-ELSE (GIT_MARKER)
-  SET(REVISION "exported")
-  FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h "#define QGSVERSION \"exported\"")
-ENDIF (GIT_MARKER)
+ELSE (EXISTS ${CMAKE_SOURCE_DIR}/.git/index)
+  IF(NOT SHA)
+    SET(SHA "exported")
+  ENDIF(NOT SHA)
+  FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h "#define QGSVERSION \"${SHA}\"\n")
+  FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.inc "PROJECT_NUMBER = \"${COMPLETE_VERSION}-${RELEASE_NAME} (${SHA})\"\n")
+ENDIF (EXISTS ${CMAKE_SOURCE_DIR}/.git/index)
 
 ADD_CUSTOM_TARGET(version ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/qgsversion.h)
 
@@ -790,7 +765,7 @@ ENDIF (WITH_BINDINGS)
 IF (ENABLE_TESTS)
   ADD_SUBDIRECTORY(tests)
   SET (CTEST_BINARY_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/output/bin" )
-  MESSAGE (STATUS "Ctest Binary Directory  set to: ${CTEST_BINARY_DIRECTORY}")
+  MESSAGE (STATUS "Ctest Binary Directory set to: ${CTEST_BINARY_DIRECTORY}")
 ENDIF (ENABLE_TESTS)
 
 IF (APPLE)

@@ -34,13 +34,15 @@ class QgsGrassItemActions : public QObject
 {
     Q_OBJECT
   public:
-    QgsGrassItemActions( QgsGrassObject grassObject, bool valid, QObject *parent );
+    QgsGrassItemActions( const QgsGrassObject &grassObject, bool valid, QObject *parent );
 
     QList<QAction*> actions();
 
   public slots:
     void newMapset();
     void openMapset();
+    void addMapsetToSearchPath();
+    void removeMapsetFromSearchPath();
     void renameGrassObject();
     void deleteGrassObject();
     void newPointLayer();
@@ -50,7 +52,7 @@ class QgsGrassItemActions : public QObject
   private:
     // returns name of new vector map or empty string
     QString newVectorMap();
-    void newLayer( QString type );
+    void newLayer( const QString &type );
     QgsGrassObject mGrassObject;
     // Grass object is valid
     bool mValid;
@@ -60,7 +62,7 @@ class QgsGrassObjectItemBase
 {
   public:
     // actionsParent so that actions are moved to thread with item
-    explicit QgsGrassObjectItemBase( QgsGrassObject grassObject );
+    explicit QgsGrassObjectItemBase( const QgsGrassObject &grassObject );
 
     bool equal( const QgsDataItem *other );
 
@@ -90,7 +92,7 @@ class QgsGrassMapsetItem : public QgsDirectoryItem, public QgsGrassObjectItemBas
 
     virtual void setState( State state ) override;
 
-    QIcon icon() override { return QgsDataItem::icon(); }
+    QIcon icon() override;
 
     QVector<QgsDataItem*> createChildren() override;
     virtual QList<QAction*> actions() override { return mActions->actions(); }
@@ -103,7 +105,7 @@ class QgsGrassMapsetItem : public QgsDirectoryItem, public QgsGrassObjectItemBas
     virtual void childrenCreated() override;
 
   private:
-    bool objectInImports( QgsGrassObject grassObject );
+    bool objectInImports( const QgsGrassObject &grassObject );
     QgsGrassItemActions *mActions;
     //void showImportError(const QString& error);
     QFileSystemWatcher *mMapsetFileSystemWatcher;
@@ -227,7 +229,7 @@ class QgsGrassImportItem : public QgsDataItem, public QgsGrassObjectItemBase
 
   protected:
     // override refresh to keep Populating state
-    virtual void refresh( QVector<QgsDataItem*> children ) override { Q_UNUSED( children ); }
+    virtual void refresh( const QVector<QgsDataItem*>& children ) override { Q_UNUSED( children ); }
     //bool mDeleteAction;
     QgsGrassImport* mImport;
 

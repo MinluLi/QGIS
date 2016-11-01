@@ -17,20 +17,20 @@
 #include "qgsrelationreferencewidgetwrapper.h"
 #include "qgsproject.h"
 #include "qgsrelationmanager.h"
-
+#include "qgsrelationreferencewidget.h"
 
 QgsRelationReferenceWidgetWrapper::QgsRelationReferenceWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QgsMapCanvas* canvas, QgsMessageBar* messageBar, QWidget* parent )
     : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
-    , mWidget( NULL )
+    , mWidget( nullptr )
     , mCanvas( canvas )
     , mMessageBar( messageBar )
+    , mIndeterminateState( false )
 {
 }
 
 QWidget* QgsRelationReferenceWidgetWrapper::createWidget( QWidget* parent )
 {
   QgsRelationReferenceWidget* w = new QgsRelationReferenceWidget( parent );
-  w->setSizePolicy( w->sizePolicy().horizontalPolicy(), QSizePolicy::Expanding );
   return w;
 }
 
@@ -46,22 +46,23 @@ void QgsRelationReferenceWidgetWrapper::initWidget( QWidget* editor )
 
   mWidget->setEditorContext( context(), mCanvas, mMessageBar );
 
-  bool showForm = config( "ShowForm", true ).toBool();
-  bool mapIdent = config( "MapIdentification", false ).toBool();
-  bool readOnlyWidget = config( "ReadOnly", false ).toBool();
-  bool orderByValue = config( "OrderByValue", false ).toBool();
+  bool showForm = config( QStringLiteral( "ShowForm" ), true ).toBool();
+  bool mapIdent = config( QStringLiteral( "MapIdentification" ), false ).toBool();
+  bool readOnlyWidget = config( QStringLiteral( "ReadOnly" ), false ).toBool();
+  bool orderByValue = config( QStringLiteral( "OrderByValue" ), false ).toBool();
 
   mWidget->setEmbedForm( showForm );
   mWidget->setReadOnlySelector( readOnlyWidget );
   mWidget->setAllowMapIdentification( mapIdent );
   mWidget->setOrderByValue( orderByValue );
-  if ( config( "FilterFields", QVariant() ).isValid() )
+  if ( config( QStringLiteral( "FilterFields" ), QVariant() ).isValid() )
   {
-    mWidget->setFilterFields( config( "FilterFields" ).toStringList() );
-    mWidget->setChainFilters( config( "ChainFilters" ).toBool() );
+    mWidget->setFilterFields( config( QStringLiteral( "FilterFields" ) ).toStringList() );
+    mWidget->setChainFilters( config( QStringLiteral( "ChainFilters" ) ).toBool() );
   }
+  mWidget->setAllowAddFeatures( config( QStringLiteral( "AllowAddFeatures" ), false ).toBool() );
 
-  QgsRelation relation = QgsProject::instance()->relationManager()->relation( config( "Relation" ).toString() );
+  QgsRelation relation = QgsProject::instance()->relationManager()->relation( config( QStringLiteral( "Relation" ) ).toString() );
 
   // If this widget is already embedded by the same relation, reduce functionality
   const QgsAttributeEditorContext* ctx = &context();
@@ -77,12 +78,12 @@ void QgsRelationReferenceWidgetWrapper::initWidget( QWidget* editor )
   }
   while ( ctx );
 
-  mWidget->setRelation( relation, config( "AllowNULL" ).toBool() );
+  mWidget->setRelation( relation, config( QStringLiteral( "AllowNULL" ) ).toBool() );
 
   connect( mWidget, SIGNAL( foreignKeyChanged( QVariant ) ), this,  SLOT( foreignKeyChanged( QVariant ) ) );
 }
 
-QVariant QgsRelationReferenceWidgetWrapper::value()
+QVariant QgsRelationReferenceWidgetWrapper::value() const
 {
   if ( !mWidget )
     return QVariant( field().type() );
@@ -99,16 +100,26 @@ QVariant QgsRelationReferenceWidgetWrapper::value()
   }
 }
 
-bool QgsRelationReferenceWidgetWrapper::valid()
+bool QgsRelationReferenceWidgetWrapper::valid() const
 {
   return mWidget;
 }
 
+void QgsRelationReferenceWidgetWrapper::showIndeterminateState()
+{
+  if ( mWidget )
+  {
+    mWidget->showIndeterminateState();
+  }
+  mIndeterminateState = true;
+}
+
 void QgsRelationReferenceWidgetWrapper::setValue( const QVariant& val )
 {
-  if ( !mWidget || val == value() )
+  if ( !mWidget || ( !mIndeterminateState && val == value() ) )
     return;
 
+  mIndeterminateState = false;
   mWidget->setForeignKey( val );
 }
 
@@ -127,4 +138,15 @@ void QgsRelationReferenceWidgetWrapper::foreignKeyChanged( QVariant value )
     value = QVariant( field().type() );
   }
   emit valueChanged( value );
+}
+
+void QgsRelationReferenceWidgetWrapper::updateConstraintWidgetStatus( bool constraintValid )
+{
+  if ( mWidget )
+  {
+    if ( constraintValid )
+      mWidget->setStyleSheet( QString() );
+    else
+      mWidget->setStyleSheet( QStringLiteral( ".QComboBox { background-color: #dd7777; }" ) );
+  }
 }

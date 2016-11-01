@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'November 2012'
@@ -29,13 +30,15 @@ from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterString
 from processing.core.outputs import OutputVector
 
-from processing.tools.system import isWindows
-
-from processing.algs.gdal.OgrAlgorithm import OgrAlgorithm
+from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.algs.gdal.GdalUtils import GdalUtils
 
+from processing.tools import dataobjects
+from processing.tools.system import isWindows
+from processing.tools.vector import ogrConnectionString, ogrLayerName
 
-class Ogr2OgrClip(OgrAlgorithm):
+
+class Ogr2OgrClip(GdalAlgorithm):
 
     OUTPUT_LAYER = 'OUTPUT_LAYER'
     INPUT_LAYER = 'INPUT_LAYER'
@@ -47,37 +50,37 @@ class Ogr2OgrClip(OgrAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('[OGR] Geoprocessing')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterVector(self.CLIP_LAYER,
-                                          self.tr('Clip layer'), [ParameterVector.VECTOR_TYPE_POLYGON], False))
+                                          self.tr('Clip layer'), [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterString(self.OPTIONS,
                                           self.tr('Additional creation options'), '', optional=True))
 
-        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Clipped (polygon)')))
+        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Clipped (polygon)'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def getConsoleCommands(self):
         inLayer = self.getParameterValue(self.INPUT_LAYER)
-        ogrLayer = self.ogrConnectionString(inLayer)[1:-1]
+        ogrLayer = ogrConnectionString(inLayer)[1:-1]
         clipLayer = self.getParameterValue(self.CLIP_LAYER)
-        ogrClipLayer = self.ogrConnectionString(clipLayer)[1:-1]
+        ogrClipLayer = ogrConnectionString(clipLayer)[1:-1]
 
         output = self.getOutputFromName(self.OUTPUT_LAYER)
         outFile = output.value
 
-        output = self.ogrConnectionString(outFile)
-        options = unicode(self.getParameterValue(self.OPTIONS))
+        output = ogrConnectionString(outFile)
+        options = str(self.getParameterValue(self.OPTIONS))
 
         arguments = []
         arguments.append('-clipsrc')
         arguments.append(ogrClipLayer)
         arguments.append("-clipsrclayer")
-        arguments.append(self.ogrLayerName(clipLayer))
+        arguments.append(ogrLayerName(clipLayer))
         if len(options) > 0:
             arguments.append(options)
 
         arguments.append(output)
         arguments.append(ogrLayer)
-        arguments.append(self.ogrLayerName(inLayer))
+        arguments.append(ogrLayerName(inLayer))
 
         commands = []
         if isWindows():

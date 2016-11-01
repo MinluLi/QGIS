@@ -18,6 +18,7 @@
 #include "qgsfeatureiterator.h"
 
 #include <QQueue>
+#include <QSharedPointer>
 
 #include "qgspostgresprovider.h"
 
@@ -45,8 +46,8 @@ class QgsPostgresFeatureSource : public QgsAbstractFeatureSource
     QString mRequestedSrid;
     QString mDetectedSrid;
     bool mForce2d;
-    QGis::WkbType mRequestedGeomType; //! geometry type requested in the uri
-    QGis::WkbType mDetectedGeomType;  //! geometry type detected in the database
+    QgsWkbTypes::Type mRequestedGeomType; //! geometry type requested in the uri
+    QgsWkbTypes::Type mDetectedGeomType;  //! geometry type detected in the database
     QgsPostgresPrimaryKeyType mPrimaryKeyType;
     QList<int> mPrimaryKeyAttrs;
     QString mQuery;
@@ -97,7 +98,7 @@ class QgsPostgresFeatureIterator : public QgsAbstractFeatureIteratorFromSource<Q
     QString whereClauseRect();
     bool getFeature( QgsPostgresResult &queryResult, int row, QgsFeature &feature );
     void getFeatureAttribute( int idx, QgsPostgresResult& queryResult, int row, int& col, QgsFeature& feature );
-    bool declareCursor( const QString& whereClause );
+    bool declareCursor( const QString& whereClause, long limit = -1, bool closeOnFail = true , const QString& orderBy = QString() );
 
     QString mCursorName;
 
@@ -124,8 +125,15 @@ class QgsPostgresFeatureIterator : public QgsAbstractFeatureIteratorFromSource<Q
     //! returns whether the iterator supports simplify geometries on provider side
     virtual bool providerCanSimplify( QgsSimplifyMethod::MethodType methodType ) const override;
 
+    virtual bool prepareOrderBy( const QList<QgsFeatureRequest::OrderByClause> &orderBys ) override;
+
+    inline void lock();
+    inline void unlock();
+
     bool mExpressionCompiled;
+    bool mOrderByCompiled;
     bool mLastFetch;
+    bool mFilterRequiresGeometry;
 };
 
 #endif // QGSPOSTGRESFEATUREITERATOR_H

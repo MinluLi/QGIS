@@ -17,7 +17,7 @@
 #include "qgsrangeconfigdlg.h"
 #include "qgsrangewidgetwrapper.h"
 #include "qgsvectorlayer.h"
-
+#include <QDial>
 
 QgsRangeWidgetFactory::QgsRangeWidgetFactory( const QString& name )
     : QgsEditorWidgetFactory( name )
@@ -38,17 +38,17 @@ QgsEditorWidgetConfig QgsRangeWidgetFactory::readConfig( const QDomElement& conf
 {
   Q_UNUSED( layer );
   Q_UNUSED( fieldIdx );
-  QMap<QString, QVariant> cfg;
+  QgsEditorWidgetConfig cfg;
 
-  cfg.insert( "Style", configElement.attribute( "Style" ) );
-  cfg.insert( "Min", configElement.attribute( "Min" ) );
-  cfg.insert( "Max", configElement.attribute( "Max" ) );
-  cfg.insert( "Step", configElement.attribute( "Step" ) );
-  cfg.insert( "AllowNull", configElement.attribute( "AllowNull" ) == "1" );
+  cfg.insert( QStringLiteral( "Style" ), configElement.attribute( QStringLiteral( "Style" ) ) );
+  cfg.insert( QStringLiteral( "Min" ), configElement.attribute( QStringLiteral( "Min" ) ) );
+  cfg.insert( QStringLiteral( "Max" ), configElement.attribute( QStringLiteral( "Max" ) ) );
+  cfg.insert( QStringLiteral( "Step" ), configElement.attribute( QStringLiteral( "Step" ) ) );
+  cfg.insert( QStringLiteral( "AllowNull" ), configElement.attribute( QStringLiteral( "AllowNull" ) ) == QLatin1String( "1" ) );
 
-  if ( configElement.hasAttribute( "Suffix" ) )
+  if ( configElement.hasAttribute( QStringLiteral( "Suffix" ) ) )
   {
-    cfg.insert( "Suffix", configElement.attribute( "Suffix" ) );
+    cfg.insert( QStringLiteral( "Suffix" ), configElement.attribute( QStringLiteral( "Suffix" ) ) );
   }
 
   return cfg;
@@ -60,34 +60,28 @@ void QgsRangeWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QD
   Q_UNUSED( layer );
   Q_UNUSED( fieldIdx );
 
-  configElement.setAttribute( "Style", config["Style"].toString() );
-  configElement.setAttribute( "Min", config["Min"].toString() );
-  configElement.setAttribute( "Max", config["Max"].toString() );
-  configElement.setAttribute( "Step", config["Step"].toString() );
-  configElement.setAttribute( "AllowNull", config["AllowNull"].toBool() );
-  if ( config.contains( "Suffix" ) )
+  configElement.setAttribute( QStringLiteral( "Style" ), config[QStringLiteral( "Style" )].toString() );
+  configElement.setAttribute( QStringLiteral( "Min" ), config[QStringLiteral( "Min" )].toString() );
+  configElement.setAttribute( QStringLiteral( "Max" ), config[QStringLiteral( "Max" )].toString() );
+  configElement.setAttribute( QStringLiteral( "Step" ), config[QStringLiteral( "Step" )].toString() );
+  configElement.setAttribute( QStringLiteral( "AllowNull" ), config[QStringLiteral( "AllowNull" )].toBool() );
+  if ( config.contains( QStringLiteral( "Suffix" ) ) )
   {
-    configElement.setAttribute( "Suffix", config["Suffix"].toString() );
+    configElement.setAttribute( QStringLiteral( "Suffix" ), config[QStringLiteral( "Suffix" )].toString() );
   }
 }
 
-bool QgsRangeWidgetFactory::isFieldSupported( QgsVectorLayer* vl, int fieldIdx )
+unsigned int QgsRangeWidgetFactory::fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const
 {
-  switch ( vl->fields().at( fieldIdx ).type() )
-  {
-    case QVariant::LongLong:
-    case QVariant::Double:
-    case QVariant::Int:
-      return true;
-
-    default:
-      return false;
-  }
+  const QgsField field = vl->fields().at( fieldIdx );
+  if ( field.type() == QVariant::Int || field.type() == QVariant::Double ) return 20;
+  if ( field.isNumeric() ) return 5; // widgets used support only signed 32bits (int) and double
+  return 0;
 }
 
-QMap<const char*, int> QgsRangeWidgetFactory::supportedWidgetTypes()
+QHash<const char*, int> QgsRangeWidgetFactory::supportedWidgetTypes()
 {
-  QMap<const char*, int> map = QMap<const char*, int>();
+  QHash<const char*, int> map = QHash<const char*, int>();
   map.insert( QSlider::staticMetaObject.className(), 10 );
   map.insert( QDial::staticMetaObject.className(), 10 );
   map.insert( QSpinBox::staticMetaObject.className(), 10 );

@@ -17,8 +17,11 @@
 
 #include "qgsrastercalculator.h"
 #include "qgsrastercalcnode.h"
+#include "qgsrasterdataprovider.h"
+#include "qgsrasterinterface.h"
 #include "qgsrasterlayer.h"
 #include "qgsrastermatrix.h"
+#include "qgsrasterprojector.h"
 
 #include <QProgressDialog>
 #include <QFile>
@@ -61,11 +64,6 @@ QgsRasterCalculator::QgsRasterCalculator( const QString& formulaString, const QS
 {
 }
 
-
-QgsRasterCalculator::~QgsRasterCalculator()
-{
-}
-
 int QgsRasterCalculator::processCalculation( QProgressDialog* p )
 {
   //prepare search string / tree
@@ -74,7 +72,7 @@ int QgsRasterCalculator::processCalculation( QProgressDialog* p )
   if ( !calcNode )
   {
     //error
-    return 4;
+    return static_cast<int>( ParserError );
   }
 
   QMap< QString, QgsRasterBlock* > inputBlocks;
@@ -83,15 +81,17 @@ int QgsRasterCalculator::processCalculation( QProgressDialog* p )
   {
     if ( !it->raster ) // no raster layer in entry
     {
-      return 2;
+      delete calcNode;
+      qDeleteAll( inputBlocks );
+      return static_cast< int >( InputLayerError );
     }
 
-    QgsRasterBlock* block = 0;
+    QgsRasterBlock* block = nullptr;
     // if crs transform needed
     if ( it->raster->crs() != mOutputCrs )
     {
       QgsRasterProjector proj;
-      proj.setCRS( it->raster->crs(), mOutputCrs );
+      proj.setCrs( it->raster->crs(), mOutputCrs );
       proj.setInput( it->raster->dataProvider() );
       proj.setPrecision( QgsRasterProjector::Exact );
 
@@ -101,14 +101,21 @@ int QgsRasterCalculator::processCalculation( QProgressDialog* p )
     {
       block = it->raster->dataProvider()->block( it->bandNumber, mOutputRectangle, mNumOutputColumns, mNumOutputRows );
     }
+    if ( block->isEmpty() )
+    {
+      delete block;
+      delete calcNode;
+      qDeleteAll( inputBlocks );
+      return static_cast<int>( MemoryError );
+    }
     inputBlocks.insert( it->ref, block );
   }
 
   //open output dataset for writing
   GDALDriverH outputDriver = openOutputDriver();
-  if ( outputDriver == NULL )
+  if ( !outputDriver )
   {
-    return 1;
+    return static_cast< int >( CreateOutputError );
   }
 
   GDALDatasetH outputDataset = openOutputFile( outputDriver );
@@ -152,7 +159,7 @@ int QgsRasterCalculator::processCalculation( QProgressDialog* p )
       //write scanline to the dataset
       if ( GDALRasterIO( outputRasterBand, GF_Write, 0, i, mNumOutputColumns, 1, calcData, mNumOutputColumns, 1, GDT_Float32, 0, 0 ) != CE_None )
       {
-        qWarning( "RasterIO error!" );
+        QgsDebugMsg( "RasterIO error!" );
       }
 
       delete[] calcData;
@@ -174,11 +181,11 @@ int QgsRasterCalculator::processCalculation( QProgressDialog* p )
   {
     //delete the dataset without closing (because it is faster)
     GDALDeleteDataset( outputDriver, TO8F( mOutputFile ) );
-    return 3;
+    return static_cast< int >( Cancelled );
   }
   GDALClose( outputDataset );
 
-  return 0;
+  return static_cast< int >( Success );
 }
 
 QgsRasterCalculator::QgsRasterCalculator()
@@ -194,15 +201,15 @@ GDALDriverH QgsRasterCalculator::openOutputDriver()
   //open driver
   GDALDriverH outputDriver = GDALGetDriverByName( mOutputFormat.toLocal8Bit().data() );
 
-  if ( outputDriver == NULL )
+  if ( !outputDriver )
   {
-    return outputDriver; //return NULL, driver does not exist
+    return outputDriver; //return nullptr, driver does not exist
   }
 
-  driverMetadata = GDALGetMetadata( outputDriver, NULL );
+  driverMetadata = GDALGetMetadata( outputDriver, nullptr );
   if ( !CSLFetchBoolean( driverMetadata, GDAL_DCAP_CREATE, false ) )
   {
-    return NULL; //driver exist, but it does not support the create operation
+    return nullptr; //driver exist, but it does not support the create operation
   }
 
   return outputDriver;
@@ -211,9 +218,9 @@ GDALDriverH QgsRasterCalculator::openOutputDriver()
 GDALDatasetH QgsRasterCalculator::openOutputFile( GDALDriverH outputDriver )
 {
   //open output file
-  char **papszOptions = NULL;
+  char **papszOptions = nullptr;
   GDALDatasetH outputDataset = GDALCreate( outputDriver, TO8F( mOutputFile ), mNumOutputColumns, mNumOutputRows, 1, GDT_Float32, papszOptions );
-  if ( outputDataset == NULL )
+  if ( !outputDataset )
   {
     return outputDataset;
   }

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'September 2013'
@@ -25,9 +26,11 @@ __copyright__ = '(C) 2013, Alexander Bruy'
 
 __revision__ = '$Format:%H$'
 
-from osgeo import gdal
+import os
 
-from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
+from qgis.PyQt.QtGui import QIcon
+
+from osgeo import gdal
 
 from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterVector
@@ -38,11 +41,16 @@ from processing.core.parameters import ParameterNumber
 
 from processing.core.outputs import OutputRaster
 
-from processing.algs.gdal.OgrAlgorithm import OgrAlgorithm
+from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.algs.gdal.GdalUtils import GdalUtils
 
+from processing.tools import dataobjects
+from processing.tools.vector import ogrConnectionString
 
-class ClipByMask(GdalAlgorithm, OgrAlgorithm):
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
+
+
+class ClipByMask(GdalAlgorithm):
 
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
@@ -64,19 +72,22 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
     COMPRESSTYPE = ['NONE', 'JPEG', 'LZW', 'PACKBITS', 'DEFLATE']
     TFW = 'TFW'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'raster-clip.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Clip raster by mask layer')
         self.group, self.i18n_group = self.trAlgorithm('[GDAL] Extraction')
         self.addParameter(ParameterRaster(self.INPUT, self.tr('Input layer'), False))
         self.addParameter(ParameterVector(self.MASK, self.tr('Mask layer'),
-                          [ParameterVector.VECTOR_TYPE_POLYGON]))
+                                          [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterString(self.NO_DATA,
                                           self.tr("Nodata value, leave blank to take the nodata value from input"),
-                                          '-9999'))
+                                          '', optional=True))
         self.addParameter(ParameterBoolean(self.ALPHA_BAND,
                                            self.tr('Create and output alpha band'), False))
         self.addParameter(ParameterBoolean(self.CROP_TO_CUTLINE,
-                                           self.tr('Crop the extent of the target dataset to the extent of the cutline'), False))
+                                           self.tr('Crop the extent of the target dataset to the extent of the cutline'), True))
         self.addParameter(ParameterBoolean(self.KEEP_RESOLUTION,
                                            self.tr('Keep resolution of output raster'), False))
 
@@ -112,19 +123,25 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
     def getConsoleCommands(self):
         out = self.getOutputValue(self.OUTPUT)
         mask = self.getParameterValue(self.MASK)
-        ogrMask = self.ogrConnectionString(mask)[1:-1]
-        noData = unicode(self.getParameterValue(self.NO_DATA))
+        maskLayer = dataobjects.getObjectFromUri(
+            self.getParameterValue(self.MASK))
+        ogrMask = ogrConnectionString(mask)[1:-1]
+        noData = self.getParameterValue(self.NO_DATA)
+        if noData is not None:
+            noData = str(noData)
         addAlphaBand = self.getParameterValue(self.ALPHA_BAND)
         cropToCutline = self.getParameterValue(self.CROP_TO_CUTLINE)
         keepResolution = self.getParameterValue(self.KEEP_RESOLUTION)
-        extra = unicode(self.getParameterValue(self.EXTRA))
-        jpegcompression = unicode(self.getParameterValue(self.JPEGCOMPRESSION))
-        predictor = unicode(self.getParameterValue(self.PREDICTOR))
-        zlevel = unicode(self.getParameterValue(self.ZLEVEL))
-        tiled = unicode(self.getParameterValue(self.TILED))
+        extra = self.getParameterValue(self.EXTRA)
+        if extra is not None:
+            extra = str(extra)
+        jpegcompression = str(self.getParameterValue(self.JPEGCOMPRESSION))
+        predictor = str(self.getParameterValue(self.PREDICTOR))
+        zlevel = str(self.getParameterValue(self.ZLEVEL))
+        tiled = str(self.getParameterValue(self.TILED))
         compress = self.COMPRESSTYPE[self.getParameterValue(self.COMPRESS)]
         bigtiff = self.BIGTIFFTYPE[self.getParameterValue(self.BIGTIFF)]
-        tfw = unicode(self.getParameterValue(self.TFW))
+        tfw = str(self.getParameterValue(self.TFW))
 
         arguments = []
         arguments.append('-ot')
@@ -132,7 +149,7 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
         arguments.append('-q')
         arguments.append('-of')
         arguments.append(GdalUtils.getFormatShortNameFromFilename(out))
-        if len(noData) > 0:
+        if noData and len(noData) > 0:
             arguments.append('-dstnodata')
             arguments.append(noData)
 
@@ -141,12 +158,15 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
             geoTransform = r.GetGeoTransform()
             r = None
             arguments.append('-tr')
-            arguments.append(unicode(geoTransform[1]))
-            arguments.append(unicode(geoTransform[5]))
+            arguments.append(str(geoTransform[1]))
+            arguments.append(str(geoTransform[5]))
             arguments.append('-tap')
 
         arguments.append('-cutline')
         arguments.append(ogrMask)
+        if maskLayer and maskLayer.subsetString() != '':
+            arguments.append('-cwhere')
+            arguments.append(maskLayer.subsetString())
 
         if cropToCutline:
             arguments.append('-crop_to_cutline')
@@ -154,7 +174,7 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
         if addAlphaBand:
             arguments.append('-dstalpha')
 
-        if len(extra) > 0:
+        if extra and len(extra) > 0:
             arguments.append(extra)
         if GdalUtils.getFormatShortNameFromFilename(out) == "GTiff":
             arguments.append("-co COMPRESS=" + compress)
@@ -170,6 +190,11 @@ class ClipByMask(GdalAlgorithm, OgrAlgorithm):
                 arguments.append("-co TFW=YES")
             if len(bigtiff) > 0:
                 arguments.append("-co BIGTIFF=" + bigtiff)
+
+            arguments.append("-wo OPTIMIZE_SIZE=TRUE")
+
+        if GdalUtils.version() in [2010000, 2010100]:
+            arguments.append("--config GDALWARP_IGNORE_BAD_CUTLINE YES")
 
         arguments.append(self.getParameterValue(self.INPUT))
         arguments.append(out)

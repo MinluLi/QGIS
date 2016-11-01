@@ -31,33 +31,29 @@ QgsPaintEffectAbstractMetadata::QgsPaintEffectAbstractMetadata( const QString& n
 QgsPaintEffectRegistry::QgsPaintEffectRegistry()
 {
   //init registry with known effects
-  addEffectType( new QgsPaintEffectMetadata( "blur", QObject::tr( "Blur" ),
-                 QgsBlurEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "dropShadow", QObject::tr( "Drop Shadow" ),
-                 QgsDropShadowEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "innerShadow", QObject::tr( "Inner Shadow" ),
-                 QgsInnerShadowEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "effectStack", QObject::tr( "Stack" ),
-                 QgsEffectStack::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "outerGlow", QObject::tr( "Outer Glow" ),
-                 QgsOuterGlowEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "innerGlow", QObject::tr( "Inner Glow" ),
-                 QgsInnerGlowEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "drawSource", QObject::tr( "Source" ),
-                 QgsDrawSourceEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "transform", QObject::tr( "Transform" ),
-                 QgsTransformEffect::create, NULL ) );
-  addEffectType( new QgsPaintEffectMetadata( "color", QObject::tr( "Colorise" ),
-                 QgsColorEffect::create, NULL ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "blur" ), QObject::tr( "Blur" ),
+                 QgsBlurEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "dropShadow" ), QObject::tr( "Drop Shadow" ),
+                 QgsDropShadowEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "innerShadow" ), QObject::tr( "Inner Shadow" ),
+                 QgsInnerShadowEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "effectStack" ), QObject::tr( "Stack" ),
+                 QgsEffectStack::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "outerGlow" ), QObject::tr( "Outer Glow" ),
+                 QgsOuterGlowEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "innerGlow" ), QObject::tr( "Inner Glow" ),
+                 QgsInnerGlowEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "drawSource" ), QObject::tr( "Source" ),
+                 QgsDrawSourceEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "transform" ), QObject::tr( "Transform" ),
+                 QgsTransformEffect::create, nullptr ) );
+  addEffectType( new QgsPaintEffectMetadata( QStringLiteral( "color" ), QObject::tr( "Colorise" ),
+                 QgsColorEffect::create, nullptr ) );
 }
 
 QgsPaintEffectRegistry::~QgsPaintEffectRegistry()
 {
-  Q_FOREACH ( const QString& name, mMetadata.keys() )
-  {
-    delete mMetadata[name];
-  }
-  mMetadata.clear();
+  qDeleteAll( mMetadata );
 }
 
 QgsPaintEffectRegistry* QgsPaintEffectRegistry::instance()
@@ -71,12 +67,12 @@ QgsPaintEffectAbstractMetadata *QgsPaintEffectRegistry::effectMetadata( const QS
   if ( mMetadata.contains( name ) )
     return mMetadata.value( name );
   else
-    return NULL;
+    return nullptr;
 }
 
 bool QgsPaintEffectRegistry::addEffectType( QgsPaintEffectAbstractMetadata *metadata )
 {
-  if ( metadata == NULL || mMetadata.contains( metadata->name() ) )
+  if ( !metadata || mMetadata.contains( metadata->name() ) )
     return false;
 
   mMetadata[metadata->name()] = metadata;
@@ -86,7 +82,7 @@ bool QgsPaintEffectRegistry::addEffectType( QgsPaintEffectAbstractMetadata *meta
 QgsPaintEffect *QgsPaintEffectRegistry::createEffect( const QString &name, const QgsStringMap &properties ) const
 {
   if ( !mMetadata.contains( name ) )
-    return NULL;
+    return nullptr;
 
   QgsPaintEffect* effect = mMetadata[name]->createPaintEffect( properties );
   return effect;
@@ -96,14 +92,14 @@ QgsPaintEffect *QgsPaintEffectRegistry::createEffect( const QDomElement &element
 {
   if ( element.isNull() )
   {
-    return NULL;
+    return nullptr;
   }
 
-  QString type = element.attribute( QString( "type" ) );
+  QString type = element.attribute( QStringLiteral( "type" ) );
 
   QgsPaintEffect* effect = instance()->createEffect( type );
   if ( !effect )
-    return NULL;
+    return nullptr;
 
   effect->readProperties( element );
   return effect;

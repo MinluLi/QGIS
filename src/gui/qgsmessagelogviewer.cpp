@@ -18,6 +18,7 @@
 #include "qgsmessagelogviewer.h"
 #include "qgsmessagelog.h"
 #include "qgsapplication.h"
+#include "qgsdockwidget.h"
 
 #include <QFile>
 #include <QDateTime>
@@ -25,12 +26,11 @@
 #include <QToolButton>
 #include <QStatusBar>
 #include <QToolTip>
-#include <QDockWidget>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 
 
-QgsMessageLogViewer::QgsMessageLogViewer( QStatusBar *statusBar, QWidget *parent, const Qt::WindowFlags& fl )
+QgsMessageLogViewer::QgsMessageLogViewer( QStatusBar *statusBar, QWidget *parent, Qt::WindowFlags fl )
     : QDialog( parent, fl )
 {
   Q_UNUSED( statusBar )
@@ -69,14 +69,15 @@ void QgsMessageLogViewer::logMessage( QString message, QString tag, QgsMessageLo
     tabWidget->setCurrentIndex( tabWidget->count() - 1 );
   }
 
-  QString prefix = QString( "%1\t%2\t" )
+  QString prefix = QStringLiteral( "%1\t%2\t" )
                    .arg( QDateTime::currentDateTime().toString( Qt::ISODate ) )
                    .arg( level );
-  w->appendPlainText( message.prepend( prefix ).replace( '\n', "\n\t\t\t" ) );
+  w->appendPlainText( message.prepend( prefix ).replace( '\n', QLatin1String( "\n\t\t\t" ) ) );
   w->verticalScrollBar()->setValue( w->verticalScrollBar()->maximum() );
 }
 
 void QgsMessageLogViewer::closeTab( int index )
 {
-  tabWidget->removeTab( index );
+  if ( tabWidget->count() > 1 )
+    tabWidget->removeTab( index );
 }

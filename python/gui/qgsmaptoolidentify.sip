@@ -47,6 +47,8 @@ class QgsMapToolIdentify : QgsMapTool
 
     virtual ~QgsMapToolIdentify();
 
+    virtual Flags flags() const;
+
     //! Overridden mouse move event
     virtual void canvasMoveEvent( QgsMapMouseEvent * e );
 
@@ -76,7 +78,7 @@ class QgsMapToolIdentify : QgsMapTool
     @param mode Identification mode. Can use Qgis default settings or a defined mode.
     @param layerType Only performs identification in a certain type of layers (raster, vector). Default value is AllLayers.
     @return a list of IdentifyResult*/
-    QList<QgsMapToolIdentify::IdentifyResult> identify( int x, int y, IdentifyMode mode, const LayerType& layerType = AllLayers );
+    QList<QgsMapToolIdentify::IdentifyResult> identify( int x, int y, IdentifyMode mode, LayerType layerType = AllLayers );
 
     //! return a pointer to the identify menu which will be used in layer selection mode
     //! this menu can also be customized
@@ -100,11 +102,25 @@ class QgsMapToolIdentify : QgsMapTool
     @param layerList Performs the identification within the given list of layers.
     @param layerType Only performs identification in a certain type of layers (raster, vector).
     @return a list of IdentifyResult*/
-    QList<QgsMapToolIdentify::IdentifyResult> identify( int x, int y, IdentifyMode mode, const QList<QgsMapLayer*>& layerList, const LayerType& layerType = AllLayers );
+    QList<QgsMapToolIdentify::IdentifyResult> identify( int x, int y, IdentifyMode mode, const QList<QgsMapLayer*>& layerList, LayerType layerType = AllLayers );
 
     /** Call the right method depending on layer type */
-    bool identifyLayer( QList<QgsMapToolIdentify::IdentifyResult> *results, QgsMapLayer *layer, const QgsPoint& point, const QgsRectangle& viewExtent, double mapUnitsPerPixel, const LayerType& layerType = AllLayers );
+    bool identifyLayer( QList<QgsMapToolIdentify::IdentifyResult> *results, QgsMapLayer *layer, const QgsPoint& point, const QgsRectangle& viewExtent, double mapUnitsPerPixel, LayerType layerType = AllLayers );
 
     bool identifyRasterLayer( QList<QgsMapToolIdentify::IdentifyResult> *results, QgsRasterLayer *layer, QgsPoint point, const QgsRectangle& viewExtent, double mapUnitsPerPixel );
     bool identifyVectorLayer( QList<QgsMapToolIdentify::IdentifyResult> *results, QgsVectorLayer *layer, const QgsPoint& point );
+
+  private:
+
+    /** Desired units for distance display.
+     * @note added in QGIS 2.14
+     * @see displayAreaUnits()
+     */
+    virtual QgsUnitTypes::DistanceUnit displayDistanceUnits() const;
+
+    /** Desired units for area display.
+     * @note added in QGIS 2.14
+     * @see displayDistanceUnits()
+     */
+    virtual QgsUnitTypes::AreaUnit displayAreaUnits() const;
 };

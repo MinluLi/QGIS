@@ -27,7 +27,7 @@ class QAction;
 class QToolBar;
 class QPainter;
 class QgisInterface;
-class QDockWidget;
+class QgsDockWidget;
 
 //forward declarations RoadGraph plugins classes
 class QgsGraphDirector;
@@ -123,8 +123,8 @@ class RoadGraphPlugin: public QObject, public QgisPlugin
     //
     ////////////////////////////////////////////////////////////////////
     /**
-    * on show settings
-    */
+     * on show settings
+     */
     QAction * mQSettingsAction;
 
     /**

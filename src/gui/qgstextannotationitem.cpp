@@ -33,7 +33,7 @@ QTextDocument* QgsTextAnnotationItem::document() const
 {
   if ( !mDocument )
   {
-    return 0;
+    return nullptr;
   }
 
   return mDocument->clone();
@@ -81,30 +81,30 @@ void QgsTextAnnotationItem::paint( QPainter * painter )
   }
 }
 
-void QgsTextAnnotationItem::writeXML( QDomDocument& doc ) const
+void QgsTextAnnotationItem::writeXml( QDomDocument& doc ) const
 {
   QDomElement documentElem = doc.documentElement();
   if ( documentElem.isNull() )
   {
     return;
   }
-  QDomElement annotationElem = doc.createElement( "TextAnnotationItem" );
+  QDomElement annotationElem = doc.createElement( QStringLiteral( "TextAnnotationItem" ) );
   if ( mDocument )
   {
-    annotationElem.setAttribute( "document", mDocument->toHtml() );
+    annotationElem.setAttribute( QStringLiteral( "document" ), mDocument->toHtml() );
   }
-  _writeXML( doc, annotationElem );
+  _writeXml( doc, annotationElem );
   documentElem.appendChild( annotationElem );
 }
 
-void QgsTextAnnotationItem::readXML( const QDomDocument& doc, const QDomElement& itemElem )
+void QgsTextAnnotationItem::readXml( const QDomDocument& doc, const QDomElement& itemElem )
 {
   delete mDocument;
   mDocument = new QTextDocument;
-  mDocument->setHtml( itemElem.attribute( "document", QObject::tr( "" ) ) );
-  QDomElement annotationElem = itemElem.firstChildElement( "AnnotationItem" );
+  mDocument->setHtml( itemElem.attribute( QStringLiteral( "document" ), QObject::tr( "" ) ) );
+  QDomElement annotationElem = itemElem.firstChildElement( QStringLiteral( "AnnotationItem" ) );
   if ( !annotationElem.isNull() )
   {
-    _readXML( doc, annotationElem );
+    _readXml( doc, annotationElem );
   }
 }

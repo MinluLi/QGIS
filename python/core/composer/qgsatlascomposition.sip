@@ -1,4 +1,4 @@
-/** \ingroup MapComposer
+/** \ingroup core
  * Class used to render an Atlas, iterating over geometry features.
  * prepareForFeature() modifies the atlas map's extent to zoom on the given feature.
  * This class is used for printing, exporting to PDF and images.
@@ -144,7 +144,7 @@ public:
      * @returns a vector of doubles representing predefined scales
      * @see setPredefinedScales
      * @see QgsComposerMap::atlasScalingMode
-    */
+     */
     const QVector<qreal>& predefinedScales() const;
 
     /** Sets the list of predefined scales for the atlas. This is used
@@ -168,18 +168,18 @@ public:
      * @param i feature number
      * @param updateMaps set to true to redraw maps and recalculate their extent
      * @returns true if feature was successfully prepared
-    */
+     */
     bool prepareForFeature( const int i, const bool updateMaps = true );
 
     /** Prepare the atlas map for the given feature. Sets the extent and context variables
      * @returns true if feature was successfully prepared
-    */
+     */
     bool prepareForFeature( const QgsFeature * feat );
 
     /** Returns the current filename. Must be called after prepareForFeature() */
     QString currentFilename() const;
 
-    void writeXML( QDomElement& elem, QDomDocument& doc ) const;
+    void writeXml( QDomElement& elem, QDomDocument& doc ) const;
 
     /** Reads general atlas settings from xml
      * @param elem a QDomElement holding the atlas properties.
@@ -187,7 +187,7 @@ public:
      * @see readXMLMapSettings
      * @note This method should be called before restoring composer item properties
      */
-    void readXML( const QDomElement& elem, const QDomDocument& doc );
+    void readXml( const QDomElement& elem, const QDomDocument& doc );
 
     /** Reads old (pre 2.2) map related atlas settings from xml
      * @param elem a QDomElement holding the atlas map properties.
@@ -196,12 +196,13 @@ public:
      * @note This method should be called after restoring composer item properties
      * @note added in version 2.5
      */
-    void readXMLMapSettings( const QDomElement& elem, const QDomDocument& doc );
+    void readXmlMapSettings( const QDomElement& elem, const QDomDocument& doc );
 
     QgsComposition* composition();
 
     /** Requeries the current atlas coverage layer and applies filtering and sorting. Returns
-      number of matching features. Must be called before prepareForFeature() */
+     * number of matching features. Must be called after prepareForFeature()
+     */
     int updateFeatures();
 
     /** Returns the current atlas feature. Must be called after prepareForFeature().
@@ -222,44 +223,6 @@ public:
     /** Recalculates the bounds of an atlas driven map */
     void prepareMap( QgsComposerMap* map );
 
-    //Deprecated methods
-
-    /** Returns the map used by the atlas
-     * @deprecated Use QgsComposerMap::atlasDriven() instead
-     */
-    QgsComposerMap* composerMap() const /Deprecated/;
-
-    /** Sets the map used by the atlas
-     * @deprecated Use QgsComposerMap::setAtlasDriven( true ) instead
-     */
-    void setComposerMap( QgsComposerMap* map ) /Deprecated/;
-
-    /** Returns whether the atlas map uses a fixed scale
-     * @deprecated since 2.4 Use QgsComposerMap::atlasScalingMode() instead
-     */
-    bool fixedScale() const /Deprecated/;
-
-    /** Sets whether the atlas map should use a fixed scale
-     * @deprecated since 2.4 Use QgsComposerMap::setAtlasScalingMode() instead
-     */
-    void setFixedScale( bool fixed ) /Deprecated/;
-
-    /** Returns the margin for the atlas map
-     * @deprecated Use QgsComposerMap::atlasMargin() instead
-     */
-    float margin() const /Deprecated/;
-
-    /** Sets the margin for the atlas map
-     * @deprecated Use QgsComposerMap::setAtlasMargin( double ) instead
-     */
-    void setMargin( float margin ) /Deprecated/;
-
-    int sortKeyAttributeIndex() const /Deprecated/;
-    void setSortKeyAttributeIndex( int idx ) /Deprecated/;
-
-    /** Returns the current atlas feature. Must be called after prepareForFeature(). */
-    QgsFeature* currentFeature() /Deprecated/;
-
     /** Returns the current atlas geometry in the given projection system (default to the coverage layer's CRS) */
     QgsGeometry currentGeometry( const QgsCoordinateReferenceSystem& projectedTo = QgsCoordinateReferenceSystem() ) const;
 
@@ -267,7 +230,7 @@ public:
 
     /** Refreshes the current atlas feature, by refetching its attributes from the vector layer provider
      * @note added in QGIS 2.5
-    */
+     */
     void refreshFeature();
 
     void nextFeature();

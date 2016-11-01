@@ -17,25 +17,35 @@
 
 #include <QComboBox>
 
-class QgsStyleV2;
-class QgsVectorColorRampV2;
+class QgsStyle;
+class QgsColorRamp;
 
+/** \ingroup gui
+ * \class QgsColorRampComboBox
+ */
 class GUI_EXPORT QgsColorRampComboBox : public QComboBox
 {
     Q_OBJECT
   public:
-    explicit QgsColorRampComboBox( QWidget *parent = 0 );
+    explicit QgsColorRampComboBox( QWidget *parent = nullptr );
 
     ~QgsColorRampComboBox();
 
     //! initialize the combo box with color ramps from the style
-    void populate( QgsStyleV2* style );
+    void populate( QgsStyle* style );
 
-    //! add/select color ramp which was used previously by the renderer
-    void setSourceColorRamp( QgsVectorColorRampV2* sourceRamp );
+    /** Adds or selects the current color ramp to show in the combo box. The ramp appears
+     * in the combo box as the "source" ramp.
+     * @param sourceRamp color ramp, ownership is transferred.
+     * @see currentColorRamp()
+     */
+    void setSourceColorRamp( QgsColorRamp* sourceRamp );
 
-    //! return new instance of the current color ramp or NULL if there is no active color ramp
-    QgsVectorColorRampV2* currentColorRamp();
+    /** Returns a new instance of the current color ramp or NULL if there is no active color ramp.
+     * The caller takes responsibility for deleting the returned value.
+     * @see setSourceColorRamp()
+     */
+    QgsColorRamp* currentColorRamp() const;
 
     /** Returns true if the current selection in the combo box is the option for creating
      * a new color ramp
@@ -70,8 +80,12 @@ class GUI_EXPORT QgsColorRampComboBox : public QComboBox
     void sourceRampEdited();
 
   protected:
-    QgsStyleV2* mStyle;
-    QgsVectorColorRampV2* mSourceColorRamp; // owns the copy
+    QgsStyle* mStyle;
+    QgsColorRamp* mSourceColorRamp; // owns the copy
+
+  private slots:
+
+    void rampWidgetUpdated();
 
   private:
     bool mShowGradientOnly;

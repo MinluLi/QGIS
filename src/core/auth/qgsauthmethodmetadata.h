@@ -30,6 +30,7 @@
    supplies enough information to be able to later load the associated shared
    library object.
  * \note Culled from QgsProviderMetadata
+ * \note not available in Python bindings
  */
 class CORE_EXPORT QgsAuthMethodMetadata
 {
@@ -45,19 +46,19 @@ class CORE_EXPORT QgsAuthMethodMetadata
     /** This returns the unique key associated with the method
 
         This key string is used for the associative container in QgsAtuhMethodRegistry
-    */
+     */
     QString key() const;
 
     /** This returns descriptive text for the method
 
         This is used to provide a descriptive list of available data methods.
-    */
+     */
     QString description() const;
 
     /** This returns the library file name
 
         This is used to QLibrary calls to load the method.
-    */
+     */
     QString library() const;
 
   private:

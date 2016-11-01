@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgscomposerimageexportoptionsdialog.h"
+#include "qgis.h"
 #include <QSettings>
 #include <QCheckBox>
 #include <QPushButton>
@@ -28,13 +29,13 @@ QgsComposerImageExportOptionsDialog::QgsComposerImageExportOptionsDialog( QWidge
   connect( mClipToContentGroupBox, SIGNAL( toggled( bool ) ), this, SLOT( clipToContentsToggled( bool ) ) );
 
   QSettings settings;
-  restoreGeometry( settings.value( "/Windows/ComposerImageExportOptionsDialog/geometry" ).toByteArray() );
+  restoreGeometry( settings.value( QStringLiteral( "/Windows/ComposerImageExportOptionsDialog/geometry" ) ).toByteArray() );
 }
 
 QgsComposerImageExportOptionsDialog::~QgsComposerImageExportOptionsDialog()
 {
   QSettings settings;
-  settings.setValue( "/Windows/ComposerImageExportOptionsDialog/geometry", saveGeometry() );
+  settings.setValue( QStringLiteral( "/Windows/ComposerImageExportOptionsDialog/geometry" ), saveGeometry() );
 }
 
 void QgsComposerImageExportOptionsDialog::setResolution( int resolution )
@@ -65,7 +66,7 @@ int QgsComposerImageExportOptionsDialog::resolution() const
   return mResolutionSpinBox->value();
 }
 
-void QgsComposerImageExportOptionsDialog::setImageSize( const QSizeF& size )
+void QgsComposerImageExportOptionsDialog::setImageSize( QSizeF size )
 {
   mImageSize = size;
   mWidthSpinBox->blockSignals( true );
@@ -157,20 +158,12 @@ void QgsComposerImageExportOptionsDialog::clipToContentsToggled( bool state )
 
   if ( state )
   {
-    mWidthSpinBox->blockSignals( true );
-    mWidthSpinBox->setValue( 0 );
-    mWidthSpinBox->blockSignals( false );
-    mHeightSpinBox->blockSignals( true );
-    mHeightSpinBox->setValue( 0 );
-    mHeightSpinBox->blockSignals( false );
+    whileBlocking( mWidthSpinBox )->setValue( 0 );
+    whileBlocking( mHeightSpinBox )->setValue( 0 );
   }
   else
   {
-    mWidthSpinBox->blockSignals( true );
-    mWidthSpinBox->setValue( mImageSize.width() * mResolutionSpinBox->value() / 25.4 );
-    mWidthSpinBox->blockSignals( false );
-    mHeightSpinBox->blockSignals( true );
-    mHeightSpinBox->setValue( mImageSize.height() * mResolutionSpinBox->value() / 25.4 );
-    mHeightSpinBox->blockSignals( false );
+    whileBlocking( mWidthSpinBox )->setValue( mImageSize.width() * mResolutionSpinBox->value() / 25.4 );
+    whileBlocking( mHeightSpinBox )->setValue( mImageSize.height() * mResolutionSpinBox->value() / 25.4 );
   }
 }

@@ -16,8 +16,8 @@
  ***************************************************************************/
 
 #include "qgsgraduatedhistogramwidget.h"
-#include "qgsgraduatedsymbolrendererv2.h"
-#include "qgsgraduatedsymbolrendererv2widget.h"
+#include "qgsgraduatedsymbolrenderer.h"
+#include "qgsgraduatedsymbolrendererwidget.h"
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
 #include "qgsstatisticalsummary.h"
@@ -46,8 +46,8 @@
 
 QgsGraduatedHistogramWidget::QgsGraduatedHistogramWidget( QWidget *parent )
     : QgsHistogramWidget( parent )
-    , mRenderer( 0 )
-    , mHistoPicker( 0 )
+    , mRenderer( nullptr )
+    , mHistoPicker( nullptr )
     , mPressedValue( 0 )
 {
   //clear x axis title to make more room for graph
@@ -73,7 +73,7 @@ QgsGraduatedHistogramWidget::~QgsGraduatedHistogramWidget()
 {
 }
 
-void QgsGraduatedHistogramWidget::setRenderer( QgsGraduatedSymbolRendererV2 *renderer )
+void QgsGraduatedHistogramWidget::setRenderer( QgsGraduatedSymbolRenderer *renderer )
 {
   mRenderer = renderer;
 }
@@ -180,7 +180,7 @@ void QgsGraduatedHistogramWidget::findClosestRange( double value, int &closestRa
   }
 }
 
-///@cond
+/// @cond PRIVATE
 
 QgsGraduatedHistogramEventFilter::QgsGraduatedHistogramEventFilter( QwtPlot *plot )
     : QObject( plot )
@@ -221,7 +221,7 @@ bool QgsGraduatedHistogramEventFilter::eventFilter( QObject *object, QEvent *eve
   return QObject::eventFilter( object, event );
 }
 
-double QgsGraduatedHistogramEventFilter::posToValue( const QPointF &point ) const
+double QgsGraduatedHistogramEventFilter::posToValue( QPointF point ) const
 {
   if ( !mPlot )
     return -99999999;

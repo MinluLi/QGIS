@@ -14,32 +14,33 @@
  ***************************************************************************/
 #include "qgsrastercalcnode.h"
 #include "qgsrasterblock.h"
+#include "qgsrastermatrix.h"
 #include <cfloat>
 
 QgsRasterCalcNode::QgsRasterCalcNode()
     : mType( tNumber )
-    , mLeft( 0 )
-    , mRight( 0 )
+    , mLeft( nullptr )
+    , mRight( nullptr )
     , mNumber( 0 )
-    , mMatrix( 0 )
+    , mMatrix( nullptr )
     , mOperator( opNONE )
 {
 }
 
 QgsRasterCalcNode::QgsRasterCalcNode( double number )
     : mType( tNumber )
-    , mLeft( 0 )
-    , mRight( 0 )
+    , mLeft( nullptr )
+    , mRight( nullptr )
     , mNumber( number )
-    , mMatrix( 0 )
+    , mMatrix( nullptr )
     , mOperator( opNONE )
 {
 }
 
 QgsRasterCalcNode::QgsRasterCalcNode( QgsRasterMatrix* matrix )
     : mType( tMatrix )
-    , mLeft( 0 )
-    , mRight( 0 )
+    , mLeft( nullptr )
+    , mRight( nullptr )
     , mNumber( 0 )
     , mMatrix( matrix )
     , mOperator( opNONE )
@@ -52,18 +53,18 @@ QgsRasterCalcNode::QgsRasterCalcNode( Operator op, QgsRasterCalcNode* left, QgsR
     , mLeft( left )
     , mRight( right )
     , mNumber( 0 )
-    , mMatrix( 0 )
+    , mMatrix( nullptr )
     , mOperator( op )
 {
 }
 
 QgsRasterCalcNode::QgsRasterCalcNode( const QString& rasterName )
     : mType( tRasterRef )
-    , mLeft( 0 )
-    , mRight( 0 )
+    , mLeft( nullptr )
+    , mRight( nullptr )
     , mNumber( 0 )
     , mRasterName( rasterName )
-    , mMatrix( 0 )
+    , mMatrix( nullptr )
     , mOperator( opNONE )
 {
   if ( mRasterName.startsWith( '"' ) && mRasterName.endsWith( '"' ) )
@@ -80,28 +81,6 @@ QgsRasterCalcNode::~QgsRasterCalcNode()
   {
     delete mRight;
   }
-}
-
-bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterMatrix*>& rasterData, QgsRasterMatrix& result ) const
-{
-  //deprecated method
-  //convert QgsRasterMatrix to QgsRasterBlock and call replacement method
-  QMap<QString, QgsRasterBlock* > rasterBlockData;
-  QMap<QString, QgsRasterMatrix*>::const_iterator it = rasterData.constBegin();
-  for ( ; it != rasterData.constEnd(); ++it )
-  {
-    QgsRasterBlock* block = new QgsRasterBlock( QGis::Float32, it.value()->nColumns(), it.value()->nRows(), it.value()->nodataValue() );
-    for ( int row = 0; row < it.value()->nRows(); ++row )
-    {
-      for ( int col = 0; col < it.value()->nColumns(); ++col )
-      {
-        block->setValue( row, col, it.value()->data()[ row * it.value()->nColumns() + col ] );
-      }
-    }
-    rasterBlockData.insert( it.key(), block );
-  }
-
-  return calculate( rasterBlockData, result );
 }
 
 bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, QgsRasterMatrix& result, int row ) const

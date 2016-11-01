@@ -31,6 +31,7 @@
 #include "qgsmaptool.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
+#include "qgsfeatureiterator.h"
 
 #include <QObject>
 #include <QMessageBox>
@@ -42,14 +43,14 @@
 */
 eVisEventIdTool::eVisEventIdTool( QgsMapCanvas* theCanvas )
     : QgsMapTool( theCanvas )
-    , mBrowser( NULL )
+    , mBrowser( nullptr )
 {
   //set cursor
   QPixmap myIdentifyQPixmap = QPixmap(( const char ** ) identify_cursor );
   mCursor = QCursor( myIdentifyQPixmap, 1, 1 );
 
   //set the current tool to this object
-  if ( 0 != mCanvas )
+  if ( mCanvas )
   {
     mCanvas->setMapTool( this );
   }
@@ -61,10 +62,10 @@ eVisEventIdTool::eVisEventIdTool( QgsMapCanvas* theCanvas )
 */
 void eVisEventIdTool::canvasReleaseEvent( QgsMapMouseEvent* theMouseEvent )
 {
-  if ( 0 == mCanvas || 0 == theMouseEvent )
+  if ( !mCanvas || !theMouseEvent )
     return;
 
-  //Check to see if there is a layer selected
+//Check to see if there is a layer selected
   if ( mCanvas->currentLayer() )
   {
     //Check to see if the current layer is a vector layer
@@ -90,7 +91,7 @@ void eVisEventIdTool::canvasReleaseEvent( QgsMapMouseEvent* theMouseEvent )
 void eVisEventIdTool::select( const QgsPoint& thePoint )
 {
 
-  if ( 0 == mCanvas )
+  if ( !mCanvas )
     return;
 
   QgsVectorLayer* myLayer = ( QgsVectorLayer* )mCanvas->currentLayer();
@@ -117,9 +118,9 @@ void eVisEventIdTool::select( const QgsPoint& thePoint )
     newSelectedFeatures.insert( f.id() );
   }
 
-  myLayer->setSelectedFeatures( newSelectedFeatures );
+  myLayer->selectByIds( newSelectedFeatures );
 
   //Launch a new event browser to view selected features
-  mBrowser = new eVisGenericEventBrowserGui( mCanvas, mCanvas, NULL );
+  mBrowser = new eVisGenericEventBrowserGui( mCanvas, mCanvas, 0 );
   mBrowser->setAttribute( Qt::WA_DeleteOnClose );
 }

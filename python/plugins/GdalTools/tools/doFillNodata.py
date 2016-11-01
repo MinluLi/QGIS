@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'November 2011'
@@ -23,12 +24,12 @@ __copyright__ = '(C) 2011, Alexander Bruy'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import Qt, QObject, SIGNAL, QCoreApplication, QDir
-from PyQt4.QtGui import QWidget
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QDir
+from qgis.PyQt.QtWidgets import QWidget
 
-from ui_widgetFillNodata import Ui_GdalToolsWidget as Ui_Widget
-from widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
-import GdalTools_utils as Utils
+from .ui_widgetFillNodata import Ui_GdalToolsWidget as Ui_Widget
+from .widgetBatchBase import GdalToolsBaseBatchWidget as BaseBatchWidget
+from . import GdalTools_utils as Utils
 
 import re
 
@@ -54,19 +55,19 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
         self.outputFormat = Utils.fillRasterOutputFormat()
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.maskSelector, SIGNAL("filenameChanged()"), self.maskCheck),
-            (self.distanceSpin, SIGNAL("valueChanged( int )"), self.distanceCheck),
-            (self.smoothSpin, SIGNAL("valueChanged( int )"), self.smoothCheck),
-            (self.bandSpin, SIGNAL("valueChanged( int )"), self.bandCheck),
-            (self.nomaskCheck, SIGNAL("stateChanged( int )"))
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.maskSelector, "filenameChanged", self.maskCheck),
+            (self.distanceSpin, "valueChanged", self.distanceCheck),
+            (self.smoothSpin, "valueChanged", self.smoothCheck),
+            (self.bandSpin, "valueChanged", self.bandCheck),
+            (self.nomaskCheck, "stateChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFile)
-        self.connect(self.maskSelector, SIGNAL("selectClicked()"), self.fillMaskFile)
-        self.connect(self.batchCheck, SIGNAL("stateChanged( int )"), self.switchToolMode)
+        self.inSelector.selectClicked.connect(self.fillInputFile)
+        self.outSelector.selectClicked.connect(self.fillOutputFile)
+        self.maskSelector.selectClicked.connect(self.fillMaskFile)
+        self.batchCheck.stateChanged.connect(self.switchToolMode)
 
         # add raster filters to combo
         self.formatCombo.addItems(Utils.FileFilter.allRastersFilter().split(";;"))
@@ -86,20 +87,20 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
             self.label.setText(QCoreApplication.translate("GdalTools", "&Input directory"))
             self.label_1.setText(QCoreApplication.translate("GdalTools", "&Output directory"))
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
-            QObject.disconnect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFile)
+            self.inSelector.selectClicked.disconnect(self.fillInputFile)
+            self.outSelector.selectClicked.disconnect(self.fillOutputFile)
 
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self. fillInputDir)
-            QObject.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputDir)
+            self.inSelector.selectClicked.connect(self. fillInputDir)
+            self.outSelector.selectClicked.connect(self.fillOutputDir)
         else:
             self.label.setText(self.inFileLabel)
             self.label_1.setText(self.outFileLabel)
 
-            QObject.disconnect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputDir)
-            QObject.disconnect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputDir)
+            self.inSelector.selectClicked.disconnect(self.fillInputDir)
+            self.outSelector.selectClicked.disconnect(self.fillOutputDir)
 
-            QObject.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFile)
-            QObject.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFile)
+            self.inSelector.selectClicked.connect(self.fillInputFile)
+            self.outSelector.selectClicked.connect(self.fillOutputFile)
 
     def fillInputFile(self):
         lastUsedFilter = Utils.FileFilter.lastUsedRasterFilter()
@@ -153,10 +154,10 @@ class GdalToolsDialog(QWidget, Ui_Widget, BaseBatchWidget):
             arguments.append(self.distanceSpin.text())
         if self.smoothCheck.isChecked() and self.smoothSpin.value() != 0:
             arguments.append("-si")
-            arguments.append(unicode(self.smoothSpin.value()))
+            arguments.append(str(self.smoothSpin.value()))
         if self.bandCheck.isChecked() and self.bandSpin.value() != 0:
             arguments.append("-b")
-            arguments.append(unicode(self.bandSpin.value()))
+            arguments.append(str(self.bandSpin.value()))
         if self.maskCheck.isChecked() and maskFile:
             arguments.append("-mask")
             arguments.append(maskFile)

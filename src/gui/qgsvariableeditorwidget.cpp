@@ -28,31 +28,6 @@
 #include <QMessageBox>
 #include <QSettings>
 
-/// @cond
-
-class VariableEditorDelegate : public QItemDelegate
-{
-
-  public:
-    VariableEditorDelegate( QObject *parent = 0, QgsVariableEditorTree *tree = 0 )
-        : QItemDelegate( parent )
-        , mParentTree( tree )
-    {}
-
-    QWidget *createEditor( QWidget *parent, const QStyleOptionViewItem &option,
-                           const QModelIndex &index ) const override;
-    void updateEditorGeometry( QWidget *editor, const QStyleOptionViewItem &option,
-                               const QModelIndex &index ) const override;
-    QSize sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
-    void setModelData( QWidget* widget, QAbstractItemModel* model,
-                       const QModelIndex & index ) const override;
-    void setEditorData( QWidget *, const QModelIndex & ) const override {}
-
-  private:
-    QgsVariableEditorTree *mParentTree;
-};
-
-QIcon QgsVariableEditorTree::mExpandIcon;
 
 //
 // QgsVariableEditorWidget
@@ -60,7 +35,7 @@ QIcon QgsVariableEditorTree::mExpandIcon;
 
 QgsVariableEditorWidget::QgsVariableEditorWidget( QWidget *parent )
     : QWidget( parent )
-    , mContext( 0 )
+    , mContext( nullptr )
     , mEditableScopeIndex( -1 )
     , mShown( false )
 {
@@ -75,11 +50,11 @@ QgsVariableEditorWidget::QgsVariableEditorWidget( QWidget *parent )
   QSpacerItem* horizontalSpacer = new QSpacerItem( 40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum );
   horizontalLayout->addItem( horizontalSpacer );
   mAddButton = new QPushButton();
-  mAddButton->setIcon( QgsApplication::getThemeIcon( "/symbologyAdd.svg" ) );
+  mAddButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/symbologyAdd.svg" ) ) );
   mAddButton->setEnabled( false );
   horizontalLayout->addWidget( mAddButton );
   mRemoveButton = new QPushButton();
-  mRemoveButton->setIcon( QgsApplication::getThemeIcon( "/symbologyRemove.svg" ) );
+  mRemoveButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/symbologyRemove.svg" ) ) );
   mRemoveButton->setEnabled( false );
   horizontalLayout->addWidget( mRemoveButton );
   verticalLayout->addLayout( horizontalLayout );
@@ -152,7 +127,7 @@ QgsExpressionContextScope* QgsVariableEditorWidget::editableScope() const
 {
   if ( !mContext || mEditableScopeIndex < 0 || mEditableScopeIndex >= mContext->scopeCount() )
   {
-    return 0;
+    return nullptr;
   }
   return mContext->scope( mEditableScopeIndex );
 }
@@ -192,9 +167,9 @@ void QgsVariableEditorWidget::on_mAddButton_clicked()
     return;
 
   QgsExpressionContextScope* scope = mContext->scope( mEditableScopeIndex );
-  scope->setVariable( "new_variable", QVariant() );
+  scope->setVariable( QStringLiteral( "new_variable" ), QVariant() );
   mTreeWidget->refreshTree();
-  QTreeWidgetItem* item = mTreeWidget->itemFromVariable( scope, "new_variable" );
+  QTreeWidgetItem* item = mTreeWidget->itemFromVariable( scope, QStringLiteral( "new_variable" ) );
   QModelIndex index = mTreeWidget->itemToIndex( item );
   mTreeWidget->selectionModel()->select( index, QItemSelectionModel::ClearAndSelect );
   mTreeWidget->editItem( item, 0 );
@@ -267,25 +242,26 @@ void QgsVariableEditorWidget::selectionChanged()
 }
 
 
+/// @cond PRIVATE
 //
 // VariableEditorTree
 //
 
 QgsVariableEditorTree::QgsVariableEditorTree( QWidget *parent )
     : QTreeWidget( parent )
-    , mEditorDelegate( 0 )
+    , mEditorDelegate( nullptr )
     , mEditableScopeIndex( -1 )
-    , mContext( 0 )
+    , mContext( nullptr )
 {
   // init icons
   if ( mExpandIcon.isNull() )
   {
     QPixmap pix( 14, 14 );
     pix.fill( Qt::transparent );
-    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconExpandSmall.svg" ).pixmap( 14, 14 ), QIcon::Normal, QIcon::Off );
-    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconExpandSmall.svg" ).pixmap( 14, 14 ), QIcon::Selected, QIcon::Off );
-    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconCollapseSmall.svg" ).pixmap( 14, 14 ), QIcon::Normal, QIcon::On );
-    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconCollapseSmall.svg" ).pixmap( 14, 14 ), QIcon::Selected, QIcon::On );
+    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( QStringLiteral( "/mIconExpandSmall.svg" ) ).pixmap( 14, 14 ), QIcon::Normal, QIcon::Off );
+    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( QStringLiteral( "/mIconExpandSmall.svg" ) ).pixmap( 14, 14 ), QIcon::Selected, QIcon::Off );
+    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( QStringLiteral( "/mIconCollapseSmall.svg" ) ).pixmap( 14, 14 ), QIcon::Normal, QIcon::On );
+    mExpandIcon.addPixmap( QgsApplication::getThemeIcon( QStringLiteral( "/mIconCollapseSmall.svg" ) ).pixmap( 14, 14 ), QIcon::Selected, QIcon::On );
   }
 
   setIconSize( QSize( 18, 18 ) );
@@ -304,16 +280,16 @@ QgsVariableEditorTree::QgsVariableEditorTree( QWidget *parent )
 QgsExpressionContextScope* QgsVariableEditorTree::scopeFromItem( QTreeWidgetItem *item ) const
 {
   if ( !item )
-    return 0;
+    return nullptr;
 
   bool ok;
   int contextIndex = item->data( 0, ContextIndex ).toInt( &ok );
   if ( !ok )
-    return 0;
+    return nullptr;
 
   if ( !mContext )
   {
-    return 0;
+    return nullptr;
   }
   else if ( mContext->scopeCount() > contextIndex )
   {
@@ -321,7 +297,7 @@ QgsExpressionContextScope* QgsVariableEditorTree::scopeFromItem( QTreeWidgetItem
   }
   else
   {
-    return 0;
+    return nullptr;
   }
 }
 
@@ -329,7 +305,7 @@ QTreeWidgetItem* QgsVariableEditorTree::itemFromVariable( QgsExpressionContextSc
 {
   int contextIndex = mContext ? mContext->indexOfScope( scope ) : 0;
   if ( contextIndex < 0 )
-    return 0;
+    return nullptr;
   return mVariableToItem.value( qMakePair( contextIndex, name ) );
 }
 
@@ -337,7 +313,7 @@ QgsExpressionContextScope* QgsVariableEditorTree::editableScope()
 {
   if ( !mContext || mEditableScopeIndex < 0 || mEditableScopeIndex >= mContext->scopeCount() )
   {
-    return 0;
+    return nullptr;
   }
 
   return mContext->scope( mEditableScopeIndex );
@@ -381,7 +357,7 @@ void QgsVariableEditorTree::refreshScopeVariables( QgsExpressionContextScope* sc
 
     bool readOnly = scope->isReadOnly( name );
     bool isActive = true;
-    QgsExpressionContextScope* activeScope = 0;
+    QgsExpressionContextScope* activeScope = nullptr;
     if ( mContext )
     {
       activeScope = mContext->activeScopeForVariable( name );
@@ -683,7 +659,6 @@ void QgsVariableEditorTree::mousePressEvent( QMouseEvent *event )
   }
 }
 
-
 //
 // VariableEditorDelegate
 //
@@ -693,22 +668,22 @@ QWidget* VariableEditorDelegate::createEditor( QWidget *parent,
     const QModelIndex &index ) const
 {
   if ( !mParentTree )
-    return 0;
+    return nullptr;
 
   //no editing for top level items
   if ( !index.parent().isValid() )
-    return 0;
+    return nullptr;
 
   QTreeWidgetItem *item = mParentTree->indexToItem( index );
   QgsExpressionContextScope* scope = mParentTree->scopeFromItem( item );
   if ( !item || !scope )
-    return 0;
+    return nullptr;
 
   QString variableName = mParentTree->variableNameFromIndex( index );
 
   //no editing inherited or read-only variables
   if ( scope != mParentTree->editableScope() || scope->isReadOnly( variableName ) )
-    return 0;
+    return nullptr;
 
   QLineEdit *lineEdit = new QLineEdit( parent );
   lineEdit->setText( index.column() == 0 ? variableName : mParentTree->editableScope()->variable( variableName ).toString() );
@@ -784,4 +759,4 @@ void VariableEditorDelegate::setModelData( QWidget* widget, QAbstractItemModel *
   mParentTree->refreshTree();
 }
 
-/// @endcond
+///@endcond

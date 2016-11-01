@@ -23,12 +23,13 @@
 #include "qgswmsprojectparser.h"
 #include "qgssldconfigparser.h"
 #include "qgsaccesscontrol.h"
+#include "qgsproject.h"
 
 #include <QFile>
 
 QgsConfigCache* QgsConfigCache::instance()
 {
-  static QgsConfigCache *instance = 0;
+  static QgsConfigCache *instance = nullptr;
 
   if ( !instance )
     instance = new QgsConfigCache();
@@ -47,11 +48,36 @@ QgsConfigCache::~QgsConfigCache()
 
 QgsServerProjectParser* QgsConfigCache::serverConfiguration( const QString& filePath )
 {
+  QgsMessageLog::logMessage(
+    QStringLiteral( "Open the project file '%1'." )
+    .arg( filePath ),
+    QStringLiteral( "Server" ), QgsMessageLog::INFO
+  );
+
   QDomDocument* doc = xmlDocument( filePath );
   if ( !doc )
   {
-    return 0;
+    return nullptr;
   }
+
+  QgsProjectVersion fileVersion = getVersion( *doc );
+  QgsProjectVersion thisVersion( Qgis::QGIS_VERSION );
+
+  if ( thisVersion != fileVersion )
+  {
+    QgsMessageLog::logMessage(
+      QString(
+        "\n========================================================================"
+        "\n= WARNING: This project file was saved by a different version of QGIS. ="
+        "\n========================================================================"
+      ), QStringLiteral( "Server" ), QgsMessageLog::WARNING
+    );
+  }
+  QgsMessageLog::logMessage(
+    QStringLiteral( "QGIS server version %1, project version %2" )
+    .arg( thisVersion.text(), fileVersion.text() ),
+    QStringLiteral( "Server" ), QgsMessageLog::INFO
+  );
   return new QgsServerProjectParser( doc, filePath );
 }
 
@@ -68,7 +94,7 @@ QgsWCSProjectParser *QgsConfigCache::wcsConfiguration(
     QDomDocument* doc = xmlDocument( filePath );
     if ( !doc )
     {
-      return 0;
+      return nullptr;
     }
     p = new QgsWCSProjectParser(
       filePath
@@ -85,22 +111,22 @@ QgsWCSProjectParser *QgsConfigCache::wcsConfiguration(
   return p;
 }
 
-QgsWFSProjectParser *QgsConfigCache::wfsConfiguration(
+QgsWfsProjectParser *QgsConfigCache::wfsConfiguration(
   const QString& filePath
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
   , const QgsAccessControl* accessControl
 #endif
 )
 {
-  QgsWFSProjectParser *p = mWFSConfigCache.object( filePath );
+  QgsWfsProjectParser *p = mWFSConfigCache.object( filePath );
   if ( !p )
   {
     QDomDocument* doc = xmlDocument( filePath );
     if ( !doc )
     {
-      return 0;
+      return nullptr;
     }
-    p = new QgsWFSProjectParser(
+    p = new QgsWfsProjectParser(
       filePath
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
       , accessControl
@@ -115,7 +141,7 @@ QgsWFSProjectParser *QgsConfigCache::wfsConfiguration(
   return p;
 }
 
-QgsWMSConfigParser *QgsConfigCache::wmsConfiguration(
+QgsWmsConfigParser *QgsConfigCache::wmsConfiguration(
   const QString& filePath
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
   , const QgsAccessControl* accessControl
@@ -123,25 +149,25 @@ QgsWMSConfigParser *QgsConfigCache::wmsConfiguration(
   , const QMap<QString, QString>& parameterMap
 )
 {
-  QgsWMSConfigParser *p = mWMSConfigCache.object( filePath );
+  QgsWmsConfigParser *p = mWMSConfigCache.object( filePath );
   if ( !p )
   {
     QDomDocument* doc = xmlDocument( filePath );
     if ( !doc )
     {
-      return 0;
+      return nullptr;
     }
 
     //sld or QGIS project file?
     //is it an sld document or a qgis project file?
     QDomElement documentElem = doc->documentElement();
-    if ( documentElem.tagName() == "StyledLayerDescriptor" )
+    if ( documentElem.tagName() == QLatin1String( "StyledLayerDescriptor" ) )
     {
       p = new QgsSLDConfigParser( doc, parameterMap );
     }
     else
     {
-      p = new QgsWMSProjectParser(
+      p = new QgsWmsProjectParser(
         filePath
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
         , accessControl
@@ -163,14 +189,14 @@ QDomDocument* QgsConfigCache::xmlDocument( const QString& filePath )
   QFile configFile( filePath );
   if ( !configFile.exists() )
   {
-    QgsMessageLog::logMessage( "Error, configuration file '" + filePath + "' does not exist", "Server", QgsMessageLog::CRITICAL );
-    return 0;
+    QgsMessageLog::logMessage( "Error, configuration file '" + filePath + "' does not exist", QStringLiteral( "Server" ), QgsMessageLog::CRITICAL );
+    return nullptr;
   }
 
   if ( !configFile.open( QIODevice::ReadOnly ) )
   {
-    QgsMessageLog::logMessage( "Error, cannot open configuration file '" + filePath + "'", "Server", QgsMessageLog::CRITICAL );
-    return 0;
+    QgsMessageLog::logMessage( "Error, cannot open configuration file '" + filePath + "'", QStringLiteral( "Server" ), QgsMessageLog::CRITICAL );
+    return nullptr;
   }
 
   // first get cache
@@ -184,9 +210,9 @@ QDomDocument* QgsConfigCache::xmlDocument( const QString& filePath )
     if ( !xmlDoc->setContent( &configFile, true, &errorMsg, &line, &column ) )
     {
       QgsMessageLog::logMessage( "Error parsing file '" + filePath +
-                                 QString( "': parse error %1 at row %2, column %3" ).arg( errorMsg ).arg( line ).arg( column ), "Server", QgsMessageLog::CRITICAL );
+                                 QStringLiteral( "': parse error %1 at row %2, column %3" ).arg( errorMsg ).arg( line ).arg( column ), QStringLiteral( "Server" ), QgsMessageLog::CRITICAL );
       delete xmlDoc;
-      return 0;
+      return nullptr;
     }
     mXmlDocumentCache.insert( filePath, xmlDoc );
     mFileSystemWatcher.addPath( filePath );
@@ -207,3 +233,10 @@ void QgsConfigCache::removeChangedEntry( const QString& path )
 
   mFileSystemWatcher.removePath( path );
 }
+
+
+void QgsConfigCache::removeEntry( const QString& path )
+{
+  removeChangedEntry( path );
+}
+

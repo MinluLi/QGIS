@@ -18,14 +18,21 @@
 #ifndef QGSPOINTV2_H
 #define QGSPOINTV2_H
 
-#include "qgsabstractgeometryv2.h"
+#include "qgsabstractgeometry.h"
+#include "qgsrectangle.h"
+
+/***************************************************************************
+ * This class is considered CRITICAL and any change MUST be accompanied with
+ * full unit tests in testqgsgeometry.cpp.
+ * See details in QEP #17
+ ****************************************************************************/
 
 /** \ingroup core
  * \class QgsPointV2
  * \brief Point geometry type, with support for z-dimension and m-values.
  * \note added in QGIS 2.10
  */
-class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
+class CORE_EXPORT QgsPointV2: public QgsAbstractGeometry
 {
   public:
 
@@ -41,7 +48,7 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
 
     /** Construct a QgsPointV2 from a QPointF
      */
-    explicit QgsPointV2( const QPointF& p );
+    explicit QgsPointV2( QPointF p );
 
     /** Construct a point with a specified type (eg PointZ, PointM) and initial x, y, z, and m values.
      * @param type point type
@@ -50,7 +57,7 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
      * @param z z-coordinate of point, for PointZ or PointZM types
      * @param m m-value of point, for PointM or PointZM types
      */
-    QgsPointV2( QgsWKBTypes::Type type, double x = 0.0, double y = 0.0, double z = 0.0, double m = 0.0 );
+    QgsPointV2( QgsWkbTypes::Type type, double x = 0.0, double y = 0.0, double z = 0.0, double m = 0.0 );
 
     bool operator==( const QgsPointV2& pt ) const;
     bool operator!=( const QgsPointV2& pt ) const;
@@ -85,7 +92,7 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
      * @see setX()
      * @note not available in Python bindings
      */
-    double &rx() { mBoundingBox = QgsRectangle(); return mX; }
+    double &rx() { clearCache(); return mX; }
 
     /** Returns a reference to the y-coordinate of this point.
      * Using a reference makes it possible to directly manipulate y in place.
@@ -93,7 +100,7 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
      * @see setY()
      * @note not available in Python bindings
      */
-    double &ry() { mBoundingBox = QgsRectangle(); return mY; }
+    double &ry() { clearCache(); return mY; }
 
     /** Returns a reference to the z-coordinate of this point.
      * Using a reference makes it possible to directly manipulate z in place.
@@ -101,7 +108,7 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
      * @see setZ()
      * @note not available in Python bindings
      */
-    double &rz() { return mZ; }
+    double &rz() { clearCache(); return mZ; }
 
     /** Returns a reference to the m value of this point.
      * Using a reference makes it possible to directly manipulate m in place.
@@ -109,38 +116,48 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
      * @see setM()
      * @note not available in Python bindings
      */
-    double &rm() { return mM; }
+    double &rm() { clearCache(); return mM; }
 
     /** Sets the point's x-coordinate.
      * @see x()
      * @see rx()
      */
-    void setX( double x ) { mX = x; mBoundingBox = QgsRectangle(); }
+    void setX( double x ) { clearCache(); mX = x; }
 
     /** Sets the point's y-coordinate.
      * @see y()
      * @see ry()
      */
-    void setY( double y ) { mY = y; mBoundingBox = QgsRectangle(); }
+    void setY( double y ) { clearCache(); mY = y; }
 
     /** Sets the point's z-coordinate.
+     * @note calling this will have no effect if the point does not contain a z-dimension. Use addZValue() to
+     * add a z value and force the point to have a z dimension.
      * @see z()
      * @see rz()
      */
-    void setZ( double z ) { mZ = z; }
+    void setZ( double z ) { clearCache(); mZ = z; }
 
     /** Sets the point's m-value.
+     * @note calling this will have no effect if the point does not contain a m-dimension. Use addMValue() to
+     * add a m value and force the point to have an m dimension.
      * @see m()
      * @see rm()
      */
-    void setM( double m ) { mM = m; }
+    void setM( double m ) { clearCache(); mM = m; }
+
+    /** Returns the point as a QPointF.
+     * @note added in QGIS 2.14
+     */
+    QPointF toQPointF() const;
 
     //implementation of inherited methods
-    virtual QString geometryType() const override { return "Point"; }
+    virtual QgsRectangle boundingBox() const override { return QgsRectangle( mX, mY, mX, mY ); }
+    virtual QString geometryType() const override { return QStringLiteral( "Point" ); }
     virtual int dimension() const override { return 0; }
     virtual QgsPointV2* clone() const override;
     void clear() override;
-    virtual bool fromWkb( const unsigned char* wkb ) override;
+    virtual bool fromWkb( QgsConstWkbPtr wkb ) override;
     virtual bool fromWkt( const QString& wkt ) override;
     int wkbSize() const override;
     unsigned char* asWkb( int& binarySize ) const override;
@@ -148,16 +165,18 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
     QDomElement asGML2( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
     QDomElement asGML3( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
     QString asJSON( int precision = 17 ) const override;
-    virtual QgsRectangle calculateBoundingBox() const override { return QgsRectangle( mX, mY, mX, mY );}
     void draw( QPainter& p ) const override;
-    void transform( const QgsCoordinateTransform& ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform ) override;
+    void transform( const QgsCoordinateTransform& ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform,
+                    bool transformZ = false ) override;
     void transform( const QTransform& t ) override;
-    virtual void coordinateSequence( QList< QList< QList< QgsPointV2 > > >& coord ) const override;
+    virtual QgsCoordinateSequence coordinateSequence() const override;
+    virtual int nCoordinates() const override { return 1; }
+    virtual QgsAbstractGeometry* boundary() const override;
 
     //low-level editing
-    virtual bool insertVertex( const QgsVertexId& position, const QgsPointV2& vertex ) override { Q_UNUSED( position ); Q_UNUSED( vertex ); return false; }
-    virtual bool moveVertex( const QgsVertexId& position, const QgsPointV2& newPos ) override;
-    virtual bool deleteVertex( const QgsVertexId& position ) override { Q_UNUSED( position ); return false; }
+    virtual bool insertVertex( QgsVertexId position, const QgsPointV2& vertex ) override { Q_UNUSED( position ); Q_UNUSED( vertex ); return false; }
+    virtual bool moveVertex( QgsVertexId position, const QgsPointV2& newPos ) override;
+    virtual bool deleteVertex( QgsVertexId position ) override { Q_UNUSED( position ); return false; }
 
     double closestSegment( const QgsPointV2& pt, QgsPointV2& segmentPt,  QgsVertexId& vertexAfter, bool* leftOf, double epsilon ) const override;
     bool nextVertex( QgsVertexId& id, QgsPointV2& vertex ) const override;
@@ -165,15 +184,18 @@ class CORE_EXPORT QgsPointV2: public QgsAbstractGeometryV2
     /** Angle undefined. Always returns 0.0
         @param vertex the vertex id
         @return 0.0*/
-    double vertexAngle( const QgsVertexId& vertex ) const override { Q_UNUSED( vertex ); return 0.0; }
+    double vertexAngle( QgsVertexId vertex ) const override { Q_UNUSED( vertex ); return 0.0; }
 
     virtual int vertexCount( int /*part*/ = 0, int /*ring*/ = 0 ) const override { return 1; }
     virtual int ringCount( int /*part*/ = 0 ) const override { return 1; }
     virtual int partCount() const override { return 1; }
-    virtual QgsPointV2 vertexAt( const QgsVertexId& /*id*/ ) const override { return *this; }
+    virtual QgsPointV2 vertexAt( QgsVertexId /*id*/ ) const override { return *this; }
 
     virtual bool addZValue( double zValue = 0 ) override;
     virtual bool addMValue( double mValue = 0 ) override;
+    virtual bool dropZValue() override;
+    virtual bool dropMValue() override;
+    bool convertTo( QgsWkbTypes::Type type ) override;
 
   private:
     double mX;

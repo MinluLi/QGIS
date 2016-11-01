@@ -27,6 +27,7 @@ typedef QSet<QgsFeatureId> QgsFeatureIds;
 class QgsFeaturePool;
 class QgsGeometryCheck;
 class QgsGeometryCheckError;
+class QgsMapLayer;
 class QgsVectorLayer;
 class QMutex;
 
@@ -36,8 +37,9 @@ class QgsGeometryChecker : public QObject
   public:
     QgsGeometryChecker( const QList<QgsGeometryCheck*>& checks, QgsFeaturePool* featurePool );
     ~QgsGeometryChecker();
-    QFuture<void> execute( int* totalSteps = 0 );
+    QFuture<void> execute( int* totalSteps = nullptr );
     bool fixError( QgsGeometryCheckError *error, int method );
+    QgsMapLayer* getLayer() const;
     const QList<QgsGeometryCheck*> getChecks() const { return mChecks; }
     const QStringList& getMessages() const { return mMessages; }
 

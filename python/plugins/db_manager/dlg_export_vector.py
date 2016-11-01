@@ -21,11 +21,13 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
 
-from PyQt4.QtCore import Qt, QObject, SIGNAL, QSettings, QFileInfo
-from PyQt4.QtGui import QDialog, QFileDialog, QMessageBox, QApplication, QCursor
+from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QApplication
+from qgis.PyQt.QtGui import QCursor
 
-import qgis.core
+from qgis.core import QgsVectorFileWriter, QgsVectorDataProvider, QgsCoordinateReferenceSystem, QgsVectorLayerImport
 
 from .ui.ui_DlgExportVector import Ui_DbManagerDlgExportVector as Ui_Dialog
 
@@ -38,7 +40,7 @@ class DlgExportVector(QDialog, Ui_Dialog):
         self.db = inDb
         self.setupUi(self)
 
-        vectorFilterName = "lastVectorFileFilter" # "lastRasterFileFilter"
+        vectorFilterName = "lastVectorFileFilter"  # "lastRasterFileFilter"
         self.lastUsedVectorFilterSettingsKey = u"/UI/{0}".format(vectorFilterName)
         self.lastUsedVectorDirSettingsKey = u"/UI/{0}Dir".format(vectorFilterName)
 
@@ -54,7 +56,7 @@ class DlgExportVector(QDialog, Ui_Dialog):
         self.editSourceSrid.setText("%s" % srid)
         self.editTargetSrid.setText("%s" % srid)
 
-        QObject.connect(self.btnChooseOutputFile, SIGNAL("clicked()"), self.chooseOutputFile)
+        self.btnChooseOutputFile.clicked.connect(self.chooseOutputFile)
         self.checkSupports()
 
     def checkSupports(self):
@@ -74,10 +76,17 @@ class DlgExportVector(QDialog, Ui_Dialog):
         selectedFilter = self.cboFileFormat.itemData(self.cboFileFormat.currentIndex())
 
         # ask for a filename
-        filename = QFileDialog.getSaveFileName(self, self.tr("Choose where to save the file"), lastUsedDir,
-                                               selectedFilter)
+        filename, filter = QFileDialog.getSaveFileName(self, self.tr("Choose where to save the file"), lastUsedDir,
+                                                       selectedFilter)
         if filename == "":
             return
+
+        filterString = QgsVectorFileWriter.filterForDriver(selectedFilter)
+        ext = filterString[filterString.find('.'):]
+        ext = ext[:ext.find(' ')]
+
+        if not filename.lower().endswith(ext):
+            filename += ext
 
         # store the last used dir
         settings.setValue(self.lastUsedVectorDirSettingsKey, QFileInfo(filename).filePath())
@@ -86,7 +95,7 @@ class DlgExportVector(QDialog, Ui_Dialog):
 
     def populateEncodings(self):
         # populate the combo with supported encodings
-        self.cboEncoding.addItems(qgis.core.QgsVectorDataProvider.availableEncodings())
+        self.cboEncoding.addItems(QgsVectorDataProvider.availableEncodings())
 
         # set the last used encoding
         enc = self.inLayer.dataProvider().encoding()
@@ -98,7 +107,7 @@ class DlgExportVector(QDialog, Ui_Dialog):
 
     def populateFileFilters(self):
         # populate the combo with supported vector file formats
-        for name, filt in qgis.core.QgsVectorFileWriter.ogrDriverList().iteritems():
+        for name, filt in list(QgsVectorFileWriter.ogrDriverList().items()):
             self.cboFileFormat.addItem(name, filt)
 
         # set the last used filter
@@ -154,23 +163,23 @@ class DlgExportVector(QDialog, Ui_Dialog):
             if self.chkDropTable.isChecked():
                 options['overwrite'] = True
 
-            outCrs = None
+            outCrs = QgsCoordinateReferenceSystem()
             if self.chkTargetSrid.isEnabled() and self.chkTargetSrid.isChecked():
                 targetSrid = int(self.editTargetSrid.text())
-                outCrs = qgis.core.QgsCoordinateReferenceSystem(targetSrid)
+                outCrs = QgsCoordinateReferenceSystem(targetSrid)
 
             # update input layer crs
             if self.chkSourceSrid.isEnabled() and self.chkSourceSrid.isChecked():
                 sourceSrid = int(self.editSourceSrid.text())
-                inCrs = qgis.core.QgsCoordinateReferenceSystem(sourceSrid)
+                inCrs = QgsCoordinateReferenceSystem(sourceSrid)
                 self.inLayer.setCrs(inCrs)
 
             # do the export!
-            ret, errMsg = qgis.core.QgsVectorLayerImport.importLayer(self.inLayer, uri, providerName, outCrs, False,
-                                                                     False, options)
+            ret, errMsg = QgsVectorLayerImport.importLayer(self.inLayer, uri, providerName, outCrs, False,
+                                                           False, options)
         except Exception as e:
             ret = -1
-            errMsg = unicode(e)
+            errMsg = str(e)
 
         finally:
             # restore input layer crs and encoding

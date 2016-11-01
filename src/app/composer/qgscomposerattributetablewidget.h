@@ -31,16 +31,12 @@ class QgsComposerAttributeTableWidget: public QgsComposerItemBaseWidget, private
     QgsComposerAttributeTableWidget( QgsComposerAttributeTableV2* table, QgsComposerFrame* frame );
     ~QgsComposerAttributeTableWidget();
 
-  protected:
-    void showEvent( QShowEvent * event ) override;
-
   private:
     QgsComposerAttributeTableV2* mComposerTable;
     QgsComposerFrame* mFrame;
 
-    /** Blocks / unblocks the signals of all GUI elements*/
+    //! Blocks / unblocks the signals of all GUI elements
     void blockAllSignals( bool b );
-    void refreshMapComboBox();
 
     void toggleSourceControls();
 
@@ -49,7 +45,7 @@ class QgsComposerAttributeTableWidget: public QgsComposerItemBaseWidget, private
   private slots:
     void on_mRefreshPushButton_clicked();
     void on_mAttributesPushButton_clicked();
-    void on_mComposerMapComboBox_activated( int index );
+    void composerMapChanged( QgsComposerItem* item );
     void on_mMaximumRowsSpinBox_valueChanged( int i );
     void on_mMarginSpinBox_valueChanged( double d );
     void on_mGridStrokeWidthSpinBox_valueChanged( double d );
@@ -59,6 +55,8 @@ class QgsComposerAttributeTableWidget: public QgsComposerItemBaseWidget, private
     void on_mHeaderFontColorButton_colorChanged( const QColor& newColor );
     void on_mContentFontPushButton_clicked();
     void on_mContentFontColorButton_colorChanged( const QColor& newColor );
+    void on_mDrawHorizontalGrid_toggled( bool state );
+    void on_mDrawVerticalGrid_toggled( bool state );
     void on_mShowGridGroupCheckBox_toggled( bool state );
     void on_mShowOnlyVisibleFeaturesCheckBox_stateChanged( int state );
     void on_mFeatureFilterCheckBox_stateChanged( int state );
@@ -82,10 +80,10 @@ class QgsComposerAttributeTableWidget: public QgsComposerItemBaseWidget, private
     void on_mWrapBehaviourComboBox_currentIndexChanged( int index );
     void on_mAdvancedCustomisationButton_clicked();
 
-    /** Inserts a new maximum number of features into the spin box (without the spinbox emitting a signal)*/
+    //! Inserts a new maximum number of features into the spin box (without the spinbox emitting a signal)
     void setMaximumNumberOfFeatures( int n );
 
-    /** Sets the GUI elements to the values of mComposerTable*/
+    //! Sets the GUI elements to the values of mComposerTable
     void updateGuiElements();
 
     void atlasToggled();

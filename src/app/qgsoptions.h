@@ -22,8 +22,6 @@
 #include "ui_qgsoptionsbase.h"
 #include "qgisgui.h"
 #include "qgisapp.h"
-#include "qgisappstylesheet.h"
-#include "qgsautheditorwidgets.h"
 #include "qgscontexthelp.h"
 
 #include <qgscoordinatereferencesystem.h>
@@ -46,7 +44,7 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      * @param name name for the widget
      * @param modal true for modal dialog
      */
-    QgsOptions( QWidget *parent = 0, Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
+    QgsOptions( QWidget *parent = nullptr, Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
     //! Destructor
     ~QgsOptions();
 
@@ -83,7 +81,7 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      */
     void on_mProjectOnLaunchCmbBx_currentIndexChanged( int indx );
 
-    /** Slot to choose path to project to open after launch */
+    //! Slot to choose path to project to open after launch
     void on_mProjectOnLaunchPushBtn_pressed();
 
     /**
@@ -93,42 +91,42 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      */
     bool newVisible();
 
-    /** Slot to select the default font point size for app */
+    //! Slot to select the default font point size for app
     void on_spinFontSize_valueChanged( int fontSize );
 
-    /** Slot to set font family for app to Qt default */
+    //! Slot to set font family for app to Qt default
     void on_mFontFamilyRadioQt_released();
 
-    /** Slot to set font family for app to custom choice */
+    //! Slot to set font family for app to custom choice
     void on_mFontFamilyRadioCustom_released();
 
-    /** Slot to select custom font family choice for app */
+    //! Slot to select custom font family choice for app
     void on_mFontFamilyComboBox_currentFontChanged( const QFont& font );
 
-    /** Slot to set whether to use custom group boxes */
+    //! Slot to set whether to use custom group boxes
     void on_mCustomGroupBoxChkBx_clicked( bool chkd );
 
     void on_mProxyTypeComboBox_currentIndexChanged( int idx );
 
-    /** Add a new URL to exclude from Proxy*/
+    //! Add a new URL to exclude from Proxy
     void on_mAddUrlPushButton_clicked();
 
-    /** Remove an URL to exclude from Proxy*/
+    //! Remove an URL to exclude from Proxy
     void on_mRemoveUrlPushButton_clicked();
 
-    /** Slot to flag restoring/delete window state settings upon restart*/
+    //! Slot to flag restoring/delete window state settings upon restart
     void on_mRestoreDefaultWindowStateBtn_clicked();
 
-    /** Slot to enable custom environment variables table and buttons */
+    //! Slot to enable custom environment variables table and buttons
     void on_mCustomVariablesChkBx_toggled( bool chkd );
 
-    /** Slot to add a custom environment variable to the app */
+    //! Slot to add a custom environment variable to the app
     void on_mAddCustomVarBtn_clicked();
 
-    /** Slot to remove a custom environment variable from the app */
+    //! Slot to remove a custom environment variable from the app
     void on_mRemoveCustomVarBtn_clicked();
 
-    /** Slot to filter out current environment variables not specific to QGIS */
+    //! Slot to filter out current environment variables not specific to QGIS
     void on_mCurrentVariablesQGISChxBx_toggled( bool qgisSpecific );
 
     /* Let the user add a path to the list of search paths
@@ -155,6 +153,11 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      * used for finding SVG files. */
     void on_mBtnRemoveSVGPath_clicked();
 
+    /* Let the user remove a path from the hidden path list
+     * for the browser */
+    void on_mBtnRemoveHiddenPath_clicked();
+
+
     void on_buttonBox_helpRequested() { QgsContextHelp::run( metaObject()->className() ); }
 
     void on_mBrowseCacheDirectory_clicked();
@@ -174,14 +177,17 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      * used in scale combobox  */
     void on_pbnDefaultScaleValues_clicked();
 
-    /** Let the user load scales from file */
+    //! Let the user load scales from file
     void on_pbnImportScales_clicked();
 
-    /** Let the user load scales from file */
+    //! Let the user load scales from file
     void on_pbnExportScales_clicked();
 
-    /** Auto slot executed when the active page in the option section widget is changed */
+    //! Auto slot executed when the active page in the option section widget is changed
     void on_mOptionsStackedWidget_currentChanged( int theIndx );
+
+    //! A scale in the list of predefined scales changed
+    void scaleItemChanged( QListWidgetItem* changedScaleItem );
 
     /* Load the list of drivers available in GDAL */
     void loadGdalDriverList();
@@ -193,10 +199,9 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
     void on_mAddDefaultTransformButton_clicked();
 
     void on_mButtonAddColor_clicked();
-    void on_mButtonImportColors_clicked();
-    void on_mButtonExportColors_clicked();
 
   private:
+    QSettings *mSettings;
     QStringList i18nList();
     void initContrastEnhancement( QComboBox *cbox, const QString& name, const QString& defaultVal );
     void saveContrastEnhancement( QComboBox *cbox, const QString& name );
@@ -204,10 +209,13 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
     QgsCoordinateReferenceSystem mLayerDefaultCrs;
     bool mLoadedGdalDriverList;
 
-    /** Generate table row for custom environment variables */
+    //! Generate table row for custom environment variables
     void addCustomEnvVarRow( const QString& varName, const QString& varVal, const QString& varApply = QString() );
 
     void saveDefaultDatumTransformations();
+
+    QListWidgetItem* addScaleToScaleList( const QString &newScale );
+    void addScaleToScaleList( QListWidgetItem* newItem );
 
   protected:
     QgisAppStyleSheet* mStyleSheetBuilder;

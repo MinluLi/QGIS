@@ -18,7 +18,7 @@ class QgsTransformEffect : QgsPaintEffect
      * @param map encoded properties string map
      * @returns new QgsTransformEffect
      */
-    static QgsPaintEffect* create( const QgsStringMap& ) /Factory/;
+    static QgsPaintEffect* create( const QgsStringMap& map ) /Factory/;
 
     QgsTransformEffect();
     virtual ~QgsTransformEffect();
@@ -71,7 +71,7 @@ class QgsTransformEffect : QgsPaintEffect
      * @see setTranslateY
      * @see setTranslateMapUnitScale
      */
-    void setTranslateUnit( const QgsSymbolV2::OutputUnit unit );
+    void setTranslateUnit( const QgsUnitTypes::RenderUnit unit );
 
     /** Returns the units used for the transform translation.
      * @returns units for translation
@@ -80,7 +80,7 @@ class QgsTransformEffect : QgsPaintEffect
      * @see translateY
      * @see translateMapUnitScale
      */
-    QgsSymbolV2::OutputUnit translateUnit() const;
+    QgsUnitTypes::RenderUnit translateUnit() const;
 
     /** Sets the map unit scale used for the transform translation.
      * @param scale map unit scale for translation
@@ -114,10 +114,9 @@ class QgsTransformEffect : QgsPaintEffect
      */
     double scaleX() const;
 
-    /** Sets the x axis scaling factor.
-     * @param scaleX factor to scale x axis by, where 1.0 = no scaling
+    /** Sets the y axis scaling factor.
+     * @param scaleY factor to scale y axis by, where 1.0 = no scaling
      * @see scaleX
-     * @see setScaleY
      */
     void setScaleY( const double scaleY );
 

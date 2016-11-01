@@ -67,14 +67,14 @@ QVariant QgsSelectLayerTreeModel::data( const QModelIndex& index, int role ) con
 }
 
 
-QgsOfflineEditingPluginGui::QgsOfflineEditingPluginGui( QWidget* parent /*= 0*/, Qt::WindowFlags fl /*= 0*/ )
+QgsOfflineEditingPluginGui::QgsOfflineEditingPluginGui( QWidget* parent, Qt::WindowFlags fl )
     : QDialog( parent, fl )
 {
   setupUi( this );
 
   restoreState();
 
-  mOfflineDbFile = "offline.sqlite";
+  mOfflineDbFile = QStringLiteral( "offline.sqlite" );
   mOfflineDataPathLineEdit->setText( QDir( mOfflineDataPath ).absoluteFilePath( mOfflineDbFile ) );
 
   QgsLayerTreeGroup* rootNode = QgsLayerTree::toGroup( QgsProject::instance()->layerTreeRoot()->clone() );
@@ -88,8 +88,8 @@ QgsOfflineEditingPluginGui::QgsOfflineEditingPluginGui( QWidget* parent /*= 0*/,
 QgsOfflineEditingPluginGui::~QgsOfflineEditingPluginGui()
 {
   QSettings settings;
-  settings.setValue( "Plugin-OfflineEditing/geometry", saveGeometry() );
-  settings.setValue( "Plugin-OfflineEditing/offline_data_path", mOfflineDataPath );
+  settings.setValue( QStringLiteral( "Plugin-OfflineEditing/geometry" ), saveGeometry() );
+  settings.setValue( QStringLiteral( "Plugin-OfflineEditing/offline_data_path" ), mOfflineDataPath );
 }
 
 QString QgsOfflineEditingPluginGui::offlineDataPath()
@@ -102,9 +102,14 @@ QString QgsOfflineEditingPluginGui::offlineDbFile()
   return mOfflineDbFile;
 }
 
-QStringList& QgsOfflineEditingPluginGui::selectedLayerIds()
+QStringList QgsOfflineEditingPluginGui::selectedLayerIds()
 {
   return mSelectedLayerIds;
+}
+
+bool QgsOfflineEditingPluginGui::onlySelected() const
+{
+  return mOnlySelectedCheckBox->checkState() == Qt::Checked;
 }
 
 void QgsOfflineEditingPluginGui::on_mBrowseButton_clicked()
@@ -117,9 +122,9 @@ void QgsOfflineEditingPluginGui::on_mBrowseButton_clicked()
 
   if ( !fileName.isEmpty() )
   {
-    if ( !fileName.toLower().endsWith( ".sqlite" ) )
+    if ( !fileName.endsWith( QLatin1String( ".sqlite" ), Qt::CaseInsensitive ) )
     {
-      fileName += ".sqlite";
+      fileName += QLatin1String( ".sqlite" );
     }
     mOfflineDbFile = QFileInfo( fileName ).fileName();
     mOfflineDataPath = QFileInfo( fileName ).absolutePath();
@@ -148,7 +153,6 @@ void QgsOfflineEditingPluginGui::on_buttonBox_accepted()
   {
     if ( nodeLayer->isVisible() )
     {
-      QgsDebugMsg( nodeLayer->layerId() );
       mSelectedLayerIds.append( nodeLayer->layerId() );
     }
   }
@@ -170,8 +174,8 @@ void QgsOfflineEditingPluginGui::on_buttonBox_helpRequested()
 void QgsOfflineEditingPluginGui::restoreState()
 {
   QSettings settings;
-  mOfflineDataPath = settings.value( "Plugin-OfflineEditing/offline_data_path", QDir().absolutePath() ).toString();
-  restoreGeometry( settings.value( "Plugin-OfflineEditing/geometry" ).toByteArray() );
+  mOfflineDataPath = settings.value( QStringLiteral( "Plugin-OfflineEditing/offline_data_path" ), QDir::homePath() ).toString();
+  restoreGeometry( settings.value( QStringLiteral( "Plugin-OfflineEditing/geometry" ) ).toByteArray() );
 }
 
 void QgsOfflineEditingPluginGui::selectAll()

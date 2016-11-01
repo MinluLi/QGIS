@@ -21,7 +21,7 @@
 #include <QtCore>
 #include "qgsrendercontext.h"
 
-/**
+/** \ingroup core
  * \class QgsMapUnitScale
  * \brief Struct for storing maximum and minimum scales for measurements in map units
  *
@@ -47,18 +47,18 @@ class CORE_EXPORT QgsMapUnitScale
         , maxSizeMM( 0.0 )
     {}
 
-    /** The minimum scale, or 0.0 if unset */
+    //! The minimum scale, or 0.0 if unset
     double minScale;
-    /** The maximum scale, or 0.0 if unset */
+    //! The maximum scale, or 0.0 if unset
     double maxScale;
 
-    /** Whether the minimum size in mm should be respected */
+    //! Whether the minimum size in mm should be respected
     bool minSizeMMEnabled;
-    /** The minimum size in millimeters, or 0.0 if unset */
+    //! The minimum size in millimeters, or 0.0 if unset
     double minSizeMM;
-    /** Whether the maximum size in mm should be respected */
+    //! Whether the maximum size in mm should be respected
     bool maxSizeMMEnabled;
-    /** The maximum size in millimeters, or 0.0 if unset */
+    //! The maximum size in millimeters, or 0.0 if unset
     double maxSizeMM;
 
     /** Computes a map units per pixel scaling factor, respecting the minimum and maximum scales
@@ -70,11 +70,11 @@ class CORE_EXPORT QgsMapUnitScale
     {
       double mup = c.mapToPixel().mapUnitsPerPixel();
       double renderScale = c.rendererScale(); // Note: this value is 1 / scale
-      if ( minScale != 0 )
+      if ( !qgsDoubleNear( minScale, 0 ) )
       {
         mup = qMin( mup / ( minScale * renderScale ), mup );
       }
-      if ( maxScale != 0 )
+      if ( !qgsDoubleNear( maxScale, 0 ) )
       {
         mup = qMax( mup / ( maxScale * renderScale ), mup );
       }
@@ -83,11 +83,12 @@ class CORE_EXPORT QgsMapUnitScale
 
     bool operator==( const QgsMapUnitScale& other ) const
     {
-      return minScale == other.minScale && maxScale == other.maxScale
+      return qgsDoubleNear( minScale, other.minScale )
+             && qgsDoubleNear( maxScale, other.maxScale )
              && minSizeMMEnabled == other.minSizeMMEnabled
-             && minSizeMM == other.minSizeMM
+             && qgsDoubleNear( minSizeMM, other.minSizeMM )
              && maxSizeMMEnabled == other.maxSizeMMEnabled
-             && maxSizeMM == other.maxSizeMM;
+             && qgsDoubleNear( maxSizeMM, other.maxSizeMM );
     }
 
     bool operator!=( const QgsMapUnitScale& other ) const

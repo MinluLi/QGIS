@@ -43,10 +43,10 @@ class GUI_EXPORT QgsLegendInterface : public QObject
 
   public:
 
-    /** Constructor */
+    //! Constructor
     QgsLegendInterface();
 
-    /** Virtual destructor */
+    //! Virtual destructor
     virtual ~QgsLegendInterface();
 
     //! Return a string list of groups
@@ -78,7 +78,7 @@ class GUI_EXPORT QgsLegendInterface : public QObject
     //! Check if a layer is visible
     virtual bool isLayerVisible( QgsMapLayer * ml ) = 0;
 
-    /** Add action for layers in the legend */
+    //! Add action for layers in the legend
     virtual void addLegendLayerAction( QAction* action, QString menu, QString id,
                                        QgsMapLayer::LayerType type, bool allLayers ) = 0;
 
@@ -87,7 +87,7 @@ class GUI_EXPORT QgsLegendInterface : public QObject
      */
     virtual void addLegendLayerActionForLayer( QAction* action, QgsMapLayer* layer ) = 0;
 
-    /** Remove action for layers in the legend */
+    //! Remove action for layers in the legend
     virtual bool removeLegendLayerAction( QAction* action ) = 0;
 
     //! Returns the current layer if the current item is a QgsLegendLayer.
@@ -121,7 +121,7 @@ class GUI_EXPORT QgsLegendInterface : public QObject
 
     //! Add a new group
     //! a parent group can be given to nest the new group in it
-    virtual int addGroup( const QString& name, bool expand = true, QTreeWidgetItem* parent = 0 ) = 0;
+    virtual int addGroup( const QString& name, bool expand = true, QTreeWidgetItem* parent = nullptr ) = 0;
 
     //! Add a new group
     //! a parent group index has to be given to nest the new group in it

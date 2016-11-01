@@ -16,6 +16,7 @@
 #include "qgslayertreeview.h"
 
 #include "qgslayertree.h"
+#include "qgslayertreeembeddedwidgetregistry.h"
 #include "qgslayertreemodel.h"
 #include "qgslayertreemodellegendnode.h"
 #include "qgslayertreeviewdefaultactions.h"
@@ -24,10 +25,11 @@
 #include <QMenu>
 #include <QContextMenuEvent>
 
+
 QgsLayerTreeView::QgsLayerTreeView( QWidget *parent )
     : QTreeView( parent )
-    , mDefaultActions( 0 )
-    , mMenuProvider( 0 )
+    , mDefaultActions( nullptr )
+    , mMenuProvider( nullptr )
 {
   setHeaderHidden( true );
 
@@ -38,6 +40,7 @@ QgsLayerTreeView::QgsLayerTreeView( QWidget *parent )
   setExpandsOnDoubleClick( false ); // normally used for other actions
 
   setSelectionMode( ExtendedSelection );
+  setDefaultDropAction( Qt::MoveAction );
 
   connect( this, SIGNAL( collapsed( QModelIndex ) ), this, SLOT( updateExpandedStateToNode( QModelIndex ) ) );
   connect( this, SIGNAL( expanded( QModelIndex ) ), this, SLOT( updateExpandedStateToNode( QModelIndex ) ) );
@@ -128,10 +131,31 @@ void QgsLayerTreeView::modelRowsInserted( const QModelIndex& index, int start, i
   if ( !parentNode )
     return;
 
+  // Embedded widgets - replace placeholders in the model by actual widgets
+  if ( layerTreeModel()->testFlag( QgsLayerTreeModel::UseEmbeddedWidgets ) && QgsLayerTree::isLayer( parentNode ) )
+  {
+    QgsLayerTreeLayer* nodeLayer = QgsLayerTree::toLayer( parentNode );
+    if ( QgsMapLayer* layer = nodeLayer->layer() )
+    {
+      int widgetsCount = layer->customProperty( QStringLiteral( "embeddedWidgets/count" ), 0 ).toInt();
+      QList<QgsLayerTreeModelLegendNode*> legendNodes = layerTreeModel()->layerLegendNodes( nodeLayer );
+      for ( int i = 0; i < widgetsCount; ++i )
+      {
+        QString providerId = layer->customProperty( QStringLiteral( "embeddedWidgets/%1/id" ).arg( i ) ).toString();
+        if ( QgsLayerTreeEmbeddedWidgetProvider* provider = QgsLayerTreeEmbeddedWidgetRegistry::instance()->provider( providerId ) )
+        {
+          QModelIndex index = layerTreeModel()->legendNode2index( legendNodes[i] );
+          setIndexWidget( index, provider->createWidget( layer, i ) );
+        }
+      }
+    }
+  }
+
+
   if ( QgsLayerTree::isLayer( parentNode ) )
   {
     // if ShowLegendAsTree flag is enabled in model, we may need to expand some legend nodes
-    QStringList expandedNodeKeys = parentNode->customProperty( "expandedLegendNodes" ).toStringList();
+    QStringList expandedNodeKeys = parentNode->customProperty( QStringLiteral( "expandedLegendNodes" ) ).toStringList();
     if ( expandedNodeKeys.isEmpty() )
       return;
 
@@ -169,18 +193,18 @@ void QgsLayerTreeView::updateExpandedStateToNode( const QModelIndex& index )
   else if ( QgsLayerTreeModelLegendNode* node = layerTreeModel()->index2legendNode( index ) )
   {
     QString ruleKey = node->data( QgsLayerTreeModelLegendNode::RuleKeyRole ).toString();
-    QStringList lst = node->layerNode()->customProperty( "expandedLegendNodes" ).toStringList();
+    QStringList lst = node->layerNode()->customProperty( QStringLiteral( "expandedLegendNodes" ) ).toStringList();
     bool expanded = isExpanded( index );
     bool isInList = lst.contains( ruleKey );
     if ( expanded && !isInList )
     {
       lst.append( ruleKey );
-      node->layerNode()->setCustomProperty( "expandedLegendNodes", lst );
+      node->layerNode()->setCustomProperty( QStringLiteral( "expandedLegendNodes" ), lst );
     }
     else if ( !expanded && isInList )
     {
       lst.removeAll( ruleKey );
-      node->layerNode()->setCustomProperty( "expandedLegendNodes", lst );
+      node->layerNode()->setCustomProperty( QStringLiteral( "expandedLegendNodes" ), lst );
     }
   }
 }
@@ -243,7 +267,7 @@ QgsMapLayer* QgsLayerTreeView::layerForIndex( const QModelIndex& index ) const
       return legendNode->layerNode()->layer();
   }
 
-  return 0;
+  return nullptr;
 }
 
 QgsLayerTreeNode* QgsLayerTreeView::currentNode() const
@@ -270,7 +294,12 @@ QgsLayerTreeGroup* QgsLayerTreeView::currentGroupNode() const
       return QgsLayerTree::toGroup( parent->parent() );
   }
 
-  return 0;
+  return nullptr;
+}
+
+QgsLayerTreeModelLegendNode* QgsLayerTreeView::currentLegendNode() const
+{
+  return layerTreeModel()->index2legendNode( selectionModel()->currentIndex() );
 }
 
 QList<QgsLayerTreeNode*> QgsLayerTreeView::selectedNodes( bool skipInternal ) const
@@ -306,4 +335,50 @@ void QgsLayerTreeView::refreshLayerSymbology( const QString& layerId )
   QgsLayerTreeLayer* nodeLayer = layerTreeModel()->rootGroup()->findLayer( layerId );
   if ( nodeLayer )
     layerTreeModel()->refreshLayerLegend( nodeLayer );
+}
+
+
+static void _expandAllLegendNodes( QgsLayerTreeLayer* nodeLayer, bool expanded, QgsLayerTreeModel* model )
+{
+  // for layers we also need to find out with legend nodes contain some children and make them expanded/collapsed
+  // if we are collapsing, we just write out an empty list
+  QStringList lst;
+  if ( expanded )
+  {
+    Q_FOREACH ( QgsLayerTreeModelLegendNode* legendNode, model->layerLegendNodes( nodeLayer ) )
+    {
+      QString parentKey = legendNode->data( QgsLayerTreeModelLegendNode::ParentRuleKeyRole ).toString();
+      if ( !parentKey.isEmpty() && !lst.contains( parentKey ) )
+        lst << parentKey;
+    }
+  }
+  nodeLayer->setCustomProperty( "expandedLegendNodes", lst );
+}
+
+
+static void _expandAllNodes( QgsLayerTreeGroup* parent, bool expanded, QgsLayerTreeModel* model )
+{
+  Q_FOREACH ( QgsLayerTreeNode* node, parent->children() )
+  {
+    node->setExpanded( expanded );
+    if ( QgsLayerTree::isGroup( node ) )
+      _expandAllNodes( QgsLayerTree::toGroup( node ), expanded, model );
+    else if ( QgsLayerTree::isLayer( node ) )
+      _expandAllLegendNodes( QgsLayerTree::toLayer( node ), expanded, model );
+  }
+}
+
+
+void QgsLayerTreeView::expandAllNodes()
+{
+  // unfortunately expandAll() does not emit expanded() signals
+  _expandAllNodes( layerTreeModel()->rootGroup(), true, layerTreeModel() );
+  expandAll();
+}
+
+void QgsLayerTreeView::collapseAllNodes()
+{
+  // unfortunately collapseAll() does not emit collapsed() signals
+  _expandAllNodes( layerTreeModel()->rootGroup(), false, layerTreeModel() );
+  collapseAll();
 }

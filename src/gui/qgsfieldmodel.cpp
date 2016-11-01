@@ -14,16 +14,18 @@
 ***************************************************************************/
 
 #include <QFont>
+#include <QIcon>
 
 #include "qgsfieldmodel.h"
 #include "qgsmaplayermodel.h"
 #include "qgsmaplayerproxymodel.h"
 #include "qgslogger.h"
-
+#include "qgsapplication.h"
+#include "qgsvectorlayer.h"
 
 QgsFieldModel::QgsFieldModel( QObject *parent )
     : QAbstractItemModel( parent )
-    , mLayer( NULL )
+    , mLayer( nullptr )
     , mAllowExpression( false )
 {
 }
@@ -72,7 +74,7 @@ void QgsFieldModel::setLayer( QgsVectorLayer *layer )
   if ( mLayer )
   {
     disconnect( mLayer, SIGNAL( updatedFields() ), this, SLOT( updateModel() ) );
-    disconnect( mLayer, SIGNAL( layerDeleted() ), this, SLOT( layerDeleted() ) );
+    disconnect( mLayer, SIGNAL( destroyed() ), this, SLOT( layerDeleted() ) );
   }
 
   mLayer = layer;
@@ -80,7 +82,7 @@ void QgsFieldModel::setLayer( QgsVectorLayer *layer )
   if ( mLayer )
   {
     connect( mLayer, SIGNAL( updatedFields() ), this, SLOT( updateModel() ) );
-    connect( mLayer, SIGNAL( layerDeleted() ), this, SLOT( layerDeleted() ) );
+    connect( mLayer, SIGNAL( destroyed() ), this, SLOT( layerDeleted() ) );
   }
 
   updateModel();
@@ -88,7 +90,7 @@ void QgsFieldModel::setLayer( QgsVectorLayer *layer )
 
 void QgsFieldModel::layerDeleted()
 {
-  mLayer = 0;
+  mLayer = nullptr;
   updateModel();
 }
 
@@ -251,7 +253,7 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
       {
         return "";
       }
-      QgsField field = mFields[index.row()];
+      QgsField field = mFields.at( index.row() );
       return field.name();
     }
 
@@ -259,11 +261,11 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
     {
       if ( exprIdx >= 0 )
       {
-        return mExpression[exprIdx];
+        return mExpression.at( exprIdx );
       }
       else
       {
-        QgsField field = mFields[index.row()];
+        QgsField field = mFields.at( index.row() );
         return field.name();
       }
     }
@@ -286,7 +288,7 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
     {
       if ( exprIdx >= 0 )
       {
-        QgsExpression exp( mExpression[exprIdx] );
+        QgsExpression exp( mExpression.at( exprIdx ) );
         QgsExpressionContext context;
         if ( mLayer )
           context.setFields( mLayer->fields() );
@@ -301,8 +303,17 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
     {
       if ( exprIdx < 0 )
       {
-        QgsField field = mFields[index.row()];
-        return ( int )field.type();
+        QgsField field = mFields.at( index.row() );
+        return static_cast< int >( field.type() );
+      }
+      return QVariant();
+    }
+
+    case FieldOriginRole:
+    {
+      if ( exprIdx < 0 )
+      {
+        return static_cast< int >( mFields.fieldOrigin( index.row() ) );
       }
       return QVariant();
     }
@@ -312,11 +323,11 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
     {
       if ( exprIdx >= 0 )
       {
-        return mExpression[exprIdx];
+        return mExpression.at( exprIdx );
       }
       else if ( role == Qt::EditRole )
       {
-        return mFields[index.row()].name();
+        return mFields.at( index.row() ).name();
       }
       else if ( mLayer )
       {
@@ -331,7 +342,7 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
       if ( exprIdx >= 0 )
       {
         // if expression, test validity
-        QgsExpression exp( mExpression[exprIdx] );
+        QgsExpression exp( mExpression.at( exprIdx ) );
         QgsExpressionContext context;
         if ( mLayer )
           context.setFields( mLayer->fields() );
@@ -355,6 +366,15 @@ QVariant QgsFieldModel::data( const QModelIndex &index, int role ) const
         return font;
       }
       return QVariant();
+    }
+
+    case Qt::DecorationRole:
+    {
+      if ( exprIdx < 0 )
+      {
+        return mFields.iconForField( index.row() );
+      }
+      return QIcon();
     }
 
     default:

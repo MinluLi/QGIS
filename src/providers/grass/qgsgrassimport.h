@@ -32,7 +32,7 @@ class GRASS_LIB_EXPORT QgsGrassImportIcon : public QgsAnimatedIcon
   public:
     static QgsGrassImportIcon *instance();
     QgsGrassImportIcon();
-    virtual ~QgsGrassImportIcon() {};
+    virtual ~QgsGrassImportIcon() {}
 };
 
 // QgsGrassImport items live on the main thread but mProcess, when importInThread() is used, lives on another
@@ -73,7 +73,7 @@ class GRASS_LIB_EXPORT QgsGrassImport : public QObject
 {
     Q_OBJECT
   public:
-    QgsGrassImport( QgsGrassObject grassObject );
+    QgsGrassImport( const QgsGrassObject &grassObject );
     virtual ~QgsGrassImport();
     QgsGrassObject grassObject() const { return mGrassObject; }
     virtual void importInThread();
@@ -101,7 +101,7 @@ class GRASS_LIB_EXPORT QgsGrassImport : public QObject
 
   protected:
     static bool run( QgsGrassImport *imp );
-    void setError( QString error );
+    void setError( const QString &error );
     void addProgressRow( QString html );
     QgsGrassObject mGrassObject;
     QString mError;

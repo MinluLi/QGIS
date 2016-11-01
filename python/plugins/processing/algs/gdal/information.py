@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,11 +26,17 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
+
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterBoolean
 from processing.core.outputs import OutputHTML
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class information(GdalAlgorithm):
@@ -38,6 +45,9 @@ class information(GdalAlgorithm):
     OUTPUT = 'OUTPUT'
     NOGCP = 'NOGCP'
     NOMETADATA = 'NOMETADATA'
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'raster-info.png'))
 
     def commandLineName(self):
         return "gdalorg:rasterinfo"
@@ -69,6 +79,6 @@ class information(GdalAlgorithm):
         f = open(output, 'w')
         f.write('<pre>')
         for s in GdalUtils.getConsoleOutput()[1:]:
-            f.write(unicode(s))
+            f.write(str(s))
         f.write('</pre>')
         f.close()

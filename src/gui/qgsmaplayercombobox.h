@@ -23,7 +23,7 @@
 class QgsMapLayer;
 class QgsVectorLayer;
 
-/**
+/** \ingroup gui
  * @brief The QgsMapLayerComboBox class is a combo box which displays the list of layers
  * @note added in 2.3
  */
@@ -38,10 +38,10 @@ class GUI_EXPORT QgsMapLayerComboBox : public QComboBox
      * @brief QgsMapLayerComboBox creates a combo box to dislpay the list of layers (currently in the registry).
      * The layers can be filtered and/or ordered.
      */
-    explicit QgsMapLayerComboBox( QWidget *parent = 0 );
+    explicit QgsMapLayerComboBox( QWidget *parent = nullptr );
 
     //! setFilters allows fitering according to layer type and/or geometry type.
-    void setFilters( const QgsMapLayerProxyModel::Filters& filters ) { mProxyModel->setFilters( filters ); }
+    void setFilters( QgsMapLayerProxyModel::Filters filters ) { mProxyModel->setFilters( filters ); }
 
     //! currently used filter on list layers
     QgsMapLayerProxyModel::Filters filters() const { return mProxyModel->filters(); }

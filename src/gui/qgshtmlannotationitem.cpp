@@ -16,8 +16,8 @@
  ***************************************************************************/
 
 #include "qgshtmlannotationitem.h"
-#include "qgsattributeeditor.h"
 #include "qgsfeature.h"
+#include "qgsfeatureiterator.h"
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
 #include "qgsmaplayerregistry.h"
@@ -25,6 +25,8 @@
 #include "qgsvectorlayer.h"
 #include "qgsexpression.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgswebview.h"
+#include "qgswebframe.h"
 
 #include <QDomElement>
 #include <QDir>
@@ -38,8 +40,8 @@
 
 QgsHtmlAnnotationItem::QgsHtmlAnnotationItem( QgsMapCanvas* canvas, QgsVectorLayer* vlayer, bool hasFeature, int feature )
     : QgsAnnotationItem( canvas )
-    , mWidgetContainer( 0 )
-    , mWebView( 0 )
+    , mWidgetContainer( nullptr )
+    , mWebView( nullptr )
     , mVectorLayer( vlayer )
     , mHasAssociatedFeature( hasFeature )
     , mFeatureId( feature )
@@ -73,7 +75,7 @@ void QgsHtmlAnnotationItem::setHTMLPage( const QString& htmlFile )
   mHtmlFile = htmlFile;
   if ( !file.open( QIODevice::ReadOnly | QIODevice::Text ) )
   {
-    mHtmlSource = "";
+    mHtmlSource = QLatin1String( "" );
   }
   else
   {
@@ -115,7 +117,7 @@ void QgsHtmlAnnotationItem::paint( QPainter * painter, const QStyleOptionGraphic
   mWidgetContainer->setGeometry( QRectF( mOffsetFromReferencePoint.x() + mFrameBorderWidth / 2.0, mOffsetFromReferencePoint.y()
                                          + mFrameBorderWidth / 2.0, mFrameSize.width() - mFrameBorderWidth, mFrameSize.height()
                                          - mFrameBorderWidth ) );
-  if ( data( 1 ).toString() == "composer" )
+  if ( data( 1 ).toString() == QLatin1String( "composer" ) )
   {
     mWidgetContainer->widget()->render( painter, mOffsetFromReferencePoint.toPoint() );
   }
@@ -139,7 +141,7 @@ QSizeF QgsHtmlAnnotationItem::minimumFrameSize() const
   }
 }
 
-void QgsHtmlAnnotationItem::writeXML( QDomDocument& doc ) const
+void QgsHtmlAnnotationItem::writeXml( QDomDocument& doc ) const
 {
   QDomElement documentElem = doc.documentElement();
   if ( documentElem.isNull() )
@@ -147,25 +149,25 @@ void QgsHtmlAnnotationItem::writeXML( QDomDocument& doc ) const
     return;
   }
 
-  QDomElement formAnnotationElem = doc.createElement( "HtmlAnnotationItem" );
+  QDomElement formAnnotationElem = doc.createElement( QStringLiteral( "HtmlAnnotationItem" ) );
   if ( mVectorLayer )
   {
-    formAnnotationElem.setAttribute( "vectorLayer", mVectorLayer->id() );
+    formAnnotationElem.setAttribute( QStringLiteral( "vectorLayer" ), mVectorLayer->id() );
   }
-  formAnnotationElem.setAttribute( "hasFeature", mHasAssociatedFeature );
-  formAnnotationElem.setAttribute( "feature", mFeatureId );
-  formAnnotationElem.setAttribute( "htmlfile", htmlPage() );
+  formAnnotationElem.setAttribute( QStringLiteral( "hasFeature" ), mHasAssociatedFeature );
+  formAnnotationElem.setAttribute( QStringLiteral( "feature" ), mFeatureId );
+  formAnnotationElem.setAttribute( QStringLiteral( "htmlfile" ), htmlPage() );
 
-  _writeXML( doc, formAnnotationElem );
+  _writeXml( doc, formAnnotationElem );
   documentElem.appendChild( formAnnotationElem );
 }
 
-void QgsHtmlAnnotationItem::readXML( const QDomDocument& doc, const QDomElement& itemElem )
+void QgsHtmlAnnotationItem::readXml( const QDomDocument& doc, const QDomElement& itemElem )
 {
-  mVectorLayer = 0;
-  if ( itemElem.hasAttribute( "vectorLayer" ) )
+  mVectorLayer = nullptr;
+  if ( itemElem.hasAttribute( QStringLiteral( "vectorLayer" ) ) )
   {
-    mVectorLayer = dynamic_cast<QgsVectorLayer*>( QgsMapLayerRegistry::instance()->mapLayer( itemElem.attribute( "vectorLayer", "" ) ) );
+    mVectorLayer = dynamic_cast<QgsVectorLayer*>( QgsMapLayerRegistry::instance()->mapLayer( itemElem.attribute( QStringLiteral( "vectorLayer" ), QLatin1String( "" ) ) ) );
     if ( mVectorLayer )
     {
       QObject::connect( mVectorLayer, SIGNAL( layerModified() ), this, SLOT( setFeatureForMapPosition() ) );
@@ -173,13 +175,13 @@ void QgsHtmlAnnotationItem::readXML( const QDomDocument& doc, const QDomElement&
       QObject::connect( mMapCanvas, SIGNAL( layersChanged() ), this, SLOT( updateVisibility() ) );
     }
   }
-  mHasAssociatedFeature = itemElem.attribute( "hasFeature", "0" ).toInt();
-  mFeatureId = itemElem.attribute( "feature", "0" ).toInt();
-  mHtmlFile = itemElem.attribute( "htmlfile", "" );
-  QDomElement annotationElem = itemElem.firstChildElement( "AnnotationItem" );
+  mHasAssociatedFeature = itemElem.attribute( QStringLiteral( "hasFeature" ), QStringLiteral( "0" ) ).toInt();
+  mFeatureId = itemElem.attribute( QStringLiteral( "feature" ), QStringLiteral( "0" ) ).toInt();
+  mHtmlFile = itemElem.attribute( QStringLiteral( "htmlfile" ), QLatin1String( "" ) );
+  QDomElement annotationElem = itemElem.firstChildElement( QStringLiteral( "AnnotationItem" ) );
   if ( !annotationElem.isNull() )
   {
-    _readXML( doc, annotationElem );
+    _readXml( doc, annotationElem );
   }
 
   if ( mWebView )
@@ -191,42 +193,44 @@ void QgsHtmlAnnotationItem::readXML( const QDomDocument& doc, const QDomElement&
 
 void QgsHtmlAnnotationItem::setFeatureForMapPosition()
 {
-  if ( !mVectorLayer || !mMapCanvas )
+  QString newText;
+  if ( mVectorLayer && mMapCanvas )
   {
-    return;
+    double halfIdentifyWidth = QgsMapTool::searchRadiusMU( mMapCanvas );
+    QgsRectangle searchRect( mMapPosition.x() - halfIdentifyWidth, mMapPosition.y() - halfIdentifyWidth,
+                             mMapPosition.x() + halfIdentifyWidth, mMapPosition.y() + halfIdentifyWidth );
+
+    QgsFeatureIterator fit = mVectorLayer->getFeatures( QgsFeatureRequest().setFilterRect( searchRect ).setFlags( QgsFeatureRequest::NoGeometry | QgsFeatureRequest::ExactIntersect ) );
+
+    QgsFeature currentFeature;
+    QgsFeatureId currentFeatureId = 0;
+    bool featureFound = false;
+
+    while ( fit.nextFeature( currentFeature ) )
+    {
+      currentFeatureId = currentFeature.id();
+      featureFound = true;
+      break;
+    }
+
+    mHasAssociatedFeature = featureFound;
+    mFeatureId = currentFeatureId;
+    mFeature = currentFeature;
+
+    QgsExpressionContext context;
+    context << QgsExpressionContextUtils::globalScope()
+    << QgsExpressionContextUtils::projectScope()
+    << QgsExpressionContextUtils::layerScope( mVectorLayer );
+    if ( mMapCanvas )
+      context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mMapCanvas->mapSettings() ) );
+    context.setFeature( mFeature );
+    newText = QgsExpression::replaceExpressionText( mHtmlSource, &context );
   }
-
-  QSettings settings;
-  double halfIdentifyWidth = QgsMapTool::searchRadiusMU( mMapCanvas );
-  QgsRectangle searchRect( mMapPosition.x() - halfIdentifyWidth, mMapPosition.y() - halfIdentifyWidth,
-                           mMapPosition.x() + halfIdentifyWidth, mMapPosition.y() + halfIdentifyWidth );
-
-  QgsFeatureIterator fit = mVectorLayer->getFeatures( QgsFeatureRequest().setFilterRect( searchRect ).setFlags( QgsFeatureRequest::NoGeometry | QgsFeatureRequest::ExactIntersect ) );
-
-  QgsFeature currentFeature;
-  QgsFeatureId currentFeatureId = 0;
-  bool featureFound = false;
-
-  while ( fit.nextFeature( currentFeature ) )
+  else
   {
-    currentFeatureId = currentFeature.id();
-    featureFound = true;
-    break;
+    newText = mHtmlSource;
   }
-
-  mHasAssociatedFeature = featureFound;
-  mFeatureId = currentFeatureId;
-  mFeature = currentFeature;
-
-  QgsExpressionContext context;
-  context << QgsExpressionContextUtils::globalScope()
-  << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::layerScope( mVectorLayer );
-  if ( mMapCanvas )
-    context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mMapCanvas->mapSettings() ) );
-  context.setFeature( mFeature );
-  QString newtext = QgsExpression::replaceExpressionText( mHtmlSource, &context );
-  mWebView->setHtml( newtext );
+  mWebView->setHtml( newText );
 }
 
 void QgsHtmlAnnotationItem::updateVisibility()
@@ -242,8 +246,8 @@ void QgsHtmlAnnotationItem::updateVisibility()
 void QgsHtmlAnnotationItem::javascript()
 {
   QWebFrame *frame = mWebView->page()->mainFrame();
-  frame->addToJavaScriptWindowObject( "canvas", mMapCanvas );
-  frame->addToJavaScriptWindowObject( "layer", mVectorLayer );
+  frame->addToJavaScriptWindowObject( QStringLiteral( "canvas" ), mMapCanvas );
+  frame->addToJavaScriptWindowObject( QStringLiteral( "layer" ), mVectorLayer );
 }
 
 

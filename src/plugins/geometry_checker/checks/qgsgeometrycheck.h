@@ -1,8 +1,16 @@
 /***************************************************************************
- *  qgsgeometrycheck.h                                                     *
- *  -------------------                                                    *
- *  copyright            : (C) 2014 by Sandro Mani / Sourcepole AG         *
- *  email                : smani@sourcepole.ch                             *
+    qgsgeometrycheck.h
+    ---------------------
+    begin                : September 2014
+    copyright            : (C) 2014 by Sandro Mani / Sourcepole AG
+    email                : smani at sourcepole dot ch
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
  ***************************************************************************/
 
 #ifndef QGS_GEOMETRY_CHECK_H
@@ -13,7 +21,7 @@
 #include "qgsfeature.h"
 #include "qgsvectorlayer.h"
 #include "geometry/qgsgeometry.h"
-#include "../utils/qgsgeomutils.h"
+#include "../utils/qgsgeometrycheckerutils.h"
 #include "geos_c.h"
 #include <QApplication>
 
@@ -52,7 +60,10 @@ class QgsGeometryCheck : public QObject
     {
       Change() {}
       Change( ChangeWhat _what, ChangeType _type, QgsVertexId _vidx = QgsVertexId() )
-          : what( _what ), type( _type ), vidx( _vidx ) {}
+          : what( _what )
+          , type( _type )
+          , vidx( _vidx )
+      {}
       ChangeWhat what;
       ChangeType type;
       QgsVertexId vidx;
@@ -60,9 +71,12 @@ class QgsGeometryCheck : public QObject
 
     typedef QMap<QgsFeatureId, QList<Change> > Changes;
 
-    QgsGeometryCheck( CheckType checkType, QgsFeaturePool* featurePool ) : mCheckType( checkType ), mFeaturePool( featurePool ) {}
+    QgsGeometryCheck( CheckType checkType, QgsFeaturePool* featurePool )
+        : mCheckType( checkType )
+        , mFeaturePool( featurePool )
+    {}
     virtual ~QgsGeometryCheck() {}
-    virtual void collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList& messages, QAtomicInt* progressCounter = 0, const QgsFeatureIds& ids = QgsFeatureIds() ) const = 0;
+    virtual void collectErrors( QList<QgsGeometryCheckError*>& errors, QStringList& messages, QAtomicInt* progressCounter = nullptr, const QgsFeatureIds& ids = QgsFeatureIds() ) const = 0;
     virtual void fixError( QgsGeometryCheckError* error, int method, int mergeAttributeIndex, Changes& changes ) const = 0;
     virtual const QStringList& getResolutionMethods() const = 0;
     virtual QString errorDescription() const = 0;
@@ -74,7 +88,7 @@ class QgsGeometryCheck : public QObject
     const CheckType mCheckType;
     QgsFeaturePool* mFeaturePool;
 
-    void replaceFeatureGeometryPart( QgsFeature& feature, int partIdx, QgsAbstractGeometryV2* newPartGeom, Changes& changes ) const;
+    void replaceFeatureGeometryPart( QgsFeature& feature, int partIdx, QgsAbstractGeometry* newPartGeom, Changes& changes ) const;
     void deleteFeatureGeometryPart( QgsFeature& feature, int partIdx, Changes& changes ) const;
     void deleteFeatureGeometryRing( QgsFeature& feature, int partIdx, int ringIdx, Changes& changes ) const;
 };
@@ -87,21 +101,21 @@ class QgsGeometryCheckError
     enum ValueType { ValueLength, ValueArea, ValueOther };
 
     QgsGeometryCheckError( const QgsGeometryCheck* check,
-                           const QgsFeatureId& featureId,
+                           QgsFeatureId featureId,
                            const QgsPointV2& errorLocation,
-                           const QgsVertexId& vidx = QgsVertexId(),
+                           QgsVertexId vidx = QgsVertexId(),
                            const QVariant& value = QVariant(),
                            ValueType valueType = ValueOther );
     virtual ~QgsGeometryCheckError();
     const QgsGeometryCheck* check() const { return mCheck; }
-    const QgsFeatureId& featureId() const { return mFeatureId; }
-    virtual QgsAbstractGeometryV2* geometry();
+    QgsFeatureId featureId() const { return mFeatureId; }
+    virtual QgsAbstractGeometry* geometry();
     virtual QgsRectangle affectedAreaBBox() { return geometry() ? geometry()->boundingBox() : QgsRectangle(); }
     virtual QString description() const { return mCheck->errorDescription(); }
     const QgsPointV2& location() const { return mErrorLocation; }
     const QVariant& value() const { return mValue; }
     ValueType valueType() const { return mValueType; }
-    const QgsVertexId& vidx() const { return mVidx; }
+    QgsVertexId vidx() const { return mVidx; }
     Status status() const { return mStatus; }
     const QString& resolutionMessage() const { return mResolutionMessage; }
     void setFixed( int method )
@@ -127,8 +141,8 @@ class QgsGeometryCheckError
     }
     virtual void update( const QgsGeometryCheckError* other )
     {
-      assert( mCheck == other->mCheck );
-      assert( mFeatureId == other->mFeatureId );
+      Q_ASSERT( mCheck == other->mCheck );
+      Q_ASSERT( mFeatureId == other->mFeatureId );
       mErrorLocation = other->mErrorLocation;
       mVidx = other->mVidx;
       mValue = other->mValue;

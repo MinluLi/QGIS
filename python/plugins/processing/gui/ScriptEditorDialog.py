@@ -17,7 +17,6 @@
 ***************************************************************************
 """
 
-
 __author__ = 'Alexander Bruy'
 __date__ = 'December 2012'
 __copyright__ = '(C) 2012, Alexander Bruy'
@@ -31,14 +30,15 @@ import sys
 import json
 import os
 
-from PyQt4 import uic
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QIcon, QMenu, QAction, QCursor, QMessageBox, QFileDialog, QApplication
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QIcon, QCursor
+from qgis.PyQt.QtWidgets import QMenu, QAction, QMessageBox, QFileDialog, QApplication
 
 from qgis.core import QgsApplication
 from qgis.utils import iface
 
-from processing.modeler.ModelerUtils import ModelerUtils
+from processing.core.alglist import algList
 from processing.gui.AlgorithmDialog import AlgorithmDialog
 from processing.gui.HelpEditionDialog import HelpEditionDialog
 from processing.algs.r.RAlgorithm import RAlgorithm
@@ -76,13 +76,13 @@ class ScriptEditorDialog(BASE, WIDGET):
             QIcon(os.path.join(pluginPath, 'images', 'edithelp.png')))
         self.btnRun.setIcon(
             QIcon(os.path.join(pluginPath, 'images', 'runalgorithm.png')))
-        self.btnCut.setIcon(QgsApplication.getThemeIcon('/mActionEditCut.png'))
+        self.btnCut.setIcon(QgsApplication.getThemeIcon('/mActionEditCut.svg'))
         self.btnCopy.setIcon(
-            QgsApplication.getThemeIcon('/mActionEditCopy.png'))
+            QgsApplication.getThemeIcon('/mActionEditCopy.svg'))
         self.btnPaste.setIcon(
-            QgsApplication.getThemeIcon('/mActionEditPaste.png'))
-        self.btnUndo.setIcon(QgsApplication.getThemeIcon('/mActionUndo.png'))
-        self.btnRedo.setIcon(QgsApplication.getThemeIcon('/mActionRedo.png'))
+            QgsApplication.getThemeIcon('/mActionEditPaste.svg'))
+        self.btnUndo.setIcon(QgsApplication.getThemeIcon('/mActionUndo.svg'))
+        self.btnRedo.setIcon(QgsApplication.getThemeIcon('/mActionRedo.svg'))
         self.btnSnippets.setIcon(QgsApplication.getThemeIcon('/mActionHelpAPI.png'))
 
         # Connect signals and slots
@@ -97,8 +97,8 @@ class ScriptEditorDialog(BASE, WIDGET):
         self.btnPaste.clicked.connect(self.editor.paste)
         self.btnUndo.clicked.connect(self.editor.undo)
         self.btnRedo.clicked.connect(self.editor.redo)
-        self.btnIncreaseFont.clicked.connect(self.increaseFontSize)
-        self.btnDecreaseFont.clicked.connect(self.decreaseFontSize)
+        self.btnIncreaseFont.clicked.connect(self.editor.zoomIn)
+        self.btnDecreaseFont.clicked.connect(self.editor.zoomOut)
         self.editor.textChanged.connect(lambda: self.setHasChanged(True))
 
         self.alg = alg
@@ -138,19 +138,9 @@ class ScriptEditorDialog(BASE, WIDGET):
 
         self.editor.setLexerType(self.algType)
 
-    def increaseFontSize(self):
-        font = self.editor.defaultFont
-        self.editor.setFonts(font.pointSize() + 1)
-        self.editor.initLexer()
-
-    def decreaseFontSize(self):
-        font = self.editor.defaultFont
-        self.editor.setFonts(font.pointSize() - 1)
-        self.editor.initLexer()
-
     def showSnippets(self, evt):
         popupmenu = QMenu()
-        for name, snippet in self.snippets.iteritems():
+        for name, snippet in list(self.snippets.items()):
             action = QAction(self.tr(name), self.btnSnippets)
             action.triggered[()].connect(lambda snippet=snippet: self.editor.insert(snippet))
             popupmenu.addAction(action)
@@ -172,9 +162,9 @@ class ScriptEditorDialog(BASE, WIDGET):
     def editHelp(self):
         if self.alg is None:
             if self.algType == self.SCRIPT_PYTHON:
-                alg = ScriptAlgorithm(None, unicode(self.editor.text()))
+                alg = ScriptAlgorithm(None, self.editor.text())
             elif self.algType == self.SCRIPT_R:
-                alg = RAlgorithm(None, unicode(self.editor.text()))
+                alg = RAlgorithm(None, self.editor.text())
         else:
             alg = self.alg
 
@@ -193,14 +183,17 @@ class ScriptEditorDialog(BASE, WIDGET):
                 return
 
         if self.algType == self.SCRIPT_PYTHON:
-            scriptDir = ScriptUtils.scriptsFolder()
+            scriptDir = ScriptUtils.scriptsFolders()[0]
             filterName = self.tr('Python scripts (*.py)')
         elif self.algType == self.SCRIPT_R:
-            scriptDir = RUtils.RScriptsFolder()
+            scriptDir = RUtils.RScriptsFolders()[0]
             filterName = self.tr('Processing R script (*.rsx)')
 
         self.filename = QFileDialog.getOpenFileName(
-            self, self.tr('Save script'), scriptDir, filterName)
+            self, self.tr('Open script'), scriptDir, filterName)
+
+        if self.filename == '':
+            return
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         with codecs.open(self.filename, 'r', encoding='utf-8') as f:
@@ -221,15 +214,15 @@ class ScriptEditorDialog(BASE, WIDGET):
     def saveScript(self, saveAs):
         if self.filename is None or saveAs:
             if self.algType == self.SCRIPT_PYTHON:
-                scriptDir = ScriptUtils.scriptsFolder()
+                scriptDir = ScriptUtils.scriptsFolders()[0]
                 filterName = self.tr('Python scripts (*.py)')
             elif self.algType == self.SCRIPT_R:
-                scriptDir = RUtils.RScriptsFolder()
+                scriptDir = RUtils.RScriptsFolders()[0]
                 filterName = self.tr('Processing R script (*.rsx)')
 
-            self.filename = unicode(QFileDialog.getSaveFileName(self,
-                                    self.tr('Save script'), scriptDir,
-                                    filterName))
+            self.filename = str(QFileDialog.getSaveFileName(self,
+                                                            self.tr('Save script'), scriptDir,
+                                                            filterName))
 
         if self.filename:
             if self.algType == self.SCRIPT_PYTHON and \
@@ -239,7 +232,7 @@ class ScriptEditorDialog(BASE, WIDGET):
                     not self.filename.lower().endswith('.rsx'):
                 self.filename += '.rsx'
 
-            text = unicode(self.editor.text())
+            text = self.editor.text()
             if self.alg is not None:
                 self.alg.script = text
             try:
@@ -248,7 +241,7 @@ class ScriptEditorDialog(BASE, WIDGET):
             except IOError:
                 QMessageBox.warning(self, self.tr('I/O error'),
                                     self.tr('Unable to save edits. Reason:\n %s')
-                                    % unicode(sys.exc_info()[1])
+                                    % str(sys.exc_info()[1])
                                     )
                 return
             self.update = True
@@ -269,11 +262,11 @@ class ScriptEditorDialog(BASE, WIDGET):
 
     def runAlgorithm(self):
         if self.algType == self.SCRIPT_PYTHON:
-            alg = ScriptAlgorithm(None, unicode(self.editor.text()))
-            alg.provider = ModelerUtils.providers['script']
+            alg = ScriptAlgorithm(None, self.editor.text())
+            alg.provider = algList.getProviderFromName('script')
         if self.algType == self.SCRIPT_R:
-            alg = RAlgorithm(None, unicode(self.editor.text()))
-            alg.provider = ModelerUtils.providers['r']
+            alg = RAlgorithm(None, self.editor.text())
+            alg.provider = algList.getProviderFromName('r')
 
         dlg = alg.getCustomParametersDialog()
         if not dlg:

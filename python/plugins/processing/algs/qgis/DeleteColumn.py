@@ -34,8 +34,9 @@ from processing.tools import dataobjects, vector
 
 
 class DeleteColumn(GeoAlgorithm):
+
     INPUT = 'INPUT'
-    COLUMN = 'COLUMN'
+    COLUMNS = 'COLUMN'
     OUTPUT = 'OUTPUT'
 
     def defineCharacteristics(self):
@@ -43,34 +44,37 @@ class DeleteColumn(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector table tools')
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterTableField(self.COLUMN,
-                                              self.tr('Field to delete'), self.INPUT))
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Deleted column')))
+                                          self.tr('Input layer')))
+        self.addParameter(ParameterTableField(self.COLUMNS,
+                                              self.tr('Fields to delete'), self.INPUT, multiple=True))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Output layer')))
 
     def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-            self.getParameterValue(self.INPUT))
-        idx = layer.fieldNameIndex(self.getParameterValue(self.COLUMN))
+        layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT))
 
-        fields = layer.pendingFields()
-        fields.remove(idx)
+        toDelete = self.getParameterValue(self.COLUMNS)
+        fields = layer.fields()
+        idxs = []
+        for f in toDelete:
+            idx = layer.fieldNameIndex()
+            fields.remove(idx)
+            idxs.append[idx]
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(fields,
                                                                      layer.wkbType(), layer.crs())
 
         features = vector.features(layer)
-        count = len(features)
-        total = 100.0 / float(count)
+        total = 100.0 / len(features)
 
         feat = QgsFeature()
-        for count, f in enumerate(features):
+        for current, f in enumerate(features):
             feat.setGeometry(f.geometry())
             attributes = f.attributes()
-            del attributes[idx]
+            for idx in idxs:
+                del attributes[idx]
             feat.setAttributes(attributes)
             writer.addFeature(feat)
 
-            progress.setPercentage(int(count * total))
+            progress.setPercentage(int(current * total))
 
         del writer

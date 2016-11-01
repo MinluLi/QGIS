@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,12 +24,11 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL
-from PyQt4.QtGui import QWidget
+from qgis.PyQt.QtWidgets import QWidget
 
-from ui_widgetNearBlack import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetNearBlack import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -46,14 +46,14 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.nearSpin.setValue(15)
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.nearSpin, SIGNAL("valueChanged(int)"), self.nearCheck),
-            (self.whiteCheckBox, SIGNAL("stateChanged(int)"))
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.nearSpin, "valueChanged", self.nearCheck),
+            (self.whiteCheckBox, "stateChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getRasterLayers())
@@ -82,7 +82,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
             arguments.append("-white")
         if self.nearCheck.isChecked():
             arguments.append("-near")
-            arguments.append(unicode(self.nearSpin.value()))
+            arguments.append(str(self.nearSpin.value()))
         arguments.append("-o")
         arguments.append(self.getOutputFileName())
         arguments.append(self.getInputFileName())

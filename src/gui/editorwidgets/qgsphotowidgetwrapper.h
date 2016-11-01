@@ -17,7 +17,6 @@
 #define QGSPHOTOWIDGETWRAPPER_H
 
 #include "qgseditorwidgetwrapper.h"
-#include "qgspixmaplabel.h"
 
 #include <QLabel>
 #include <QPushButton>
@@ -27,8 +26,9 @@
 #include <QWebView>
 #endif
 
+class QgsPixmapLabel;
 
-/**
+/** \ingroup gui
  * Wraps a photo widget. Will show a picture and a file chooser to change the picture.
  *
  * Options:
@@ -44,16 +44,17 @@ class GUI_EXPORT QgsPhotoWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsPhotoWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = 0, QWidget* parent = 0 );
+    explicit QgsPhotoWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = nullptr, QWidget* parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value() override;
+    QVariant value() const override;
+    void showIndeterminateState() override;
 
   protected:
     QWidget* createWidget( QWidget* parent ) override;
     void initWidget( QWidget* editor ) override;
-    bool valid() override;
+    bool valid() const override;
 
   public slots:
     void setValue( const QVariant& value ) override;
@@ -64,6 +65,8 @@ class GUI_EXPORT QgsPhotoWidgetWrapper : public QgsEditorWidgetWrapper
     void loadPixmap( const QString& fileName );
 
   private:
+    void updateConstraintWidgetStatus( bool constraintValid ) override;
+
     //! This label is used as a container to display the picture
     QLabel* mPhotoLabel;
     //! This label is used as a container to display a picture that scales with the dialog layout.
@@ -77,6 +80,8 @@ class GUI_EXPORT QgsPhotoWidgetWrapper : public QgsEditorWidgetWrapper
     QLineEdit* mLineEdit;
     //! The button to open the file chooser dialog
     QPushButton* mButton;
+
+    void clearPicture();
 };
 
 #endif // QGSPHOTOWIDGETWRAPPER_H

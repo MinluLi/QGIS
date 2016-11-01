@@ -32,7 +32,11 @@ class CORE_EXPORT QgsProjectVersion
 
   public:
 
-    QgsProjectVersion() : mMajor( 0 ), mMinor( 0 ), mSub( 0 ) {}
+    QgsProjectVersion()
+        : mMajor( 0 )
+        , mMinor( 0 )
+        , mSub( 0 )
+    {}
     ~QgsProjectVersion() {}
     QgsProjectVersion( int major, int minor, int sub, const QString& name = "" );
     QgsProjectVersion( const QString& string );
@@ -42,15 +46,19 @@ class CORE_EXPORT QgsProjectVersion
     QString text();
 
     /** Boolean equal operator
-    */
+     */
     bool operator==( const QgsProjectVersion &other ) const;
 
+    /** Boolean equal operator
+     */
+    bool operator!=( const QgsProjectVersion &other ) const;
+
     /** Boolean >= operator
-    */
+     */
     bool operator>=( const QgsProjectVersion &other ) const;
 
     /** Boolean > operator
-    */
+     */
     bool operator>( const QgsProjectVersion &other ) const;
 
   private:

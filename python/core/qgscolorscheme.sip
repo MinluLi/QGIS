@@ -5,7 +5,7 @@ typedef QList< QPair< QColor, QString > > QgsNamedColorList;
  * \class QgsColorScheme
  * \brief Abstract base class for color schemes
  *
- * A color scheme for display in QgsColorButtonV2. Color schemes return lists
+ * A color scheme for display in QgsColorButton. Color schemes return lists
  * of colors with an optional associated color name. The colors returned
  * can be generated using an optional base color.
  * \note Added in version 2.5
@@ -14,6 +14,21 @@ class QgsColorScheme
 {
 %TypeHeaderCode
 #include <qgscolorscheme.h>
+%End
+
+%ConvertToSubClassCode
+      if (dynamic_cast<QgsUserColorScheme*>(sipCpp) != NULL)
+	sipType = sipType_QgsUserColorScheme;
+      else if (dynamic_cast<QgsRecentColorScheme*>(sipCpp) != NULL)
+	sipType = sipType_QgsRecentColorScheme;
+      else if (dynamic_cast<QgsCustomColorScheme*>(sipCpp) != NULL)
+	sipType = sipType_QgsCustomColorScheme;
+      else if (dynamic_cast<QgsProjectColorScheme*>(sipCpp) != NULL)
+	sipType = sipType_QgsProjectColorScheme;
+      else if (dynamic_cast<QgsGplColorScheme*>(sipCpp) != NULL)
+	sipType = sipType_QgsGplColorScheme;
+      else
+	sipType = sipType_QgsColorScheme;
 %End
 
   public:
@@ -34,12 +49,12 @@ class QgsColorScheme
 
     /** Gets the name for the color scheme
      * @returns color scheme name
-    */
+     */
     virtual QString schemeName() const = 0;
 
     /** Returns the current flags for the color scheme.
      * @returns current flags
-    */
+     */
     virtual SchemeFlags flags() const;
 
     /** Gets a list of colors from the scheme. The colors can optionally
@@ -51,14 +66,14 @@ class QgsColorScheme
      * may take advantage of this to filter or modify their returned colors
      * to colors related to the base color.
      * @returns a list of QPairs of color and color name
-    */
+     */
     virtual QgsNamedColorList fetchColors( const QString &context = QString(),
                                            const QColor &baseColor = QColor() ) = 0;
 
     /** Returns whether the color scheme is editable
      * @returns true if scheme is editable
      * @see setColors
-    */
+     */
     virtual bool isEditable() const;
 
     /** Sets the colors for the scheme. This method is only valid for editable color schemes.
@@ -67,18 +82,16 @@ class QgsColorScheme
      * @param baseColor base color to set colors for
      * @returns true if colors were set successfully
      * @see isEditable
-    */
+     */
     virtual bool setColors( const QgsNamedColorList &colors, const QString &context = QString(), const QColor &baseColor = QColor() );
 
     /** Clones a color scheme
      * @returns copy of color scheme
-    */
+     */
     virtual QgsColorScheme* clone() const = 0 /Factory/;
-
 }; // class QgsColorScheme
 
 QFlags<QgsColorScheme::SchemeFlag> operator|(QgsColorScheme::SchemeFlag f1, QFlags<QgsColorScheme::SchemeFlag> f2);
-
 
 /** \ingroup core
  * \class QgsGplColorScheme
@@ -106,7 +119,7 @@ class QgsGplColorScheme : QgsColorScheme
 
     /** Returns the file path for the associated gpl palette file
      * @returns gpl file path
-    */
+     */
     virtual QString gplFilePath() = 0;
 
 };
@@ -127,7 +140,7 @@ class QgsUserColorScheme : QgsGplColorScheme
 
     /** Constructs a new user color scheme, using a specified gpl palette file
      * @param filename filename of gpl palette file stored in the users "palettes" folder
-    */
+     */
     QgsUserColorScheme( const QString &filename );
 
     virtual ~QgsUserColorScheme();
@@ -138,15 +151,23 @@ class QgsUserColorScheme : QgsGplColorScheme
 
     virtual bool isEditable() const;
 
+    virtual QgsColorScheme::SchemeFlags flags() const;
+
     /** Sets the name for the scheme
      * @param name new name
-    */
+     */
     void setName( const QString &name );
 
     /** Erases the associated gpl palette file from the users "palettes" folder
      * @returns true if erase was successful
-    */
+     */
     bool erase();
+
+    /** Sets whether a this scheme should be shown in color button menus.
+     * @param show set to true to show in color button menus, or false to hide from menus
+     * @note added in QGIS 3.0
+     */
+    void setShowSchemeInMenu( bool show );
 
   protected:
 
@@ -179,6 +200,19 @@ class QgsRecentColorScheme : QgsColorScheme
                                            const QColor &baseColor = QColor() );
 
     virtual QgsRecentColorScheme* clone() const /Factory/;
+
+    /** Adds a color to the list of recent colors.
+     * @param color color to add
+     * @note added in QGIS 2.14
+     * @see lastUsedColor()
+     */
+    static void addRecentColor( const QColor& color );
+
+    /** Returns the most recently used color.
+     * @note added in QGIS 3.0
+     * @see addRecentColor()
+     */
+    static QColor lastUsedColor();
 };
 
 /** \ingroup core

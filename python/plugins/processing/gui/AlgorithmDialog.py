@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,9 +27,13 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QMessageBox, QApplication, QCursor, QColor, QPalette, QPushButton, QWidget,\
-    QVBoxLayout
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QMessageBox, QApplication, QPushButton, QWidget, QVBoxLayout, QSizePolicy
+from qgis.PyQt.QtGui import QCursor, QColor, QPalette
+
+from qgis.core import QgsMapLayerRegistry
+from qgis.gui import QgsMessageBar
+from qgis.utils import iface
 
 from processing.core.ProcessingLog import ProcessingLog
 from processing.core.ProcessingConfig import ProcessingConfig
@@ -38,21 +44,10 @@ from processing.gui.AlgorithmDialogBase import AlgorithmDialogBase
 from processing.gui.AlgorithmExecutor import runalg, runalgIterating
 from processing.gui.Postprocessing import handleAlgorithmResults
 
-from processing.core.parameters import ParameterExtent
 from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterTable
-from processing.core.parameters import ParameterBoolean
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterFixedTable
-from processing.core.parameters import ParameterRange
-from processing.core.parameters import ParameterTableField
+from processing.core.parameters import ParameterExtent
 from processing.core.parameters import ParameterMultipleInput
-from processing.core.parameters import ParameterString
-from processing.core.parameters import ParameterNumber
-from processing.core.parameters import ParameterFile
-from processing.core.parameters import ParameterCrs
-from processing.core.parameters import ParameterGeometryPredicate
 
 from processing.core.outputs import OutputRaster
 from processing.core.outputs import OutputVector
@@ -68,20 +63,24 @@ class AlgorithmDialog(AlgorithmDialogBase):
 
         self.alg = alg
 
-        self.mainWidget = ParametersPanel(self, alg)
-        self.setMainWidget()
+        self.setMainWidget(ParametersPanel(self, alg))
 
-        cornerWidget = QWidget()
+        self.bar = QgsMessageBar()
+        self.bar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout().insertWidget(0, self.bar)
+
+        self.cornerWidget = QWidget()
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 5)
         self.tabWidget.setStyleSheet("QTabBar::tab { height: 30px; }")
-        runAsBatchButton = QPushButton("Run as batch process...")
-        runAsBatchButton.clicked.connect(self.runAsBatch)
-        layout.addWidget(runAsBatchButton)
-        cornerWidget.setLayout(layout)
-        self.tabWidget.setCornerWidget(cornerWidget)
+        self.runAsBatchButton = QPushButton(self.tr("Run as batch process..."))
+        self.runAsBatchButton.clicked.connect(self.runAsBatch)
+        layout.addWidget(self.runAsBatchButton)
+        self.cornerWidget.setLayout(layout)
+        self.tabWidget.setCornerWidget(self.cornerWidget)
 
     def runAsBatch(self):
+        self.close()
         dlg = BatchAlgorithmDialog(self.alg)
         dlg.show()
         dlg.exec_()
@@ -93,19 +92,9 @@ class AlgorithmDialog(AlgorithmDialogBase):
         for param in params:
             if param.hidden:
                 continue
-            if isinstance(param, ParameterExtent):
-                continue
-            if not self.setParamValue(
-                    param, self.mainWidget.valueItems[param.name]):
-                raise AlgorithmDialogBase.InvalidParameterValue(param,
-                                                                self.mainWidget.valueItems[param.name])
-
-        for param in params:
-            if isinstance(param, ParameterExtent):
-                if not self.setParamValue(
-                        param, self.mainWidget.valueItems[param.name]):
-                    raise AlgorithmDialogBase.InvalidParameterValue(
-                        param, self.mainWidget.valueItems[param.name])
+            wrapper = self.mainWidget.wrappers[param.name]
+            if not self.setParamValue(param, wrapper):
+                raise AlgorithmDialogBase.InvalidParameterValue(param, wrapper.widget)
 
         for output in outputs:
             if output.hidden:
@@ -116,49 +105,37 @@ class AlgorithmDialog(AlgorithmDialogBase):
 
         return True
 
-    def setParamValue(self, param, widget, alg=None):
-        if isinstance(param, ParameterRaster):
-            return param.setValue(widget.getValue())
-        elif isinstance(param, (ParameterVector, ParameterTable)):
-            try:
-                return param.setValue(widget.itemData(widget.currentIndex()))
-            except:
-                return param.setValue(widget.getValue())
-        elif isinstance(param, ParameterBoolean):
-            return param.setValue(widget.isChecked())
-        elif isinstance(param, ParameterSelection):
-            return param.setValue(widget.currentIndex())
-        elif isinstance(param, ParameterFixedTable):
-            return param.setValue(widget.table)
-        elif isinstance(param, ParameterRange):
-            return param.setValue(widget.getValue())
-        if isinstance(param, ParameterTableField):
-            if param.optional and widget.currentIndex() == 0:
-                return param.setValue(None)
-            return param.setValue(widget.currentText())
-        elif isinstance(param, ParameterMultipleInput):
-            if param.datatype == ParameterMultipleInput.TYPE_FILE:
-                return param.setValue(widget.selectedoptions)
-            else:
-                if param.datatype == ParameterMultipleInput.TYPE_RASTER:
-                    options = dataobjects.getRasterLayers(sorting=False)
-                elif param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
-                    options = dataobjects.getVectorLayers(sorting=False)
-                else:
-                    options = dataobjects.getVectorLayers([param.datatype], sorting=False)
-                return param.setValue([options[i] for i in widget.selectedoptions])
-        elif isinstance(param, (ParameterNumber, ParameterFile, ParameterCrs,
-                                ParameterExtent)):
-            return param.setValue(widget.getValue())
-        elif isinstance(param, ParameterString):
-            if param.multiline:
-                return param.setValue(unicode(widget.toPlainText()))
-            else:
-                return param.setValue(unicode(widget.text()))
-        elif isinstance(param, ParameterGeometryPredicate):
-            return param.setValue(widget.value())
-        else:
-            return param.setValue(unicode(widget.text()))
+    def setParamValue(self, param, wrapper, alg=None):
+        return param.setValue(wrapper.value())
+
+    def checkExtentCRS(self):
+        unmatchingCRS = False
+        hasExtent = False
+        projectCRS = iface.mapCanvas().mapSettings().destinationCrs()
+        layers = dataobjects.getAllLayers()
+        for param in self.alg.parameters:
+            if isinstance(param, (ParameterRaster, ParameterVector, ParameterMultipleInput)):
+                if param.value:
+                    if isinstance(param, ParameterMultipleInput):
+                        inputlayers = param.value.split(';')
+                    else:
+                        inputlayers = [param.value]
+                    for inputlayer in inputlayers:
+                        for layer in layers:
+                            if layer.source() == inputlayer:
+                                if layer.crs() != projectCRS:
+                                    unmatchingCRS = True
+
+                        p = dataobjects.getObjectFromUri(inputlayer)
+                        if p is not None:
+                            if p.crs() != projectCRS:
+                                unmatchingCRS = True
+            if isinstance(param, ParameterExtent):
+                value = self.mainWidget.valueItems[param.name].leText.text().strip()
+                if value:
+                    hasExtent = True
+
+        return hasExtent and unmatchingCRS
 
     def accept(self):
         self.settings.setValue("/Processing/dialogBase", self.saveGeometry())
@@ -175,6 +152,17 @@ class AlgorithmDialog(AlgorithmDialogBase):
                                              QMessageBox.No)
                 if reply == QMessageBox.No:
                     return
+            checkExtentCRS = ProcessingConfig.getSetting(ProcessingConfig.WARN_UNMATCHING_EXTENT_CRS)
+            if checkExtentCRS and self.checkExtentCRS():
+                reply = QMessageBox.question(self, self.tr("Extent CRS"),
+                                             self.tr('Extent parameters must use the same CRS as the input layers.\n'
+                                                     'Your input layers do not have the same extent as the project, '
+                                                     'so the extent might be in a wrong CRS if you have selected it from the canvas.\n'
+                                                     'Do you want to continue?'),
+                                             QMessageBox.Yes | QMessageBox.No,
+                                             QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return
             msg = self.alg._checkParameterValuesBeforeExecuting()
             if msg:
                 QMessageBox.warning(
@@ -185,10 +173,10 @@ class AlgorithmDialog(AlgorithmDialogBase):
             buttons = self.mainWidget.iterateButtons
             self.iterateParam = None
 
-            for i in range(len(buttons.values())):
-                button = buttons.values()[i]
+            for i in range(len(list(buttons.values()))):
+                button = list(buttons.values())[i]
                 if button.isChecked():
-                    self.iterateParam = buttons.keys()[i]
+                    self.iterateParam = list(buttons.keys())[i]
                     break
 
             self.progressBar.setMaximum(0)
@@ -228,13 +216,11 @@ class AlgorithmDialog(AlgorithmDialogBase):
                 palette = e.widget.palette()
                 palette.setColor(QPalette.Base, QColor(255, 255, 0))
                 e.widget.setPalette(palette)
-                self.lblProgress.setText(
-                    self.tr('<b>Missing parameter value: %s</b>') % e.parameter.description)
-                return
             except:
-                QMessageBox.critical(self,
-                                     self.tr('Unable to execute algorithm'),
-                                     self.tr('Wrong or missing parameter values'))
+                pass
+            self.bar.clearWidgets()
+            self.bar.pushMessage("", "Wrong or missing parameter value: %s" % e.parameter.description,
+                                 level=QgsMessageBar.WARNING, duration=5)
 
     def finish(self):
         keepOpen = ProcessingConfig.getSetting(ProcessingConfig.KEEP_DIALOG_OPEN)
@@ -256,3 +242,8 @@ class AlgorithmDialog(AlgorithmDialogBase):
                 self.setInfo(
                     self.tr('HTML output has been generated by this algorithm.'
                             '\nOpen the results dialog to check it.'))
+
+    def closeEvent(self, evt):
+        QgsMapLayerRegistry.instance().layerWasAdded.disconnect(self.mainWidget.layerRegistryChanged)
+        QgsMapLayerRegistry.instance().layersWillBeRemoved.disconnect(self.mainWidget.layerRegistryChanged)
+        super(AlgorithmDialog, self).closeEvent(evt)

@@ -18,10 +18,8 @@
 
 
 #include "qgsmaptooladvanceddigitizing.h"
-#include "qgscompoundcurvev2.h"
-#include "qgspoint.h"
+#include "qgscompoundcurve.h"
 #include "qgsgeometry.h"
-#include "qgslayertreeview.h"
 
 #include <QPoint>
 #include <QList>
@@ -31,6 +29,9 @@ class QgsVertexMarker;
 class QgsMapLayer;
 class QgsGeometryValidator;
 
+/** \ingroup gui
+ * \class QgsMapToolCapture
+ */
 class GUI_EXPORT QgsMapToolCapture : public QgsMapToolAdvancedDigitizing
 {
     Q_OBJECT
@@ -42,18 +43,21 @@ class GUI_EXPORT QgsMapToolCapture : public QgsMapToolAdvancedDigitizing
     //! destructor
     virtual ~QgsMapToolCapture();
 
+    //! active the tool
+    virtual void activate() override;
+
     //! deactive the tool
     virtual void deactivate() override;
 
-    /** Adds a whole curve (e.g. circularstring) to the captured geometry. Curve must be in map CRS*/
-    int addCurve( QgsCurveV2* c );
+    //! Adds a whole curve (e.g. circularstring) to the captured geometry. Curve must be in map CRS
+    int addCurve( QgsCurve* c );
 
     /**
      * Get the capture curve
      *
      * @return Capture curve
      */
-    const QgsCompoundCurveV2* captureCurve() const { return &mCaptureCurve; }
+    const QgsCompoundCurve* captureCurve() const { return &mCaptureCurve; }
 
 
     /**
@@ -85,14 +89,52 @@ class GUI_EXPORT QgsMapToolCapture : public QgsMapToolAdvancedDigitizing
 
 
   protected:
-    int nextPoint( const QgsPoint& mapPoint, QgsPoint& layerPoint );
-    int nextPoint( const QPoint &p, QgsPoint &layerPoint, QgsPoint &mapPoint );
+
+    /** Converts a map point to layer coordinates
+     *  @param mapPoint the point in map coordinates
+     *  @param[in,out] layerPoint the point in layer coordinates
+     *  @return
+     *   0 in case of success
+     *   1 if the current layer is null or not a vector layer
+     *   2 if the transformation failed
+     */
+    // TODO QGIS 3.0 returns an enum instead of a magic constant
+    int nextPoint( const QgsPointV2& mapPoint, QgsPointV2& layerPoint );
+
+    /** Converts a point to map coordinates and layer coordinates
+     * @param p the input point
+     * @param[in,out] layerPoint the point in layer coordinates
+     * @param[in,out] mapPoint the point in map coordinates
+     * @return
+     *  0 in case of success
+     *  1 if the current layer is null or not a vector layer
+     *  2 if the transformation failed
+     */
+    // TODO QGIS 3.0 returns an enum instead of a magic constant
+    int nextPoint( QPoint p, QgsPointV2 &layerPoint, QgsPointV2 &mapPoint );
+
+    /** Fetches the original point from the source layer if it has the same
+     * CRS as the current layer.
+     * @return 0 in case of success, 1 if not applicable (CRS mismatch), 2 in case of failure
+     * @note added in 2.14
+     */
+    // TODO QGIS 3.0 returns an enum instead of a magic constant
+    int fetchLayerPoint( const QgsPointLocator::Match &match, QgsPointV2& layerPoint );
 
     /** Adds a point to the rubber band (in map coordinates) and to the capture list (in layer coordinates)
-     @return 0 in case of success, 1 if current layer is not a vector layer, 2 if coordinate transformation failed*/
+     * @return 0 in case of success, 1 if current layer is not a vector layer, 2 if coordinate transformation failed
+     */
+    // TODO QGIS 3.0 returns an enum instead of a magic constant
     int addVertex( const QgsPoint& point );
 
-    /** Removes the last vertex from mRubberBand and mCaptureList*/
+    /** Variant to supply more information in the case of snapping
+     * @param mapPoint The vertex to add in map coordinates
+     * @param match Data about the snapping match. Can be an invalid match, if point not snapped.
+     * @note added in 2.14
+     */
+    int addVertex( const QgsPoint& mapPoint, const QgsPointLocator::Match &match );
+
+    //! Removes the last vertex from mRubberBand and mCaptureList
     void undo();
 
     /**
@@ -138,17 +180,27 @@ class GUI_EXPORT QgsMapToolCapture : public QgsMapToolAdvancedDigitizing
     void closePolygon();
 
   private:
-    /** Flag to indicate a map canvas capture operation is taking place */
+    //! whether tracing has been requested by the user
+    bool tracingEnabled();
+    //! first point that will be used as a start of the trace
+    QgsPoint tracingStartPoint();
+    //! handle of mouse movement when tracing enabled and capturing has started
+    bool tracingMouseMove( QgsMapMouseEvent* e );
+    //! handle of addition of clicked point (with the rest of the trace) when tracing enabled
+    bool tracingAddVertex( const QgsPoint& point );
+
+  private:
+    //! Flag to indicate a map canvas capture operation is taking place
     bool mCapturing;
 
-    /** Rubber band for polylines and polygons */
+    //! Rubber band for polylines and polygons
     QgsRubberBand* mRubberBand;
 
-    /** Temporary rubber band for polylines and polygons. this connects the last added point to the mouse cursor position */
+    //! Temporary rubber band for polylines and polygons. this connects the last added point to the mouse cursor position
     QgsRubberBand* mTempRubberBand;
 
-    /** List to store the points of digitised lines and polygons (in layer coordinates)*/
-    QgsCompoundCurveV2 mCaptureCurve;
+    //! List to store the points of digitised lines and polygons (in layer coordinates)
+    QgsCompoundCurve mCaptureCurve;
 
     void validateGeometry();
     QStringList mValidationWarnings;

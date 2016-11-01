@@ -17,13 +17,13 @@
 #define QGSSQLEXPRESSIONCOMPILER_H
 
 #include "qgsexpression.h"
-#include "qgsfield.h"
+#include "qgsfields.h"
 
 /** \ingroup core
  * \class QgsSqlExpressionCompiler
  * \brief Generic expression compiler for translation to provider specific SQL WHERE clauses.
  *
- * This class is designed to be overriden by providers to take advantage of expression compilation,
+ * This class is designed to be overridden by providers to take advantage of expression compilation,
  * so that feature requests can take advantage of the provider's native filtering support.
  * \note Added in version 2.14
  * \note Not part of stable API, may change in future versions of QGIS
@@ -34,13 +34,13 @@ class CORE_EXPORT QgsSqlExpressionCompiler
 {
   public:
 
-    /** Possible results from expression compilation */
+    //! Possible results from expression compilation
     enum Result
     {
-      None, /*!< No expression */
-      Complete, /*!< Expression was successfully compiled and can be completely delegated to provider */
-      Partial, /*!< Expression was partially compiled, but provider will return extra records and results must be double-checked using QGIS' expression engine*/
-      Fail /*!< Provider cannot handle expression */
+      None, //!< No expression
+      Complete, //!< Expression was successfully compiled and can be completely delegated to provider
+      Partial, //!< Expression was partially compiled, but provider will return extra records and results must be double-checked using QGIS' expression engine
+      Fail //!< Provider cannot handle expression
     };
 
     /** Enumeration of flags for how provider handles SQL clauses
@@ -49,6 +49,8 @@ class CORE_EXPORT QgsSqlExpressionCompiler
     {
       CaseInsensitiveStringMatch = 0x01,  //!< Provider performs case-insensitive string matching for all strings
       LikeIsCaseInsensitive = 0x02, //!< Provider treats LIKE as case-insensitive
+      NoNullInBooleanLogic = 0x04, //!< Provider does not support using NULL with boolean logic, eg "(...) OR NULL"
+      NoUnaryMinus = 0x08, //!< Provider does not unary minus, eg " -( 100 * 2 ) = ..."
     };
     Q_DECLARE_FLAGS( Flags, Flag )
 
@@ -56,7 +58,7 @@ class CORE_EXPORT QgsSqlExpressionCompiler
      * @param fields fields from provider
      * @param flags flags which control how expression is compiled
      */
-    explicit QgsSqlExpressionCompiler( const QgsFields& fields, const Flags& flags = ( Flags )0 );
+    explicit QgsSqlExpressionCompiler( const QgsFields& fields, QgsSqlExpressionCompiler::Flags flags = Flags() );
     virtual ~QgsSqlExpressionCompiler();
 
     /** Compiles an expression and returns the result of the compilation.
@@ -78,9 +80,11 @@ class CORE_EXPORT QgsSqlExpressionCompiler
 
     /** Returns a quoted attribute value, in the format expected by the provider.
      * Derived classes should override this if special handling of attribute values is required.
+     * @param value value to quote
+     * @param ok wil be set to true if value can be compiled
      * @see quotedIdentifier()
      */
-    virtual QString quotedValue( const QVariant& value );
+    virtual QString quotedValue( const QVariant& value, bool &ok );
 
     /** Compiles an expression node and returns the result of the compilation.
      * @param node expression node to compile
@@ -95,6 +99,8 @@ class CORE_EXPORT QgsSqlExpressionCompiler
   private:
 
     Flags mFlags;
+
+    bool nodeIsNullLiteral( const QgsExpression::Node* node ) const;
 
 };
 

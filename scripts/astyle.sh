@@ -14,7 +14,6 @@
 #                                                                         #
 ###########################################################################
 
-
 for ASTYLE in $(dirname $0)/qgisstyle $(dirname $0)/RelWithDebInfo/qgisstyle
 do
 	if type -p $ASTYLE >/dev/null; then
@@ -26,6 +25,12 @@ done
 if [ -z "$ASTYLE" ]; then
 	echo "qgisstyle not found - please enable WITH_ASTYLE in cmake and build it" >&2
 	exit 1	
+fi
+
+if type -p tput >/dev/null; then
+	elcr="$ASTYLEPROGRESS$(tput el)$(tput cr)"
+else
+	elcr="$ASTYLEPROGRESS                   \r"
 fi
 
 if ! type -p flip >/dev/null; then
@@ -48,42 +53,32 @@ if ! type -p autopep8 >/dev/null; then
 	}
 fi
 
+ASTYLEOPTS=$(dirname $0)/astyle.options
+if type -p cygpath >/dev/null; then
+	ASTYLEOPTS="$(cygpath -w $ASTYLEOPTS)"
+fi
+
 set -e
 
-astyleit()
-{
-	$ASTYLE \
-		--preserve-date \
-		--indent-preprocessor \
-		--brackets=break \
-		--convert-tabs \
-		--indent=spaces=2 \
-		--indent-classes \
-		--indent-labels \
-		--indent-namespaces \
-		--indent-switches \
-		--one-line=keep-blocks \
-		--one-line=keep-statements \
-		--max-instatement-indent=40 \
-		--min-conditional-indent=-1 \
-		--suffix=none \
-		--pad=oper \
-		--pad=paren-in \
-		--unpad=paren "$1"
-
-	scripts/unify_includes.pl "$1"
+astyleit() {
+	$ASTYLE --options="$ASTYLEOPTS" "$1"
+	modified=$1.unify_includes_modified
+	cp "$1" "$modified"
+	scripts/unify_includes.pl "$modified"
+	diff "$1" "$modified" >/dev/null || mv "$modified" "$1"
+	rm -f "$modified"
 }
 
 for f in "$@"; do
 	case "$f" in
-		src/app/gps/qwtpolar-*|src/core/gps/qextserialport/*|src/plugins/grass/qtermwidget/*|src/astyle/*|python/ext-libs/*|src/providers/spatialite/qspatialite/*|src/plugins/dxf2shp_converter/dxflib/src/*|src/plugins/globe/osgEarthQt/*|src/plugins/globe/osgEarthUtil/*|python/ext-libs/*|*/ui_*.py)
+		src/app/gps/qwtpolar-*|src/core/gps/qextserialport/*|src/plugins/grass/qtermwidget/*|src/astyle/*|python/ext-libs/*|src/providers/spatialite/qspatialite/*|src/plugins/globe/osgEarthQt/*|src/plugins/globe/osgEarthUtil/*|python/ext-libs/*|*/ui_*.py)
 			echo -ne "$f skipped $elcr"
 			continue
 			;;
 
 		*.cpp|*.h|*.c|*.h|*.cxx|*.hxx|*.c++|*.h++|*.cc|*.hh|*.C|*.H|*.hpp)
 			if [ -x "$f" ]; then
-							chmod a-x "$f"
+				chmod a-x "$f"
 			fi
 			cmd=astyleit
 			;;
@@ -94,7 +89,8 @@ for f in "$@"; do
 
 		*.py)
 			#cmd="autopep8 --in-place --ignore=E111,E128,E201,E202,E203,E211,E221,E222,E225,E226,E227,E231,E241,E261,E265,E272,E302,E303,E501,E701"
-			cmd="autopep8 --in-place --ignore=E261,E402,E501"
+			echo -ne "Formatting $f $elcr"
+			cmd="autopep8 --in-place --ignore=E261,E265,E402,E501"
 			;;
 
 		*.sip)
@@ -118,6 +114,10 @@ for f in "$@"; do
 		echo "removed BOM from $f"
 	fi
 
-	flip -ub "$f"
+	modified=$f.flip_modified
+	cp "$f" "$modified"
+	flip -ub "$modified"
+	diff "$f" "$modified" >/dev/null || mv "$modified" "$f"
+	rm -f "$modified"
 	eval "$cmd '$f'"
 done

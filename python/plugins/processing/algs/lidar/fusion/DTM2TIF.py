@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
 
 __author__ = "Niccolo' Marchi"
 __date__ = 'May 2014'
@@ -28,8 +30,8 @@ __revision__ = '$Format:%H$'
 import os
 from processing.core.parameters import ParameterFile
 from processing.core.outputs import OutputRaster
-from FusionAlgorithm import FusionAlgorithm
-from FusionUtils import FusionUtils
+from .FusionAlgorithm import FusionAlgorithm
+from .FusionUtils import FusionUtils
 
 
 class DTM2TIF(FusionAlgorithm):

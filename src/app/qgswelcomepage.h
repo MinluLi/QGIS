@@ -28,7 +28,7 @@ class QgsWelcomePage : public QWidget
     Q_OBJECT
 
   public:
-    explicit QgsWelcomePage( QWidget* parent = 0 );
+    explicit QgsWelcomePage( bool skipVersionCheck = false, QWidget* parent = nullptr );
 
     ~QgsWelcomePage();
 

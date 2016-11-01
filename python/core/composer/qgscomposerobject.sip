@@ -1,5 +1,5 @@
-/** \ingroup MapComposer
- * A item that forms part of a map composition.
+/** \ingroup core
+ * A base class for objects which belong to a map composition.
  */
 class QgsComposerObject : QObject
 {
@@ -69,22 +69,25 @@ class QgsComposerObject : QObject
      */
     const QgsComposition* composition() const;
 
+    //! @note not available in python bindings
+    // QgsComposition* composition() { return mComposition; }
+
     /** Stores item state in DOM element
      * @param elem is DOM element corresponding to item tag
      * @param doc is the DOM document
      */
-    virtual bool writeXML( QDomElement& elem, QDomDocument & doc ) const;
+    virtual bool writeXml( QDomElement& elem, QDomDocument & doc ) const;
 
     /** Sets item state from DOM element
      * @param itemElem is DOM node corresponding to item tag
      * @param doc is DOM document
      */
-    virtual bool readXML( const QDomElement& itemElem, const QDomDocument& doc );
+    virtual bool readXml( const QDomElement& itemElem, const QDomDocument& doc );
 
     /** Returns a reference to the data defined settings for one of the item's data defined properties.
      * @param property data defined property to return
      * @note this method was added in version 2.5
-    */
+     */
     QgsDataDefined* dataDefinedProperty( const DataDefinedProperty property ) const;
 
     /** Sets parameters for a data defined property for the item
@@ -94,7 +97,7 @@ class QgsComposerObject : QObject
      * @param expression expression for data defined property
      * @param field field name if the data defined property should take its value from a field
      * @note this method was added in version 2.5
-    */
+     */
     void setDataDefinedProperty( const DataDefinedProperty property, const bool active, const bool useExpression, const QString &expression, const QString &field );
 
     /** Set a custom property for the object.
@@ -104,7 +107,7 @@ class QgsComposerObject : QObject
      * @see removeCustomProperty()
      * @see customProperties()
      * @note added in QGIS 2.12
-    */
+     */
     void setCustomProperty( const QString &key, const QVariant &value );
 
     /** Read a custom property from the object.
@@ -139,7 +142,7 @@ class QgsComposerObject : QObject
      * scopes for global, project and composition properties.
      * @note added in QGIS 2.12
      */
-    virtual QgsExpressionContext* createExpressionContext() const /Factory/;
+    virtual QgsExpressionContext createExpressionContext() const;
 
   public slots:
 
@@ -153,7 +156,7 @@ class QgsComposerObject : QObject
      * refreshed.
      * @param context expression context for evaluating data defined expressions
      * @note this method was added in version 2.5
-    */
+     */
     virtual void refreshDataDefinedProperty( const DataDefinedProperty property = AllProperties, const QgsExpressionContext* context = 0 );
 
   protected:
@@ -165,13 +168,13 @@ class QgsComposerObject : QObject
      * @param context expression context for evaluating expressions. Must have feature and fields set to current
      * atlas feature and coverage layer fields prior to calling this method.
      * @note this method was added in version 2.5
-    */
+     */
     bool dataDefinedEvaluate( const QgsComposerObject::DataDefinedProperty property, QVariant &expressionValue, const QgsExpressionContext& context = QgsExpressionContext() ) const;
 
   signals:
     /** Emitted when the item changes. Signifies that the item widgets must update the
      * gui elements.
-    */
+     */
     void itemChanged();
 
 };

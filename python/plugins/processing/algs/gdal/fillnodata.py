@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,6 +26,7 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 
@@ -36,6 +38,8 @@ from processing.core.outputs import OutputRaster
 from processing.tools.system import isWindows
 
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class fillnodata(GdalAlgorithm):
@@ -71,14 +75,14 @@ class fillnodata(GdalAlgorithm):
 
         arguments = []
         arguments.append('-md')
-        arguments.append(unicode(self.getParameterValue(self.DISTANCE)))
+        arguments.append(str(self.getParameterValue(self.DISTANCE)))
 
         if self.getParameterValue(self.ITERATIONS) != 0:
             arguments.append('-si')
-            arguments.append(unicode(self.getParameterValue(self.ITERATIONS)))
+            arguments.append(str(self.getParameterValue(self.ITERATIONS)))
 
         arguments.append('-b')
-        arguments.append(unicode(self.getParameterValue(self.BAND)))
+        arguments.append(str(self.getParameterValue(self.BAND)))
 
         mask = self.getParameterValue(self.MASK)
         if mask is not None:

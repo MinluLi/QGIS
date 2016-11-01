@@ -38,14 +38,19 @@ class QgsRasterLayer : QgsMapLayer
      *
      * -
      * */
-    QgsRasterLayer( const QString & path,
-                    const QString &  baseName = QString::null,
+    QgsRasterLayer( const QString &path,
+                    const QString &baseName = QString::null,
                     bool loadDefaultStyleFlag = true );
 
+    //TODO - QGIS 3.0
+    //This constructor is confusing if used with string literals for providerKey,
+    //as the previous constructor will be called with the literal for providerKey
+    //implicitly converted to a bool.
+    //for QGIS 3.0, make either constructor explicit or alter the signatures
     /** \brief [ data provider interface ] Constructor in provider mode */
-    QgsRasterLayer( const QString & uri,
-                    const QString & baseName,
-                    const QString & providerKey,
+    QgsRasterLayer( const QString &uri,
+                    const QString &baseName,
+                    const QString &providerKey,
                     bool loadDefaultStyleFlag = true );
 
     /** \brief The destructor */
@@ -110,7 +115,7 @@ class QgsRasterLayer : QgsMapLayer
     int bandCount() const;
 
     /** \brief Get the name of a band given its number  */
-    const  QString bandName( int theBandNoInt );
+    QString bandName( int theBandNoInt ) const;
 
     /** Returns the data provider */
     QgsRasterDataProvider* dataProvider();
@@ -128,9 +133,6 @@ class QgsRasterLayer : QgsMapLayer
      */
     virtual QgsMapLayerRenderer* createMapRenderer( QgsRenderContext& rendererContext ) /Factory/;
 
-    /** \brief This is called when the view on the raster layer needs to be redrawn */
-    bool draw( QgsRenderContext& rendererContext );
-
     /** \brief This is an overloaded version of the draw() function that is called by both draw() and thumbnailAsPixmap */
     void draw( QPainter * theQPainter,
                QgsRasterViewPort * myRasterViewPort,
@@ -139,8 +141,10 @@ class QgsRasterLayer : QgsMapLayer
     /** Returns a list with classification items (Text and color) */
     QList< QPair< QString, QColor > > legendSymbologyItems() const;
 
+    virtual bool isSpatial() const;
+
     /** \brief Obtain GDAL Metadata for this layer */
-    QString metadata();
+    QString metadata() const;
 
     /** \brief Get an 100x100 pixmap of the color palette. If the layer has no palette a white pixmap will be returned */
     QPixmap paletteAsPixmap( int theBandNumber = 1 );
@@ -169,22 +173,15 @@ class QgsRasterLayer : QgsMapLayer
     /** \brief Set default contrast enhancement */
     void setDefaultContrastEnhancement();
 
-    /** \brief Overloaded version of the above function for convenience when restoring from xml */
-    void setDrawingStyle( const QString & theDrawingStyleQString ) /Deprecated/;
-
     /** \brief [ data provider interface ] A wrapper function to emit a progress update signal */
     void showProgress( int theValue );
 
     /** \brief Returns the sublayers of this layer - Useful for providers that manage their own layers, such as WMS */
     virtual QStringList subLayers() const;
 
-    /** \brief Draws a preview of the rasterlayer into a pixmap
-    @note - use previewAsImage() for rendering with QGIS>=2.4 */
-    QPixmap previewAsPixmap( const QSize& size, const QColor& bgColor = QColor( 255, 255, 255 ) ) /Deprecated/;
-
     /** \brief Draws a preview of the rasterlayer into a QImage
      @note added in 2.4 */
-    QImage previewAsImage( const QSize& size, const QColor& bgColor = QColor( 255, 255, 255 ),
+    QImage previewAsImage( QSize size, const QColor& bgColor = QColor( 255, 255, 255 ),
                            QImage::Format format = QImage::Format_ARGB32_Premultiplied );
 
     /**
@@ -206,9 +203,6 @@ class QgsRasterLayer : QgsMapLayer
   public slots:
     void showStatusMessage( const QString & theMessage );
 
-    //! @deprecated in 2.4 - does nothing
-    void updateProgress( int, int ) /Deprecated/;
-
     /** \brief receive progress signal from provider */
     void onProgress( int, double, const QString& );
 
@@ -225,14 +219,19 @@ class QgsRasterLayer : QgsMapLayer
     /** \brief Read the symbology for the current layer from the Dom node supplied */
     bool readSymbology( const QDomNode& node, QString& errorMessage );
 
+    /** \brief Read the style information for the current layer from the Dom node supplied */
+    bool readStyle(const QDomNode &node, QString &errorMessage);
+
     /** \brief Reads layer specific state from project file Dom node */
     bool readXml( const QDomNode& layer_node );
 
     /** \brief Write the symbology for the layer into the docment provided */
     bool writeSymbology( QDomNode&, QDomDocument& doc, QString& errorMessage ) const;
 
-    /** \brief Write layer specific state to project file Dom node */
-    bool writeXml( QDomNode & layer_node, QDomDocument & doc );
+    /** \brief Write the style for the layer into the docment provided */
+    bool writeStyle(QDomNode &node, QDomDocument &doc, QString &errorMessage) const;
 
+    /** \brief Write layer specific state to project file Dom node */
+    bool writeXml( QDomNode & layer_node, QDomDocument & doc ) const;
 };
 

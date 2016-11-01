@@ -14,9 +14,8 @@
  ***************************************************************************/
 
 #include "qgsmaptoolcapture.h"
-#include "qgsmapmouseevent.h"
 
-/** A map tool that adds new parts to multipart features*/
+//! A map tool that adds new parts to multipart features
 class APP_EXPORT QgsMapToolAddPart : public QgsMapToolCapture
 {
     Q_OBJECT
@@ -29,6 +28,6 @@ class APP_EXPORT QgsMapToolAddPart : public QgsMapToolCapture
     void activate() override;
 
   private:
-    /** Check if there is any feature selected */
+    //! Check if there is any feature selected
     bool checkSelection();
 };

@@ -32,6 +32,7 @@ from processing.tools import dataobjects, vector
 
 
 class DeleteHoles(GeoAlgorithm):
+
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
 
@@ -40,42 +41,43 @@ class DeleteHoles(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector geometry tools')
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_POLYGON]))
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Cleaned')))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_POLYGON]))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Cleaned'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT))
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            layer.pendingFields(),
+            layer.fields(),
             layer.wkbType(),
             layer.crs())
 
         features = vector.features(layer)
-        count = len(features)
-        total = 100.0 / float(count)
+        total = 100.0 / len(features)
 
         feat = QgsFeature()
-        for count, f in enumerate(features):
-
+        for current, f in enumerate(features):
             geometry = f.geometry()
-            if geometry.isMultipart():
-                multi_polygon = geometry.asMultiPolygon()
-                for polygon in multi_polygon:
+            if not geometry.isEmpty():
+                if geometry.isMultipart():
+                    multi_polygon = geometry.asMultiPolygon()
+                    for polygon in multi_polygon:
+                        for ring in polygon[1:]:
+                            polygon.remove(ring)
+                    geometry = QgsGeometry.fromMultiPolygon(multi_polygon)
+
+                else:
+                    polygon = geometry.asPolygon()
                     for ring in polygon[1:]:
                         polygon.remove(ring)
-                geometry = QgsGeometry.fromMultiPolygon(multi_polygon)
-
+                    geometry = QgsGeometry.fromPolygon(polygon)
             else:
-                polygon = geometry.asPolygon()
-                for ring in polygon[1:]:
-                    polygon.remove(ring)
-                geometry = QgsGeometry.fromPolygon(polygon)
+                geometry = QgsGeometry(None)
 
             feat.setGeometry(geometry)
             feat.setAttributes(f.attributes())
             writer.addFeature(feat)
-            progress.setPercentage(int(count * total))
+            progress.setPercentage(int(current * total))
 
         del writer

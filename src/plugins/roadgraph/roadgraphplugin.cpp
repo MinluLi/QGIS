@@ -21,7 +21,6 @@
 #include <qgsmapcanvas.h>
 #include <qgsproject.h>
 #include <qgsmaptoolemitpoint.h>
-#include <qgsmaprenderer.h>
 
 #include <qgsmaplayerregistry.h>
 #include <qgsvectorlayer.h>
@@ -31,6 +30,7 @@
 #include <qgsgraphbuilder.h>
 #include <qgsgraph.h>
 #include <qgsdistancearcproperter.h>
+#include "qgsdockwidget.h"
 
 // Road grap plugin includes
 #include "roadgraphplugin.h"
@@ -50,17 +50,16 @@
 #include <QLocale>
 #include <QToolBar>
 #include <QPushButton>
-#include <QDockWidget>
 #include <QVBoxLayout>
 #include <QDebug>
 
 // standard includes
 
 static const QString sName = QObject::tr( "Road graph plugin" );
-static const QString sDescription = QObject::tr( "It solves the shortest path problem." );
+static const QString sDescription = QObject::tr( "Solves the shortest path problem by tracing along line layers." );
 static const QString sCategory = QObject::tr( "Vector" );
 static const QString sPluginVersion = QObject::tr( "Version 0.1" );
-static const QString sPluginIcon = ":/roadgraph/road-fast.png";
+static const QString sPluginIcon = QStringLiteral( ":/roadgraph/road-fast.png" );
 static const QgisPlugin::PLUGINTYPE sPluginType = QgisPlugin::UI;
 
 //////////////////////////////////////////////////////////////////////
@@ -77,12 +76,12 @@ static const QgisPlugin::PLUGINTYPE sPluginType = QgisPlugin::UI;
 RoadGraphPlugin::RoadGraphPlugin( QgisInterface * theQgisInterface )
     : QgisPlugin( sName, sDescription, sCategory, sPluginVersion, sPluginType )
     , mQGisIface( theQgisInterface )
-    , mQSettingsAction( 0 )
-    , mQShortestPathDock( 0 )
+    , mQSettingsAction( nullptr )
+    , mQShortestPathDock( nullptr )
 {
   mSettings = new RgLineVectorLayerSettings();
-  mTimeUnitName = "h";
-  mDistanceUnitName = "km";
+  mTimeUnitName = QStringLiteral( "h" );
+  mDistanceUnitName = QStringLiteral( "km" );
   mTopologyToleranceFactor = 0.0;
 }
 
@@ -102,8 +101,8 @@ void RoadGraphPlugin::initGui()
   mQGisIface->addDockWidget( Qt::LeftDockWidgetArea, mQShortestPathDock );
 
   // Create the action for tool
-  mQSettingsAction  = new QAction( QIcon( ":/roadgraph/road.png" ), tr( "Settings" ), this );
-  mQSettingsAction->setObjectName( "mQSettingsAction" );
+  mQSettingsAction  = new QAction( QIcon( ":/roadgraph/road.png" ), tr( "Settings..." ), this );
+  mQSettingsAction->setObjectName( QStringLiteral( "mQSettingsAction" ) );
 
   // Set the what's this text
   mQSettingsAction->setWhatsThis( tr( "Road graph plugin settings" ) );
@@ -113,7 +112,7 @@ void RoadGraphPlugin::initGui()
   // Connect the action to slots
   connect( mQSettingsAction, SIGNAL( triggered() ), this, SLOT( property() ) );
 
-  mQGisIface->addPluginToVectorMenu( tr( "Road graph" ), mQSettingsAction );
+  mQGisIface->addPluginToVectorMenu( tr( "Road Graph" ), mQSettingsAction );
 
   connect( mQGisIface, SIGNAL( projectRead() ), this, SLOT( projectRead() ) );
   connect( mQGisIface, SIGNAL( newProjectCreated() ), this, SLOT( newProject() ) );
@@ -122,13 +121,13 @@ void RoadGraphPlugin::initGui()
 
   // load settings
   projectRead();
-} // RoadGraphPlugin::initGui()
+}
 
 // Unload the plugin by cleaning up the GUI
 void RoadGraphPlugin::unload()
 {
   // remove the GUI
-  mQGisIface->removePluginVectorMenu( tr( "Road graph" ), mQSettingsAction );
+  mQGisIface->removePluginVectorMenu( tr( "Road Graph" ), mQSettingsAction );
 
   // disconnect
   disconnect( mQGisIface->mainWindow(), SIGNAL( projectRead() ), this, SLOT( projectRead() ) );
@@ -136,24 +135,23 @@ void RoadGraphPlugin::unload()
 
   delete mQSettingsAction;
   delete mQShortestPathDock;
-} // RoadGraphPlugin::unload()
+}
 
 void RoadGraphPlugin::setGuiElementsToDefault()
 {
 
-} // RoadGraphPlugin::setGuiElementsToDefault()
+}
 
 //method defined in interface
 void RoadGraphPlugin::help()
 {
   //implement me!
-} // RoadGraphPlugin::help()
+}
 
 void RoadGraphPlugin::onShowDirection()
 {
   mQGisIface->mapCanvas()->refresh();
-} // RoadGraphPlugin::onShowDirection()
-
+}
 
 void RoadGraphPlugin::newProject()
 {
@@ -176,21 +174,21 @@ void RoadGraphPlugin::property()
   mTopologyToleranceFactor = dlg.topologyTolerance();
 
   mSettings->write( QgsProject::instance() );
-  QgsProject::instance()->writeEntry( "roadgraphplugin", "/pluginTimeUnit", mTimeUnitName );
-  QgsProject::instance()->writeEntry( "roadgraphplugin", "/pluginDistanceUnit", mDistanceUnitName );
-  QgsProject::instance()->writeEntry( "roadgraphplugin", "/topologyToleranceFactor", mTopologyToleranceFactor );
+  QgsProject::instance()->writeEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/pluginTimeUnit" ), mTimeUnitName );
+  QgsProject::instance()->writeEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/pluginDistanceUnit" ), mDistanceUnitName );
+  QgsProject::instance()->writeEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/topologyToleranceFactor" ), mTopologyToleranceFactor );
   setGuiElementsToDefault();
-} //RoadGraphPlugin::property()
+}
 
 void RoadGraphPlugin::projectRead()
 {
   mSettings->read( QgsProject::instance() );
-  mTimeUnitName = QgsProject::instance()->readEntry( "roadgraphplugin", "/pluginTimeUnit", "h" );
-  mDistanceUnitName = QgsProject::instance()->readEntry( "roadgraphplugin", "/pluginDistanceUnit", "km" );
+  mTimeUnitName = QgsProject::instance()->readEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/pluginTimeUnit" ), QStringLiteral( "h" ) );
+  mDistanceUnitName = QgsProject::instance()->readEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/pluginDistanceUnit" ), QStringLiteral( "km" ) );
   mTopologyToleranceFactor =
-    QgsProject::instance()->readDoubleEntry( "roadgraphplugin", "/topologyToleranceFactor", 0.0 );
+    QgsProject::instance()->readDoubleEntry( QStringLiteral( "roadgraphplugin" ), QStringLiteral( "/topologyToleranceFactor" ), 0.0 );
   setGuiElementsToDefault();
-}// RoadGraphplguin::projectRead()
+}
 
 QgisInterface* RoadGraphPlugin::iface()
 {
@@ -199,41 +197,33 @@ QgisInterface* RoadGraphPlugin::iface()
 
 const QgsGraphDirector* RoadGraphPlugin::director() const
 {
-  QString layerId;
-  QgsVectorLayer *layer = NULL;
-  QMap< QString, QgsMapLayer* > mapLayers = QgsMapLayerRegistry::instance()->mapLayers();
-  QMap< QString, QgsMapLayer* >::const_iterator it;
-  for ( it = mapLayers.begin(); it != mapLayers.end(); ++it )
+  QList< QgsMapLayer* > mapLayers = QgsMapLayerRegistry::instance()->mapLayersByName( mSettings->mLayerName );
+  if ( mapLayers.isEmpty() )
+    return nullptr;
+
+  QgsVectorLayer *layer = dynamic_cast< QgsVectorLayer* >( mapLayers.at( 0 ) );
+  if ( !layer )
+    return nullptr;
+
+  if ( layer->wkbType() == QgsWkbTypes::LineString
+       || layer->wkbType() == QgsWkbTypes::MultiLineString )
   {
-    if ( it.value()->name() != mSettings->mLayer )
-      continue;
-    layer = dynamic_cast< QgsVectorLayer* >( it.value() );
-    break;
-  }
-  if ( layer == NULL )
-    return NULL;
-  if ( layer->wkbType() == QGis::WKBLineString
-       || layer->wkbType() == QGis::WKBMultiLineString )
-  {
-    QgsVectorDataProvider *provider = layer->dataProvider();
-    if ( provider == NULL )
-      return NULL;
     SpeedUnit speedUnit = SpeedUnit::byName( mSettings->mSpeedUnitName );
 
     QgsLineVectorLayerDirector * director =
       new QgsLineVectorLayerDirector( layer,
-                                      provider->fieldNameIndex( mSettings->mDirection ),
+                                      layer->fields().lookupField( mSettings->mDirection ),
                                       mSettings->mFirstPointToLastPointDirectionVal,
                                       mSettings->mLastPointToFirstPointDirectionVal,
                                       mSettings->mBothDirectionVal,
                                       mSettings->mDefaultDirection
                                     );
     director->addProperter( new QgsDistanceArcProperter() );
-    director->addProperter( new RgSpeedProperter( provider->fieldNameIndex( mSettings->mSpeed ),
+    director->addProperter( new RgSpeedProperter( layer->fields().lookupField( mSettings->mSpeed ),
                             mSettings->mDefaultSpeed, speedUnit.multipler() ) );
     return director;
   }
-  return NULL;
+  return nullptr;
 }
 
 QString RoadGraphPlugin::timeUnitName()

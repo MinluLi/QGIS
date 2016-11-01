@@ -18,20 +18,21 @@
 #include "qgsgraphbuilderintr.h"
 
 // Qgis includes
+#include "qgsfeatureiterator.h"
 #include <qgsvectorlayer.h>
 #include <qgsvectordataprovider.h>
 #include <qgspoint.h>
 #include <qgsgeometry.h>
 #include <qgsdistancearea.h>
+#include <qgswkbtypes.h>
 
 // QT includes
 #include <QString>
 #include <QtAlgorithms>
 
-//standard includes
-#include <limits>
-#include <algorithm>
-
+/** \ingroup analysis
+ * \class QgsPointCompare
+ */
 class QgsPointCompare
 {
   public:
@@ -122,7 +123,7 @@ QgsLineVectorLayerDirector::~QgsLineVectorLayerDirector()
 
 QString QgsLineVectorLayerDirector::name() const
 {
-  return QString( "Vector line" );
+  return QStringLiteral( "Vector line" );
 }
 
 void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, const QVector< QgsPoint >& additionalPoints,
@@ -130,7 +131,7 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
 {
   QgsVectorLayer *vl = mVectorLayer;
 
-  if ( vl == NULL )
+  if ( !vl )
     return;
 
   int featureCount = ( int ) vl->featureCount() * 2;
@@ -140,11 +141,11 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
   ct.setSourceCrs( vl->crs() );
   if ( builder->coordinateTransformationEnabled() )
   {
-    ct.setDestCRS( builder->destinationCrs() );
+    ct.setDestinationCrs( builder->destinationCrs() );
   }
   else
   {
-    ct.setDestCRS( vl->crs() );
+    ct.setDestinationCrs( vl->crs() );
   }
 
   tiedPoint = QVector< QgsPoint >( additionalPoints.size(), QgsPoint( 0.0, 0.0 ) );
@@ -166,10 +167,10 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
   while ( fit.nextFeature( feature ) )
   {
     QgsMultiPolyline mpl;
-    if ( feature.constGeometry()->wkbType() == QGis::WKBMultiLineString )
-      mpl = feature.constGeometry()->asMultiPolyline();
-    else if ( feature.constGeometry()->wkbType() == QGis::WKBLineString )
-      mpl.push_back( feature.constGeometry()->asPolyline() );
+    if ( QgsWkbTypes::flatType( feature.geometry().geometry()->wkbType() ) == QgsWkbTypes::MultiLineString )
+      mpl = feature.geometry().asMultiPolyline();
+    else if ( QgsWkbTypes::flatType( feature.geometry().geometry()->wkbType() ) == QgsWkbTypes::LineString )
+      mpl.push_back( feature.geometry().asPolyline() );
 
     QgsMultiPolyline::iterator mplIt;
     for ( mplIt = mpl.begin(); mplIt != mpl.end(); ++mplIt )
@@ -300,10 +301,10 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
 
     // begin features segments and add arc to the Graph;
     QgsMultiPolyline mpl;
-    if ( feature.constGeometry()->wkbType() == QGis::WKBMultiLineString )
-      mpl = feature.constGeometry()->asMultiPolyline();
-    else if ( feature.constGeometry()->wkbType() == QGis::WKBLineString )
-      mpl.push_back( feature.constGeometry()->asPolyline() );
+    if ( QgsWkbTypes::flatType( feature.geometry().geometry()->wkbType() ) == QgsWkbTypes::MultiLineString )
+      mpl = feature.geometry().asMultiPolyline();
+    else if ( QgsWkbTypes::flatType( feature.geometry().geometry()->wkbType() ) == QgsWkbTypes::LineString )
+      mpl.push_back( feature.geometry().asPolyline() );
 
     QgsMultiPolyline::iterator mplIt;
     for ( mplIt = mpl.begin(); mplIt != mpl.end(); ++mplIt )
@@ -318,7 +319,7 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
 
         if ( !isFirstPoint )
         {
-          std::map< double, QgsPoint > pointsOnArc;
+          QMap< double, QgsPoint > pointsOnArc;
           pointsOnArc[ 0.0 ] = pt1;
           pointsOnArc[ pt1.sqrDist( pt2 )] = pt2;
 
@@ -347,14 +348,14 @@ void QgsLineVectorLayerDirector::makeGraph( QgsGraphBuilderInterface *builder, c
             }
           }
 
-          std::map< double, QgsPoint >::iterator pointsIt;
+          QMap< double, QgsPoint >::iterator pointsIt;
           QgsPoint pt1;
           QgsPoint pt2;
           int pt1idx = -1, pt2idx = -1;
           bool isFirstPoint = true;
           for ( pointsIt = pointsOnArc.begin(); pointsIt != pointsOnArc.end(); ++pointsIt )
           {
-            pt2 = pointsIt->second;
+            pt2 = *pointsIt;
             tmp = my_binary_search( points.begin(), points.end(), pt2, pointCompare );
             pt2 = *tmp;
             pt2idx = tmp - points.begin();

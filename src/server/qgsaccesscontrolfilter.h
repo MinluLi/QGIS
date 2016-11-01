@@ -1,6 +1,8 @@
 /***************************************************************************
                           qgsaccesscontrolfilter.h
                           ------------------------
+ Access control interface for Qgis Server plugins
+
   begin                : 2015-05-19
   copyright            : (C) 2015 by Stéphane Brunner
   email                : stephane dot brunner at camptocamp dot org
@@ -30,6 +32,7 @@ class QgsFeature;
 
 
 /**
+ * \ingroup server
  * \class QgsAccessControlFilter
  * \brief Class defining access control interface for QGIS Server plugins.
  *
@@ -39,6 +42,7 @@ class QgsFeature;
  *  * layerPermissions() - To give the general layer permissins (read / update / insert / delete)
  *  * authorizedLayerAttributes() - Tho filter the attributes (WMS/GetFeatureInfo, WFS/GetFeature)
  *  * allowToEdit() - (all WFS-T requests)
+ *  * cacheKey()
  */
 class SERVER_EXPORT QgsAccessControlFilter
 {
@@ -50,10 +54,10 @@ class SERVER_EXPORT QgsAccessControlFilter
      * and must be passed to QgsAccessControlFilter instances.
      */
     QgsAccessControlFilter( const QgsServerInterface* serverInterface );
-    /** Destructor */
+    //! Destructor
     virtual ~QgsAccessControlFilter();
 
-    /** Describe the layer permission */
+    //! Describe the layer permission
     struct LayerPermissions
     {
       bool canRead;
@@ -62,33 +66,33 @@ class SERVER_EXPORT QgsAccessControlFilter
       bool canDelete;
     };
 
-    /** Return the QgsServerInterface instance */
+    //! Return the QgsServerInterface instance
     const QgsServerInterface* serverInterface() const { return mServerInterface; }
 
     /** Return an additional expression filter
      * @param layer the layer to control
      * @return the filter expression
      */
-    virtual const QString layerFilterExpression( const QgsVectorLayer* layer ) const;
+    virtual QString layerFilterExpression( const QgsVectorLayer* layer ) const;
 
     /** Return an additional subset string (typically SQL) filter
      * @param layer the layer to control
      * @return the subset string
      */
-    virtual const QString layerFilterSubsetString( const QgsVectorLayer* layer ) const;
+    virtual QString layerFilterSubsetString( const QgsVectorLayer* layer ) const;
 
     /** Return the layer permissions
      * @param layer the layer to control
      * @return the permission to use on the layer
      */
-    virtual const LayerPermissions layerPermissions( const QgsMapLayer* layer ) const;
+    virtual LayerPermissions layerPermissions( const QgsMapLayer* layer ) const;
 
     /** Return the authorized layer attributes
      * @param layer the layer to control
      * @param attributes the current list of visible attribute
      * @return the new list of visible attributes
      */
-    virtual const QStringList* authorizedLayerAttributes( const QgsVectorLayer* layer, const QStringList& attributes ) const;
+    virtual QStringList authorizedLayerAttributes( const QgsVectorLayer* layer, const QStringList& attributes ) const;
 
     /** Are we authorized to modify the following geometry
      * @param layer the layer to control
@@ -100,16 +104,16 @@ class SERVER_EXPORT QgsAccessControlFilter
     /** Cache key to used to create the capabilities cache
      * @return the cache key, "" for no cache
      */
-    virtual const QString cacheKey() const;
+    virtual QString cacheKey() const;
 
   private:
 
-    /** The server interface */
+    //! The server interface
     const QgsServerInterface* mServerInterface;
 
 };
 
-/** The registry definition */
+//! The registry definition
 typedef QMultiMap<int, QgsAccessControlFilter*> QgsAccessControlFilterMap;
 
 

@@ -16,6 +16,7 @@
 #define QGSFEATUREREQUEST_H
 
 #include <QFlags>
+#include <QList>
 
 #include "qgsfeature.h"
 #include "qgsrectangle.h"
@@ -23,10 +24,9 @@
 #include "qgsexpressioncontext.h"
 #include "qgssimplifymethod.h"
 
-#include <QList>
 typedef QList<int> QgsAttributeList;
 
-/**
+/** \ingroup core
  * This class wraps a request for features to a vector layer (or directly its vector data provider).
  * The request may apply a filter to fetch only a particular subset of features. Currently supported filters:
  * - no filter - all features are returned
@@ -84,6 +84,140 @@ class CORE_EXPORT QgsFeatureRequest
       FilterFids        //!< Filter using feature IDs
     };
 
+    /** \ingroup core
+     * The OrderByClause class represents an order by clause for a QgsFeatureRequest.
+     *
+     * It can be a simple field or an expression. Multiple order by clauses can be added to
+     * a QgsFeatureRequest to fine tune the behavior if a single field or expression is not
+     * enough to completely specify the required behavior.
+     *
+     * If expression compilation is activated in the settings and the expression can be
+     * translated for the provider in question, it will be evaluated on provider side.
+     * If one of these two premises does not apply, the ordering will take place locally
+     * which results in increased memory and CPU usage.
+     *
+     * If the ordering is done on strings, the order depends on the system's locale if the
+     * local fallback implementation is used. The order depends on the server system's locale
+     * and implementation if ordering is done on the server.
+     *
+     * In case the fallback code needs to be used, a limit set on the request will be respected
+     * for the features returned by the iterator but internally all features will be requested
+     * from the provider.
+     *
+     * @note added in QGIS 2.14
+     */
+    class CORE_EXPORT OrderByClause
+    {
+      public:
+        /**
+         * Creates a new OrderByClause for a QgsFeatureRequest
+         *
+         * @param expression The expression to use for ordering
+         * @param ascending  If the order should be ascending (1,2,3) or descending (3,2,1)
+         *                   If the order is ascending, by default nulls are last
+         *                   If the order is descending, by default nulls are first
+         */
+        OrderByClause( const QString &expression, bool ascending = true );
+        /**
+         * Creates a new OrderByClause for a QgsFeatureRequest
+         *
+         * @param expression The expression to use for ordering
+         * @param ascending  If the order should be ascending (1,2,3) or descending (3,2,1)
+         * @param nullsfirst If true, NULLS are at the beginning, if false, NULLS are at the end
+         */
+        OrderByClause( const QString &expression, bool ascending, bool nullsfirst );
+
+        /**
+         * The expression
+         * @return the expression
+         */
+        QgsExpression expression() const;
+
+        /**
+         * Order ascending
+         * @return If ascending order is requested
+         */
+        bool ascending() const;
+
+        /**
+         * Set if ascending order is requested
+         */
+        void setAscending( bool ascending );
+
+        /**
+         * Set if NULLS should be returned first
+         * @return if NULLS should be returned first
+         */
+        bool nullsFirst() const;
+
+        /**
+         * Set if NULLS should be returned first
+         */
+        void setNullsFirst( bool nullsFirst );
+
+        /**
+         * Dumps the content to an SQL equivalent
+         */
+        QString dump() const;
+
+        // friend inline int qHash(const OrderByClause &a) { return qHash(a.mExpression.expression()) ^ qHash(a.mAscending) ^ qHash( a.mNullsFirst); }
+
+      private:
+        QgsExpression mExpression;
+        bool mAscending;
+        bool mNullsFirst;
+    };
+
+    /** \ingroup core
+     * Represents a list of OrderByClauses, with the most important first and the least
+     * important last.
+     *
+     * @note added in QGIS 2.14
+     */
+    class OrderBy : public QList<OrderByClause>
+    {
+      public:
+        /**
+         * Create a new empty order by
+         */
+        CORE_EXPORT OrderBy()
+            : QList<OrderByClause>()
+        {}
+
+        /**
+         * Create a new order by from a list of clauses
+         */
+        CORE_EXPORT OrderBy( const QList<OrderByClause>& other );
+
+        /**
+         * Get a copy as a list of OrderByClauses
+         *
+         * This is only required in python where the inheritance
+         * is not properly propagated and this makes it usable.
+         */
+        QList<OrderByClause> CORE_EXPORT list() const;
+
+        /**
+         * Serialize to XML
+         */
+        void CORE_EXPORT save( QDomElement& elem ) const;
+
+        /**
+         * Deserialize from XML
+         */
+        void CORE_EXPORT load( const QDomElement& elem );
+
+        /**
+         * Returns a set of used attributes
+         */
+        QSet<QString> CORE_EXPORT usedAttributes() const;
+
+        /**
+         * Dumps the content to an SQL equivalent syntax
+         */
+        QString CORE_EXPORT dump() const;
+    };
+
     /**
      * A special attribute that if set matches all attributes
      */
@@ -93,6 +227,8 @@ class CORE_EXPORT QgsFeatureRequest
     QgsFeatureRequest();
     //! construct a request with feature ID filter
     explicit QgsFeatureRequest( QgsFeatureId fid );
+    //! construct a request with feature ID filter
+    explicit QgsFeatureRequest( const QgsFeatureIds &fids );
     //! construct a request with rectangle filter
     explicit QgsFeatureRequest( const QgsRectangle& rect );
     //! construct a request with a filter expression
@@ -124,7 +260,7 @@ class CORE_EXPORT QgsFeatureRequest
     //! Set feature ID that should be fetched.
     QgsFeatureRequest& setFilterFid( QgsFeatureId fid );
     //! Get the feature ID that should be fetched.
-    const QgsFeatureId& filterFid() const { return mFilterFid; }
+    QgsFeatureId filterFid() const { return mFilterFid; }
 
     //! Set feature IDs that should be fetched.
     QgsFeatureRequest& setFilterFids( const QgsFeatureIds& fids );
@@ -143,6 +279,13 @@ class CORE_EXPORT QgsFeatureRequest
      * @see expressionContext
      */
     QgsExpression* filterExpression() const { return mFilterExpression; }
+
+    /** Modifies the existing filter expression to add an additional expression filter. The
+     * filter expressions are combined using AND, so only features matching both
+     * the existing expression and the additional expression will be returned.
+     * @note added in QGIS 2.14
+     */
+    QgsFeatureRequest& combineFilterExpression( const QString& expression );
 
     /** Returns the expression context used to evaluate filter expressions.
      * @note added in QGIS 2.12
@@ -168,8 +311,58 @@ class CORE_EXPORT QgsFeatureRequest
      */
     QgsFeatureRequest& disableFilter() { mFilter = FilterNone; return *this; }
 
+    /**
+     * Adds a new OrderByClause, appending it as the least important one.
+     *
+     * @param expression The expression to use for ordering
+     * @param ascending  If the order should be ascending (1,2,3) or descending (3,2,1)
+     *                   If the order is ascending, by default nulls are last
+     *                   If the order is descending, by default nulls are first
+     *
+     * @note added in QGIS 2.14
+     */
+
+    QgsFeatureRequest& addOrderBy( const QString &expression, bool ascending = true );
+    /**
+     * Adds a new OrderByClause, appending it as the least important one.
+     *
+     * @param expression The expression to use for ordering
+     * @param ascending  If the order should be ascending (1,2,3) or descending (3,2,1)
+     * @param nullsfirst If true, NULLS are at the beginning, if false, NULLS are at the end
+     *
+     * @note added in QGIS 2.14
+     */
+    QgsFeatureRequest& addOrderBy( const QString &expression, bool ascending, bool nullsfirst );
+
+    /**
+     * Return a list of order by clauses specified for this feature request.
+     *
+     * @note added in 2.14
+     */
+    OrderBy orderBy() const;
+
+    /**
+     * Set a list of order by clauses.
+     *
+     * @note added in 2.14
+     */
+    QgsFeatureRequest& setOrderBy( const OrderBy& orderBy );
+
+    /** Set the maximum number of features to request.
+     * @param limit maximum number of features, or -1 to request all features.
+     * @see limit()
+     * @note added in QGIS 2.14
+     */
+    QgsFeatureRequest& setLimit( long limit );
+
+    /** Returns the maximum number of features to request, or -1 if no limit set.
+     * @see setLimit
+     * @note added in QGIS 2.14
+     */
+    long limit() const { return mLimit; }
+
     //! Set flags that affect how features will be fetched
-    QgsFeatureRequest& setFlags( const QgsFeatureRequest::Flags& flags );
+    QgsFeatureRequest& setFlags( QgsFeatureRequest::Flags flags );
     const Flags& flags() const { return mFlags; }
 
     //! Set a subset of attributes that will be fetched. Empty list means that all attributes are used.
@@ -179,10 +372,13 @@ class CORE_EXPORT QgsFeatureRequest
      * Return the subset of attributes which at least need to be fetched
      * @return A list of attributes to be fetched
      */
-    const QgsAttributeList& subsetOfAttributes() const { return mAttrs; }
+    QgsAttributeList subsetOfAttributes() const { return mAttrs; }
 
     //! Set a subset of attributes by names that will be fetched
     QgsFeatureRequest& setSubsetOfAttributes( const QStringList& attrNames, const QgsFields& fields );
+
+    //! Set a subset of attributes by names that will be fetched
+    QgsFeatureRequest& setSubsetOfAttributes( const QSet<QString>& attrNames, const QgsFields& fields );
 
     //! Set a simplification method for geometries that will be fetched
     //! @note added in 2.2
@@ -204,7 +400,6 @@ class CORE_EXPORT QgsFeatureRequest
 
     // TODO: in future
     // void setFilterNativeExpression(con QString& expr);   // using provider's SQL (if supported)
-    // void setLimit(int limit);
 
   protected:
     FilterType mFilter;
@@ -216,6 +411,8 @@ class CORE_EXPORT QgsFeatureRequest
     Flags mFlags;
     QgsAttributeList mAttrs;
     QgsSimplifyMethod mSimplifyMethod;
+    long mLimit;
+    OrderBy mOrderBy;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsFeatureRequest::Flags )
@@ -224,7 +421,8 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( QgsFeatureRequest::Flags )
 class QgsFeatureIterator;
 class QgsAbstractFeatureIterator;
 
-/** Base class that can be used for any class that is capable of returning features
+/** \ingroup core
+ * Base class that can be used for any class that is capable of returning features
  * @note added in 2.4
  */
 class CORE_EXPORT QgsAbstractFeatureSource

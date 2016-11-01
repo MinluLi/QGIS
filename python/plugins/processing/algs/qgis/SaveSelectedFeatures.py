@@ -41,7 +41,7 @@ class SaveSelectedFeatures(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector general tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer')))
 
         self.addOutput(OutputVector(self.OUTPUT_LAYER,
                                     self.tr('Selection')))
@@ -52,13 +52,12 @@ class SaveSelectedFeatures(GeoAlgorithm):
 
         vectorLayer = dataobjects.getObjectFromUri(inputFilename)
 
-        provider = vectorLayer.dataProvider()
-        writer = output.getVectorWriter(provider.fields(),
-                                        provider.geometryType(), vectorLayer.crs())
+        writer = output.getVectorWriter(vectorLayer.fields(),
+                                        vectorLayer.wkbType(), vectorLayer.crs())
 
         features = vector.features(vectorLayer)
-        total = len(features)
-        for (i, feat) in enumerate(features):
+        total = 100.0 / len(features)
+        for current, feat in enumerate(features):
             writer.addFeature(feat)
-            progress.setPercentage(100 * i / float(total))
+            progress.setPercentage(int(current * total))
         del writer

@@ -19,23 +19,24 @@ email                : brush.tyler@gmail.com
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import map
+from builtins import range
 
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import PostGisDBConnector
 
-from PyQt4.QtCore import QSettings, Qt, QRegExp
-from PyQt4.QtGui import QIcon, QAction, QApplication, QMessageBox
+from qgis.PyQt.QtCore import QSettings, Qt, QRegExp
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QAction, QApplication, QMessageBox
 from qgis.gui import QgsMessageBar
 
 from ..plugin import ConnectionError, InvalidDataException, DBPlugin, Database, Schema, Table, VectorTable, RasterTable, \
     TableField, TableConstraint, TableIndex, TableTrigger, TableRule
 
-try:
-    from . import resources_rc
-except ImportError:
-    pass
-
 import re
+
+from . import resources_rc  # NOQA
 
 
 def classFactory():
@@ -75,28 +76,28 @@ class PostGisDBPlugin(DBPlugin):
         if not settings.contains("database"):  # non-existent entry?
             raise InvalidDataException(self.tr('There is no defined database connection "%s".') % conn_name)
 
-        from qgis.core import QgsDataSourceURI
+        from qgis.core import QgsDataSourceUri
 
-        uri = QgsDataSourceURI()
+        uri = QgsDataSourceUri()
 
-        settingsList = ["service", "host", "port", "database", "username", "password"]
-        service, host, port, database, username, password = map(lambda x: settings.value(x, "", type=str), settingsList)
+        settingsList = ["service", "host", "port", "database", "username", "password", "authcfg"]
+        service, host, port, database, username, password, authcfg = [settings.value(x, "", type=str) for x in settingsList]
 
         useEstimatedMetadata = settings.value("estimatedMetadata", False, type=bool)
-        sslmode = settings.value("sslmode", QgsDataSourceURI.SSLprefer, type=int)
+        sslmode = settings.value("sslmode", QgsDataSourceUri.SslPrefer, type=int)
 
         settings.endGroup()
 
         if service:
-            uri.setConnection(service, database, username, password, sslmode)
+            uri.setConnection(service, database, username, password, sslmode, authcfg)
         else:
-            uri.setConnection(host, port, database, username, password, sslmode)
+            uri.setConnection(host, port, database, username, password, sslmode, authcfg)
 
         uri.setUseEstimatedMetadata(useEstimatedMetadata)
 
         try:
             return self.connectToUri(uri)
-        except ConnectionError as e:
+        except ConnectionError:
             return False
 
 
@@ -110,6 +111,10 @@ class PGDatabase(Database):
 
     def dataTablesFactory(self, row, db, schema=None):
         return PGTable(row, db, schema)
+
+    def info(self):
+        from .info_model import PGDatabaseInfo
+        return PGDatabaseInfo(self)
 
     def vectorTablesFactory(self, row, db, schema=None):
         return PGVectorTable(row, db, schema)
@@ -136,6 +141,9 @@ class PGDatabase(Database):
         action = QAction(self.tr("Run &Vacuum Analyze"), self)
         mainWindow.registerAction(action, self.tr("&Table"), self.runVacuumAnalyzeActionSlot)
 
+        action = QAction(self.tr("Run &Refresh Materialized View"), self)
+        mainWindow.registerAction(action, self.tr("&Table"), self.runRefreshMaterializedViewSlot)
+
     def runVacuumAnalyzeActionSlot(self, item, action, parent):
         QApplication.restoreOverrideCursor()
         try:
@@ -147,6 +155,21 @@ class PGDatabase(Database):
             QApplication.setOverrideCursor(Qt.WaitCursor)
 
         item.runVacuumAnalyze()
+
+    def runRefreshMaterializedViewSlot(self, item, action, parent):
+        QApplication.restoreOverrideCursor()
+        try:
+            if not isinstance(item, PGTable) or item._relationType != 'm':
+                parent.infoBar.pushMessage(self.tr("Select a materialized view for refresh."), QgsMessageBar.INFO,
+                                           parent.iface.messageTimeout())
+                return
+        finally:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        item.runRefreshMaterializedView()
+
+    def hasLowercaseFieldNamesOption(self):
+        return True
 
 
 class PGSchema(Schema):
@@ -160,17 +183,24 @@ class PGTable(Table):
 
     def __init__(self, row, db, schema=None):
         Table.__init__(self, db, schema)
-        self.name, schema_name, self.isView, self.owner, self.estimatedRowCount, self.pages, self.comment = row
+        self.name, schema_name, self._relationType, self.owner, self.estimatedRowCount, self.pages, self.comment = row
+        self.isView = self._relationType in set(['v', 'm'])
         self.estimatedRowCount = int(self.estimatedRowCount)
 
     def runVacuumAnalyze(self):
-        self.aboutToChange()
+        self.aboutToChange.emit()
         self.database().connector.runVacuumAnalyze((self.schemaName(), self.name))
         # TODO: change only this item, not re-create all the tables in the schema/database
         self.schema().refresh() if self.schema() else self.database().refresh()
 
+    def runRefreshMaterializedView(self):
+        self.aboutToChange.emit()
+        self.database().connector.runRefreshMaterializedView((self.schemaName(), self.name))
+        # TODO: change only this item, not re-create all the tables in the schema/database
+        self.schema().refresh() if self.schema() else self.database().refresh()
+
     def runAction(self, action):
-        action = unicode(action)
+        action = str(action)
 
         if action.startswith("vacuumanalyze/"):
             if action == "vacuumanalyze/run":
@@ -194,9 +224,14 @@ class PGTable(Table):
                 QApplication.setOverrideCursor(Qt.WaitCursor)
 
             if rule_action == "delete":
-                self.aboutToChange()
+                self.aboutToChange.emit()
                 self.database().connector.deleteTableRule(rule_name, (self.schemaName(), self.name))
                 self.refreshRules()
+                return True
+
+        elif action.startswith("refreshmaterializedview/"):
+            if action == "refreshmaterializedview/run":
+                self.runRefreshMaterializedView()
                 return True
 
         return Table.runAction(self, action)
@@ -225,6 +260,16 @@ class PGTable(Table):
         from .data_model import PGTableDataModel
 
         return PGTableDataModel(self, parent)
+
+    def delete(self):
+        self.aboutToChange.emit()
+        if self.isView:
+            ret = self.database().connector.deleteView((self.schemaName(), self.name), self._relationType == 'm')
+        else:
+            ret = self.database().connector.deleteTable((self.schemaName(), self.name))
+        if not ret:
+            self.deleted.emit()
+        return ret
 
 
 class PGVectorTable(PGTable, VectorTable):
@@ -286,13 +331,13 @@ class PGRasterTable(PGTable, RasterTable):
         return uri
 
     def toMapLayer(self):
-        from qgis.core import QgsRasterLayer, QgsContrastEnhancement, QgsDataSourceURI, QgsCredentials
+        from qgis.core import QgsRasterLayer, QgsContrastEnhancement, QgsDataSourceUri, QgsCredentials
 
         rl = QgsRasterLayer(self.gdalUri(), self.name)
         if not rl.isValid():
             err = rl.error().summary()
-            uri = QgsDataSourceURI(self.database().uri())
-            conninfo = uri.connectionInfo()
+            uri = QgsDataSourceUri(self.database().uri())
+            conninfo = uri.connectionInfo(False)
             username = uri.username()
             password = uri.password()
 
@@ -338,7 +383,7 @@ class PGTableConstraint(TableConstraint):
     def __init__(self, row, table):
         TableConstraint.__init__(self, table)
         self.name, constr_type_str, self.isDefferable, self.isDeffered, columns = row[:5]
-        self.columns = map(int, columns.split(' '))
+        self.columns = list(map(int, columns.split(' ')))
 
         if constr_type_str in TableConstraint.types:
             self.type = TableConstraint.types[constr_type_str]
@@ -360,7 +405,7 @@ class PGTableIndex(TableIndex):
     def __init__(self, row, table):
         TableIndex.__init__(self, table)
         self.name, columns, self.isUnique = row
-        self.columns = map(int, columns.split(' '))
+        self.columns = list(map(int, columns.split(' ')))
 
 
 class PGTableTrigger(TableTrigger):

@@ -46,8 +46,9 @@
 ***************************************************************************
 """
 
-from PyQt4.QtCore import Qt, QPointF
-from PyQt4.QtGui import QGraphicsPathItem, QPen, QGraphicsItem, QPainterPath, QPolygonF, QPainter
+from qgis.PyQt.QtCore import Qt, QPointF
+from qgis.PyQt.QtWidgets import QGraphicsPathItem, QGraphicsItem
+from qgis.PyQt.QtGui import QPen, QPainterPath, QPolygonF, QPainter
 from processing.modeler.ModelerGraphicItem import ModelerGraphicItem
 from processing.modeler.ModelerAlgorithm import Algorithm
 
@@ -56,7 +57,7 @@ class ModelerArrowItem(QGraphicsPathItem):
 
     def __init__(self, startItem, startIndex, endItem, endIndex,
                  parent=None, scene=None):
-        super(ModelerArrowItem, self).__init__(parent, scene)
+        super(ModelerArrowItem, self).__init__(parent)
         self.arrowHead = QPolygonF()
         self.endIndex = endIndex
         self.startIndex = startIndex
@@ -66,7 +67,7 @@ class ModelerArrowItem(QGraphicsPathItem):
         self.setFlag(QGraphicsItem.ItemIsSelectable, False)
         self.myColor = Qt.gray
         self.setPen(QPen(self.myColor, 1, Qt.SolidLine,
-                    Qt.RoundCap, Qt.RoundJoin))
+                         Qt.RoundCap, Qt.RoundJoin))
         self.setZValue(0)
 
     def updatePath(self):

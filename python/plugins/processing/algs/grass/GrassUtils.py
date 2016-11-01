@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import object
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -32,14 +34,14 @@ import subprocess
 import os
 import locale
 from qgis.core import QgsApplication
-from PyQt4.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
 from processing.tools.system import userFolder, isWindows, isMac, tempFolder, mkdir
 from processing.tests.TestData import points
 
 
-class GrassUtils:
+class GrassUtils(object):
 
     GRASS_REGION_XMIN = 'GRASS_REGION_XMIN'
     GRASS_REGION_YMIN = 'GRASS_REGION_YMIN'
@@ -63,7 +65,7 @@ class GrassUtils:
         GRASS_BATCH_JOB and then call GRASS and let it do the work
         '''
         filename = 'grass_batch_job.sh'
-        batchfile = userFolder() + os.sep + filename
+        batchfile = os.path.join(userFolder(), filename)
         return batchfile
 
     @staticmethod
@@ -72,7 +74,7 @@ class GrassUtils:
         GRASS and then uses grass commands
         '''
         filename = 'grass_script.bat'
-        filename = userFolder() + os.sep + filename
+        filename = os.path.join(userFolder(), filename)
         return filename
 
     @staticmethod
@@ -86,14 +88,19 @@ class GrassUtils:
         if not isWindows() and not isMac():
             return ''
 
-        folder = ProcessingConfig.getSetting(GrassUtils.GRASS_FOLDER)
+        folder = ProcessingConfig.getSetting(GrassUtils.GRASS_FOLDER) or ''
+        if not os.path.exists(folder):
+            folder = None
         if folder is None:
             if isWindows():
-                testfolder = os.path.dirname(QgsApplication.prefixPath())
+                if "OSGEO4W_ROOT" in os.environ:
+                    testfolder = os.path.join(str(os.environ['OSGEO4W_ROOT']), "apps")
+                else:
+                    testfolder = str(QgsApplication.prefixPath())
                 testfolder = os.path.join(testfolder, 'grass')
                 if os.path.isdir(testfolder):
                     for subfolder in os.listdir(testfolder):
-                        if subfolder.startswith('grass'):
+                        if subfolder.startswith('grass-6'):
                             folder = os.path.join(testfolder, subfolder)
                             break
             else:
@@ -101,13 +108,17 @@ class GrassUtils:
                 if not os.path.isdir(folder):
                     folder = '/Applications/GRASS-6.4.app/Contents/MacOS'
 
+        if folder:
+            ProcessingConfig.setSettingValue(GrassUtils.GRASS_FOLDER, folder)
         return folder or ''
 
     @staticmethod
     def grassWinShell():
-        folder = ProcessingConfig.getSetting(GrassUtils.GRASS_WIN_SHELL)
+        folder = ProcessingConfig.getSetting(GrassUtils.GRASS_WIN_SHELL) or ''
+        if not os.path.exists(folder):
+            folder = None
         if folder is None:
-            folder = os.path.dirname(unicode(QgsApplication.prefixPath()))
+            folder = os.path.dirname(str(QgsApplication.prefixPath()))
             folder = os.path.join(folder, 'msys')
         return folder
 
@@ -121,7 +132,7 @@ class GrassUtils:
         shell = GrassUtils.grassWinShell()
 
         script = GrassUtils.grassScriptFilename()
-        gisrc = userFolder() + os.sep + 'processing.gisrc'
+        gisrc = os.path.join(userFolder(), 'processing.gisrc')
 
         encoding = locale.getpreferredencoding()
         # Temporary gisrc file
@@ -139,12 +150,10 @@ class GrassUtils:
         output.write('set HOME=' + os.path.expanduser('~') + '\n')
         output.write('set GISRC=' + gisrc + '\n')
         output.write('set GRASS_SH=' + shell + '\\bin\\sh.exe\n')
-        output.write('set PATH=' + shell + os.sep + 'bin;' + shell + os.sep
-                     + 'lib;' + '%PATH%\n')
+        output.write('set PATH=' + os.path.join(shell, 'bin') + ';' + os.path.join(shell, 'lib') + ';' + '%PATH%\n')
         output.write('set WINGISBASE=' + folder + '\n')
         output.write('set GISBASE=' + folder + '\n')
-        output.write('set GRASS_PROJSHARE=' + folder + os.sep + 'share'
-                     + os.sep + 'proj' + '\n')
+        output.write('set GRASS_PROJSHARE=' + os.path.join(folder, 'share', 'proj') + '\n')
         output.write('set GRASS_MESSAGE_FORMAT=gui\n')
 
         # Replacement code for etc/Init.bat
@@ -246,7 +255,7 @@ class GrassUtils:
             GrassUtils.createGrassScript(commands)
             command = ['cmd.exe', '/C ', GrassUtils.grassScriptFilename()]
         else:
-            gisrc = userFolder() + os.sep + 'processing.gisrc'
+            gisrc = os.path.join(userFolder(), 'processing.gisrc')
             env['GISRC'] = gisrc
             env['GRASS_MESSAGE_FORMAT'] = 'gui'
             env['GRASS_BATCH_JOB'] = GrassUtils.grassBatchJobFilename()
@@ -256,11 +265,10 @@ class GrassUtils:
             os.chmod(GrassUtils.grassBatchJobFilename(), stat.S_IEXEC
                      | stat.S_IREAD | stat.S_IWRITE)
             if isMac():
-                command = GrassUtils.grassPath() + os.sep + 'grass.sh ' \
-                    + GrassUtils.grassMapsetFolder() + '/PERMANENT'
+                command = os.path.join(GrassUtils.grassPath(), 'grass.sh') + ' ' \
+                    + os.path.join(GrassUtils.grassMapsetFolder(), 'PERMANENT')
             else:
-                command = 'grass64 ' + GrassUtils.grassMapsetFolder() \
-                    + '/PERMANENT'
+                command = 'grass64 ' + os.path.join(GrassUtils.grassMapsetFolder(), 'PERMANENT')
 
         return command, env
 
@@ -351,8 +359,8 @@ class GrassUtils:
     @staticmethod
     def addSessionLayers(exportedLayers):
         GrassUtils.sessionLayers = dict(
-            GrassUtils.sessionLayers.items()
-            + exportedLayers.items())
+            list(GrassUtils.sessionLayers.items())
+            + list(exportedLayers.items()))
 
     @staticmethod
     def checkGrassIsInstalled(ignorePreviousState=False):
@@ -365,10 +373,10 @@ class GrassUtils:
             cmdpath = os.path.join(path, 'bin', 'r.out.gdal.exe')
             if not os.path.exists(cmdpath):
                 return GrassUtils.tr(
-                    'The specified GRASS folder does not contain a valid '
+                    'The specified GRASS folder "{}" does not contain a valid '
                     'set of GRASS modules. Please, go to the Processing '
                     'settings dialog, and check that the GRASS folder is '
-                    'correctly configured')
+                    'correctly configured'.format(os.path.join(path, 'bin')))
 
         if not ignorePreviousState:
             if GrassUtils.isGrassInstalled:

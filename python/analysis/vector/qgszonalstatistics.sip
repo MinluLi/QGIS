@@ -1,5 +1,5 @@
 /** \ingroup analysis
- * The QGis class that calculates raster statistics (count, sum, mean) for
+ * The Qgis class that calculates raster statistics (count, sum, mean) for
  * a polygon or multipolygon layer and appends the results as attributes
  */
 
@@ -31,8 +31,7 @@ class QgsZonalStatistics
     typedef QFlags<QgsZonalStatistics::Statistic> Statistics;
 
     QgsZonalStatistics( QgsVectorLayer* polygonLayer, const QString& rasterFile, const QString& attributePrefix = "", int rasterBand = 1,
-                        const QgsZonalStatistics::Statistics& stats = QgsZonalStatistics::Statistics( QgsZonalStatistics::Count | QgsZonalStatistics::Sum | QgsZonalStatistics::Mean) );
-    ~QgsZonalStatistics();
+                        QgsZonalStatistics::Statistics stats = QgsZonalStatistics::Statistics( QgsZonalStatistics::Count | QgsZonalStatistics::Sum | QgsZonalStatistics::Mean) );
 
     /** Starts the calculation
       @return 0 in case of success*/

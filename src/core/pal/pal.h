@@ -31,6 +31,7 @@
 #define PAL_H
 
 #include "qgsgeometry.h"
+#include "qgspallabeling.h"
 #include <QList>
 #include <iostream>
 #include <ctime>
@@ -43,7 +44,7 @@ class QgsAbstractLabelProvider;
 
 namespace pal
 {
-  /** Get GEOS context handle to be used in all GEOS library calls with reentrant API */
+  //! Get GEOS context handle to be used in all GEOS library calls with reentrant API
   GEOSContextHandle_t geosContext();
 
   class Layer;
@@ -52,31 +53,17 @@ namespace pal
   class Problem;
   class PointSet;
 
-  /** Search method to use */
+  //! Search method to use
   enum SearchMethod
   {
-    CHAIN = 0, /**< is the worst but fastest method */
-    POPMUSIC_TABU_CHAIN = 1, /**< is the best but slowest */
-    POPMUSIC_TABU = 2, /**< is a little bit better than CHAIN but slower*/
-    POPMUSIC_CHAIN = 3, /**< is slower and best than TABU, worse and faster than TABU_CHAIN */
-    FALP = 4 /** only initial solution */
+    CHAIN = 0, //!< Is the worst but fastest method
+    POPMUSIC_TABU_CHAIN = 1, //!< Is the best but slowest
+    POPMUSIC_TABU = 2, //!< Is a little bit better than CHAIN but slower
+    POPMUSIC_CHAIN = 3, //!< Is slower and best than TABU, worse and faster than TABU_CHAIN
+    FALP = 4 //! only initial solution
   };
 
-  /** The way to arrange labels against spatial entities
-   *
-   * image html arrangement.png "Arrangement modes" width=7cm
-   * */
-  enum Arrangement
-  {
-    P_POINT = 0, /**< arranges candidates around a point (centroid for polygon)*/
-    P_POINT_OVER, /** arranges candidates over a point (centroid for polygon)*/
-    P_LINE, /**< Only for lines and polygons, arranges candidates over the line or the polygon perimeter */
-    P_CURVED, /** Only for lines, labels along the line */
-    P_HORIZ, /**< Only for polygon, arranges candidates horizontaly */
-    P_FREE /**< Only for polygon, arranges candidates with respect of polygon orientation */
-  };
-
-  /** Enumeration line arrangement flags. Flags can be combined. */
+  //! Enumeration line arrangement flags. Flags can be combined.
   enum LineArrangementFlag
   {
     FLAG_ON_LINE     = 1,
@@ -86,13 +73,7 @@ namespace pal
   };
   Q_DECLARE_FLAGS( LineArrangementFlags, LineArrangementFlag )
 
-  enum ObstacleType
-  {
-    PolygonInterior,
-    PolygonBoundary
-  };
-
-  /**
+  /** \ingroup core
    *  \brief Main Pal labelling class
    *
    *  A pal object will contains layers and global information such as which search method
@@ -133,7 +114,7 @@ namespace pal
        *
        * @todo add symbolUnit
        */
-      Layer* addLayer( QgsAbstractLabelProvider* provider, const QString& layerName, Arrangement arrangement, double defaultPriority, bool active, bool toLabel, bool displayAll = false );
+      Layer* addLayer( QgsAbstractLabelProvider* provider, const QString& layerName, QgsPalLayerSettings::Placement arrangement, double defaultPriority, bool active, bool toLabel, bool displayAll = false );
 
       /**
        * \brief remove a layer
@@ -152,19 +133,19 @@ namespace pal
        *
        * @return A list of label to display on map
        */
-      std::list<LabelPosition*> *labeller( double bbox[4], PalStat **stats, bool displayAll );
+      QList<LabelPosition*> *labeller( double bbox[4], PalStat **stats, bool displayAll );
 
       typedef bool ( *FnIsCancelled )( void* ctx );
 
-      /** Register a function that returns whether this job has been cancelled - PAL calls it during the computation */
+      //! Register a function that returns whether this job has been cancelled - PAL calls it during the computation
       void registerCancellationCallback( FnIsCancelled fnCancelled, void* context );
 
-      /** Check whether the job has been cancelled */
+      //! Check whether the job has been cancelled
       inline bool isCancelled() { return fnIsCancelled ? fnIsCancelled( fnIsCancelledContext ) : false; }
 
       Problem* extractProblem( double bbox[4] );
 
-      std::list<LabelPosition*>* solveProblem( Problem* prob, bool displayAll );
+      QList<LabelPosition*>* solveProblem( Problem* prob, bool displayAll );
 
       /**
        *\brief Set flag show partial label
@@ -276,9 +257,9 @@ namespace pal
        */
       bool showPartial;
 
-      /** Callback that may be called from PAL to check whether the job has not been cancelled in meanwhile */
+      //! Callback that may be called from PAL to check whether the job has not been cancelled in meanwhile
       FnIsCancelled fnIsCancelled;
-      /** Application-specific context for the cancellation check function */
+      //! Application-specific context for the cancellation check function
       void* fnIsCancelledContext;
 
       /**
@@ -341,6 +322,12 @@ namespace pal
        * @return maximum # of iteration
        */
       int getMaxIt();
+
+    private:
+
+      Pal( const Pal& other );
+      Pal& operator=( const Pal& other );
+
   };
 
 } // end namespace pal

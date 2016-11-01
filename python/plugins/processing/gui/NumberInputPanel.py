@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -27,58 +29,106 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4 import uic
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtWidgets import QDialog
 
-from math import log10, floor
-from processing.gui.NumberInputDialog import NumberInputDialog
+from qgis.core import (QgsDataSourceUri,
+                       QgsCredentials,
+                       QgsExpression,
+                       QgsRasterLayer,
+                       QgsExpressionContextScope)
+from qgis.gui import QgsEncodingFileDialog, QgsExpressionBuilderDialog
+from qgis.utils import iface
+from processing.core.parameters import ParameterNumber, ParameterVector, ParameterRaster
+from processing.core.outputs import OutputNumber, OutputVector, OutputRaster
+from processing.modeler.ModelerAlgorithm import ValueFromInput, ValueFromOutput, CompoundValue
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
 WIDGET, BASE = uic.loadUiType(
-    os.path.join(pluginPath, 'ui', 'widgetNumberSelector.ui'))
+    os.path.join(pluginPath, 'ui', 'widgetBaseSelector.ui'))
 
 
 class NumberInputPanel(BASE, WIDGET):
 
-    def __init__(self, number, minimum, maximum, isInteger):
+    hasChanged = pyqtSignal()
+
+    def __init__(self, param, modelParametersDialog=None):
         super(NumberInputPanel, self).__init__(None)
         self.setupUi(self)
 
-        self.isInteger = isInteger
-        if self.isInteger:
-            self.spnValue.setDecimals(0)
-        else:
-            #Guess reasonable step value
-            if (maximum == 0 or maximum) and (minimum == 0 or minimum):
-                self.spnValue.setSingleStep(self.calculateStep(minimum, maximum))
+        self.param = param
+        self.modelParametersDialog = modelParametersDialog
+        if param.default:
+            self.setValue(param.default)
+        self.btnSelect.clicked.connect(self.showExpressionsBuilder)
+        self.leText.textChanged.connect(lambda: self.hasChanged.emit())
 
-        if maximum == 0 or maximum:
-            self.spnValue.setMaximum(maximum)
-        else:
-            self.spnValue.setMaximum(99999999)
-        if minimum == 0 or minimum:
-            self.spnValue.setMinimum(minimum)
-        else:
-            self.spnValue.setMinimum(-99999999)
-
-        self.spnValue.setValue(float(number))
-        self.spnValue.setClearValue(float(number))
-
-        self.btnCalc.clicked.connect(self.showNumberInputDialog)
-
-    def showNumberInputDialog(self):
-        dlg = NumberInputDialog(self.isInteger)
-        dlg.exec_()
-        if dlg.value is not None:
-            self.spnValue.setValue(dlg.value)
+    def showExpressionsBuilder(self):
+        context = self.param.expressionContext()
+        dlg = QgsExpressionBuilderDialog(None, self.leText.text(), self, 'generic', context)
+        if self.modelParametersDialog is not None:
+            context.popScope()
+            values = self.modelParametersDialog.getAvailableValuesOfType(ParameterNumber, OutputNumber)
+            variables = {}
+            for value in values:
+                if isinstance(value, ValueFromInput):
+                    name = value.name
+                    element = self.modelParametersDialog.model.inputs[name].param
+                    desc = element.description
+                else:
+                    name = "%s_%s" % (value.alg, value.output)
+                    alg = self.modelParametersDialog.model.algs[value.alg]
+                    out = alg.algorithm.getOutputFromName(value.output)
+                    desc = "Output '%s' from algorithm '%s" % (out.description, alg.description)
+                variables[name] = desc
+            values = self.modelParametersDialog.getAvailableValuesOfType(ParameterVector, OutputVector)
+            values.extend(self.modelParametersDialog.getAvailableValuesOfType(ParameterRaster, OutputRaster))
+            for value in values:
+                if isinstance(value, ValueFromInput):
+                    name = value.name
+                    element = self.modelParametersDialog.model.inputs[name].param
+                    desc = element.description
+                else:
+                    name = "%s_%s" % (value.alg, value.output)
+                    alg = self.modelParametersDialog.model.algs[value.alg]
+                    element = alg.algorithm.getOutputFromName(value.output)
+                    desc = "Output '%s' from algorithm '%s" % (element.description, alg.description)
+                variables['%s_minx' % name] = "Minimum X of %s" % desc
+                variables['%s_miny' % name] = "Maximum X of %s" % desc
+                variables['%s_maxx' % name] = "Minimum Y of %s" % desc
+                variables['%s_maxy' % name] = "Maximum Y of %s" % desc
+                if isinstance(element, (ParameterRaster, OutputRaster)):
+                    variables['%s_min' % name] = "Minimum value of %s" % desc
+                    variables['%s_max' % name] = "Maximum value of %s" % desc
+                    variables['%s_avg' % name] = "Mean value of %s" % desc
+                    variables['%s_stddev' % name] = "Standard deviation of %s" % desc
+            for variable, desc in variables.items():
+                dlg.expressionBuilder().registerItem("Modeler", variable, "@" + variable, desc, highlightedItem=True)
+        dlg.setWindowTitle(self.tr('Expression based input'))
+        if dlg.exec_() == QDialog.Accepted:
+            exp = QgsExpression(dlg.expressionText())
+            if not exp.hasParserError():
+                self.setValue(dlg.expressionText())
 
     def getValue(self):
-        return self.spnValue.value()
-
-    def calculateStep(self, minimum, maximum):
-        valueRange = maximum - minimum
-        if valueRange <= 1.0:
-            step = valueRange / 10.0
-            # round to 1 significant figure
-            return round(step, -int(floor(log10(step))))
+        if self.modelParametersDialog:
+            value = self.leText.text()
+            values = []
+            for param in self.modelParametersDialog.model.parameters:
+                if isinstance(param, ParameterNumber):
+                    if "@" + param.name in value:
+                        values.append(ValueFromInput(param.name))
+            for alg in list(self.modelParametersDialog.model.algs.values()):
+                for out in alg.algorithm.outputs:
+                    if isinstance(out, OutputNumber) and "@%s_%s" % (alg.name, out.name) in value:
+                        values.append(ValueFromOutput(alg.name, out.name))
+            if values:
+                return CompoundValue(values, value)
+            else:
+                return value
         else:
-            return 1.0
+            return self.leText.text()
+
+    def setValue(self, value):
+        self.leText.setText(str(value))

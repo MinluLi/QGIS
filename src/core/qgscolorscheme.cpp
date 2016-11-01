@@ -18,7 +18,7 @@
 #include "qgscolorscheme.h"
 
 #include "qgsproject.h"
-#include "qgssymbollayerv2utils.h"
+#include "qgssymbollayerutils.h"
 #include "qgsapplication.h"
 
 #include <QSettings>
@@ -65,13 +65,13 @@ QgsNamedColorList QgsRecentColorScheme::fetchColors( const QString &context, con
 
   //fetch recent colors
   QSettings settings;
-  QList< QVariant > recentColorVariants = settings.value( QString( "/colors/recent" ) ).toList();
+  QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "/colors/recent" ) ).toList();
 
   //generate list from recent colors
   QgsNamedColorList colorList;
   Q_FOREACH ( const QVariant& color, recentColorVariants )
   {
-    colorList.append( qMakePair( color.value<QColor>(), QgsSymbolLayerV2Utils::colorToName( color.value<QColor>() ) ) );
+    colorList.append( qMakePair( color.value<QColor>(), QgsSymbolLayerUtils::colorToName( color.value<QColor>() ) ) );
   }
   return colorList;
 }
@@ -79,6 +79,54 @@ QgsNamedColorList QgsRecentColorScheme::fetchColors( const QString &context, con
 QgsRecentColorScheme* QgsRecentColorScheme::clone() const
 {
   return new QgsRecentColorScheme();
+}
+
+void QgsRecentColorScheme::addRecentColor( const QColor& color )
+{
+  if ( !color.isValid() )
+  {
+    return;
+  }
+
+  //strip alpha from color
+  QColor opaqueColor = color;
+  opaqueColor.setAlpha( 255 );
+
+  QSettings settings;
+  QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "/colors/recent" ) ).toList();
+
+  //remove colors by name
+  for ( int colorIdx = recentColorVariants.length() - 1; colorIdx >= 0; --colorIdx )
+  {
+    if (( recentColorVariants.at( colorIdx ).value<QColor>() ).name() == opaqueColor.name() )
+    {
+      recentColorVariants.removeAt( colorIdx );
+    }
+  }
+
+  //add color
+  QVariant colorVariant = QVariant( opaqueColor );
+  recentColorVariants.prepend( colorVariant );
+
+  //trim to 20 colors
+  while ( recentColorVariants.count() > 20 )
+  {
+    recentColorVariants.pop_back();
+  }
+
+  settings.setValue( QStringLiteral( "/colors/recent" ), recentColorVariants );
+}
+
+QColor QgsRecentColorScheme::lastUsedColor()
+{
+  //fetch recent colors
+  QSettings settings;
+  QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "/colors/recent" ) ).toList();
+
+  if ( recentColorVariants.isEmpty() )
+    return QColor();
+
+  return recentColorVariants.at( 0 ).value<QColor>();
 }
 
 
@@ -102,7 +150,7 @@ QgsNamedColorList QgsCustomColorScheme::fetchColors( const QString &context, con
   QSettings settings;
 
   //check if settings contains custom palette
-  if ( !settings.contains( QString( "/colors/palettecolors" ) ) )
+  if ( !settings.contains( QStringLiteral( "/colors/palettecolors" ) ) )
   {
     //no custom palette, return default colors
     colorList.append( qMakePair( QColor( "#000000" ), QString() ) );
@@ -119,8 +167,8 @@ QgsNamedColorList QgsCustomColorScheme::fetchColors( const QString &context, con
     return colorList;
   }
 
-  QList< QVariant > customColorVariants = settings.value( QString( "/colors/palettecolors" ) ).toList();
-  QList< QVariant > customColorLabels = settings.value( QString( "/colors/palettelabels" ) ).toList();
+  QList< QVariant > customColorVariants = settings.value( QStringLiteral( "/colors/palettecolors" ) ).toList();
+  QList< QVariant > customColorLabels = settings.value( QStringLiteral( "/colors/palettelabels" ) ).toList();
 
   //generate list from custom colors
   int colorIndex = 0;
@@ -159,8 +207,8 @@ bool QgsCustomColorScheme::setColors( const QgsNamedColorList &colors, const QSt
     customColors.append( color );
     customColorLabels.append( label );
   }
-  settings.setValue( QString( "/colors/palettecolors" ), customColors );
-  settings.setValue( QString( "/colors/palettelabels" ), customColorLabels );
+  settings.setValue( QStringLiteral( "/colors/palettecolors" ), customColors );
+  settings.setValue( QStringLiteral( "/colors/palettelabels" ), customColorLabels );
   return true;
 }
 
@@ -187,15 +235,15 @@ QgsNamedColorList QgsProjectColorScheme::fetchColors( const QString &context, co
 
   QgsNamedColorList colorList;
 
-  QStringList colorStrings = QgsProject::instance()->readListEntry( "Palette", "/Colors" );
-  QStringList colorLabels = QgsProject::instance()->readListEntry( "Palette", "/Labels" );
+  QStringList colorStrings = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Colors" ) );
+  QStringList colorLabels = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Labels" ) );
 
   //generate list from custom colors
   int colorIndex = 0;
   for ( QStringList::iterator it = colorStrings.begin();
         it != colorStrings.end(); ++it )
   {
-    QColor color = QgsSymbolLayerV2Utils::decodeColor( *it );
+    QColor color = QgsSymbolLayerUtils::decodeColor( *it );
     QString label;
     if ( colorLabels.length() > colorIndex )
     {
@@ -221,13 +269,13 @@ bool QgsProjectColorScheme::setColors( const QgsNamedColorList &colors, const QS
   QgsNamedColorList::const_iterator colorIt = colors.constBegin();
   for ( ; colorIt != colors.constEnd(); ++colorIt )
   {
-    QString color = QgsSymbolLayerV2Utils::encodeColor(( *colorIt ).first );
+    QString color = QgsSymbolLayerUtils::encodeColor(( *colorIt ).first );
     QString label = ( *colorIt ).second;
     customColors.append( color );
     customColorLabels.append( label );
   }
-  QgsProject::instance()->writeEntry( "Palette", "/Colors", customColors );
-  QgsProject::instance()->writeEntry( "Palette", "/Labels", customColorLabels );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Colors" ), customColors );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Labels" ), customColorLabels );
   return true;
 }
 
@@ -267,7 +315,7 @@ QgsNamedColorList QgsGplColorScheme::fetchColors( const QString &context, const 
   bool ok;
   QString name;
   QFile sourceFile( sourceFilePath );
-  return QgsSymbolLayerV2Utils::importColorsFromGpl( sourceFile, ok, name );
+  return QgsSymbolLayerUtils::importColorsFromGpl( sourceFile, ok, name );
 }
 
 bool QgsGplColorScheme::setColors( const QgsNamedColorList &colors, const QString &context, const QColor &baseColor )
@@ -282,7 +330,7 @@ bool QgsGplColorScheme::setColors( const QgsNamedColorList &colors, const QStrin
   }
 
   QFile destFile( destFilePath );
-  return QgsSymbolLayerV2Utils::saveColorsToGpl( destFile, schemeName(), colors );
+  return QgsSymbolLayerUtils::saveColorsToGpl( destFile, schemeName(), colors );
 }
 
 
@@ -303,7 +351,7 @@ QgsUserColorScheme::QgsUserColorScheme( const QString &filename )
 
     //find name line
     QString line;
-    while ( !in.atEnd() && !line.startsWith( "Name:" ) )
+    while ( !in.atEnd() && !line.startsWith( QLatin1String( "Name:" ) ) )
     {
       line = in.readLine();
     }
@@ -337,6 +385,21 @@ QgsUserColorScheme* QgsUserColorScheme::clone() const
   return new QgsUserColorScheme( mFilename );
 }
 
+QgsColorScheme::SchemeFlags QgsUserColorScheme::flags() const
+{
+  QgsColorScheme::SchemeFlags f = QgsGplColorScheme::flags();
+
+  QSettings s;
+  QStringList showInMenuSchemes = s.value( QStringLiteral( "/colors/showInMenuList" ) ).toStringList();
+
+  if ( showInMenuSchemes.contains( mName ) )
+  {
+    f |= QgsColorScheme::ShowInColorButtonMenu;
+  }
+
+  return f;
+}
+
 bool QgsUserColorScheme::erase()
 {
   QString filePath = gplFilePath();
@@ -347,6 +410,23 @@ bool QgsUserColorScheme::erase()
 
   //try to erase gpl file
   return QFile::remove( filePath );
+}
+
+void QgsUserColorScheme::setShowSchemeInMenu( bool show )
+{
+  QSettings s;
+  QStringList showInMenuSchemes = s.value( QStringLiteral( "/colors/showInMenuList" ) ).toStringList();
+
+  if ( show && !showInMenuSchemes.contains( mName ) )
+  {
+    showInMenuSchemes << mName;
+  }
+  else if ( !show && showInMenuSchemes.contains( mName ) )
+  {
+    showInMenuSchemes.removeAll( mName );
+  }
+
+  s.setValue( QStringLiteral( "/colors/showInMenuList" ), showInMenuSchemes );
 }
 
 QString QgsUserColorScheme::gplFilePath()

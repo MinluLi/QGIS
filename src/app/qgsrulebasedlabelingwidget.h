@@ -1,7 +1,23 @@
+/***************************************************************************
+    qgsrulebasedlabelingwidget.h
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2015 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 #ifndef QGSRULEBASEDLABELINGWIDGET_H
 #define QGSRULEBASEDLABELINGWIDGET_H
 
 #include <QWidget>
+
+#include "qgspanelwidget.h"
 
 #include <ui_qgsrulebasedlabelingwidget.h>
 
@@ -16,7 +32,7 @@ class APP_EXPORT QgsRuleBasedLabelingModel : public QAbstractItemModel
     Q_OBJECT
 
   public:
-    QgsRuleBasedLabelingModel( QgsRuleBasedLabeling::Rule* rootRule, QObject* parent = 0 );
+    QgsRuleBasedLabelingModel( QgsRuleBasedLabeling::Rule* rootRule, QObject* parent = nullptr );
 
     virtual Qt::ItemFlags flags( const QModelIndex &index ) const override;
     virtual QVariant data( const QModelIndex &index, int role = Qt::DisplayRole ) const override;
@@ -58,18 +74,21 @@ class APP_EXPORT QgsRuleBasedLabelingModel : public QAbstractItemModel
 };
 
 
+class QgsLabelingRulePropsWidget;
 
-class QgsRuleBasedLabelingWidget : public QWidget, private Ui::QgsRuleBasedLabelingWidget
+
+class QgsRuleBasedLabelingWidget : public QgsPanelWidget, private Ui::QgsRuleBasedLabelingWidget
 {
     Q_OBJECT
   public:
-    QgsRuleBasedLabelingWidget( QgsVectorLayer* layer, QgsMapCanvas* canvas, QWidget* parent = 0 );
+    QgsRuleBasedLabelingWidget( QgsVectorLayer* layer, QgsMapCanvas* canvas, QWidget* parent = nullptr );
     ~QgsRuleBasedLabelingWidget();
 
     //! save config to layer
     void writeSettingsToLayer();
 
   signals:
+    void widgetChanged();
 
   protected slots:
     void addRule();
@@ -78,6 +97,10 @@ class QgsRuleBasedLabelingWidget : public QWidget, private Ui::QgsRuleBasedLabel
     void removeRule();
     void copy();
     void paste();
+
+  private slots:
+    void ruleWidgetPanelAccepted( QgsPanelWidget* panel );
+    void liveUpdateRuleFromPanel();
 
   protected:
     QgsRuleBasedLabeling::Rule* currentRule();
@@ -99,22 +122,38 @@ class QgsRuleBasedLabelingWidget : public QWidget, private Ui::QgsRuleBasedLabel
 
 class QgsLabelingGui;
 
-#include "ui_qgslabelingrulepropsdialog.h"
+#include "ui_qgslabelingrulepropswidget.h"
 
-class APP_EXPORT QgsLabelingRulePropsDialog : public QDialog, private Ui::QgsLabelingRulePropsDialog
+class APP_EXPORT QgsLabelingRulePropsWidget : public QgsPanelWidget, private Ui::QgsLabelingRulePropsWidget
 {
     Q_OBJECT
 
   public:
-    QgsLabelingRulePropsDialog( QgsRuleBasedLabeling::Rule* rule, QgsVectorLayer* layer, QWidget* parent = 0, QgsMapCanvas* mapCanvas = 0 );
-    ~QgsLabelingRulePropsDialog();
+    enum Mode
+    {
+      Adding,
+      Editing
+    };
+
+    QgsLabelingRulePropsWidget( QgsRuleBasedLabeling::Rule* rule, QgsVectorLayer* layer,
+                                QWidget* parent = nullptr, QgsMapCanvas* mapCanvas = nullptr );
+    ~QgsLabelingRulePropsWidget();
 
     QgsRuleBasedLabeling::Rule* rule() { return mRule; }
+
+    virtual void setDockMode( bool dockMode ) override;
+
+  signals:
+    void widgetChanged();
 
   public slots:
     void testFilter();
     void buildExpression();
-    void accept() override;
+
+    /**
+     * Apply any changes from the widget to the set rule.
+     */
+    void apply();
 
   protected:
     QgsRuleBasedLabeling::Rule* mRule; // borrowed

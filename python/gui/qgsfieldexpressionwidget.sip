@@ -18,7 +18,7 @@ class QgsFieldExpressionWidget : QWidget
     const QString expressionDialogTitle();
 
     //! setFilters allows fitering according to the type of field
-    void setFilters( const QgsFieldProxyModel::Filters& filters );
+    void setFilters( QgsFieldProxyModel::Filters filters );
 
     void setLeftHandButtonStyle( bool isLeft );
 
@@ -46,20 +46,35 @@ class QgsFieldExpressionWidget : QWidget
       */
     QString currentText() const;
 
+    /** Returns the currently selected field or expression. If a field is currently selected, the returned
+     * value will be converted to a valid expression referencing this field (ie enclosing the field name with
+     * appropriate quotations).
+     * @note added in QGIS 2.14
+     */
+    QString asExpression() const;
+
+    /**
+     * Returns the currently selected field or expression. If a field is currently selected, the returned
+     * value will be converted to a valid expression referencing this field (ie enclosing the field name with
+     * appropriate quotations).
+     *
+     * Alias for asExpression()
+     *
+     * @note added in QGIS 3.0
+     */
+    QString expression() const;
+
     //! Returns the currently used layer
     QgsVectorLayer* layer() const;
 
-    //! Callback function for retrieving the expression context for the expression
-    //typedef QgsExpressionContext( *ExpressionContextCallback )( const void* context );
-
-    /** Register callback function for retrieving the expression context for the expression
-     * @param fnGetExpressionContext call back function, will be called when the widget requires
-     * the current expression context
-     * @param context context for callback function
-     * @note added in QGIS 2.12
-     * @note not available in Python bindings
+    /**
+     * Register an expression context generator class that will be used to retrieve
+     * an expression context for the widget.
+     * @param generator A QgsExpressionContextGenerator class that will be used to
+     *                  create an expression context when required.
+     * @note added in QGIS 3.0
      */
-    //void registerGetExpressionContextCallback( ExpressionContextCallback fnGetExpressionContext, const void* context );
+    void registerExpressionContextGenerator( QgsExpressionContextGenerator* generator );
 
   signals:
     //! the signal is emitted when the currently selected field changes
@@ -77,8 +92,19 @@ class QgsFieldExpressionWidget : QWidget
     //! convenience slot to connect QgsMapLayerComboBox layer signal
     void setLayer( QgsMapLayer* layer );
 
+    //! sets the current row in the widget
+    void setRow( int row );
+
     //! sets the current field or expression in the widget
     void setField( const QString &fieldName );
+
+    /**
+     * Sets the current expression text and if applicable also the field.
+     * Alias for setField.
+     *
+     * @note Added in QGIS 3.0
+     */
+    void setExpression( const QString& expression );
 
   protected slots:
     //! open the expression dialog to edit the current or add a new expression

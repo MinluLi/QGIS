@@ -17,13 +17,12 @@
 #ifndef QGSMAPTOOLADVANCEDDIGITIZE_H
 #define QGSMAPTOOLADVANCEDDIGITIZE_H
 
-#include "qgsmaptool.h"
 #include "qgsmaptooledit.h"
-#include "qgsadvanceddigitizingdockwidget.h"
 
 class QgsMapMouseEvent;
+class QgsAdvancedDigitizingDockWidget;
 
-/**
+/** \ingroup gui
  * @brief The QgsMapToolAdvancedDigitizing class is a QgsMapTool whcih gives event directly in map coordinates and allows filtering its events.
  * Events from QgsMapTool are caught and their QMouseEvent are transformed into QgsMapMouseEvent (with map coordinates).
  * Events are then forwarded to corresponding virtual methods which can be reimplemented in subclasses.
@@ -40,6 +39,7 @@ class GUI_EXPORT QgsMapToolAdvancedDigitizing : public QgsMapToolEdit
     {
       CaptureNone,    //!< Do not capture
       CapturePoint,   //!< Capture points
+      CaptureSegment, //!< Capture a segment (i.e. 2 points)
       CaptureLine,    //!< Capture lines
       CapturePolygon  //!< Capture polygons
     };
@@ -87,6 +87,7 @@ class GUI_EXPORT QgsMapToolAdvancedDigitizing : public QgsMapToolEdit
 
     QgsAdvancedDigitizingDockWidget* cadDockWidget() const { return mCadDockWidget; }
 
+
   protected:
     /**
      * Override this method when subclassing this class.
@@ -123,10 +124,10 @@ class GUI_EXPORT QgsMapToolAdvancedDigitizing : public QgsMapToolEdit
     //! The capture mode in which this tool operates
     CaptureMode mCaptureMode;
 
-    bool mSnapOnPress;       //!< snap on press
-    bool mSnapOnRelease;     //!< snap on release
-    bool mSnapOnMove;        //!< snap on move
-    bool mSnapOnDoubleClick; //!< snap on double click
+    bool mSnapOnPress;       //!< Snap on press
+    bool mSnapOnRelease;     //!< Snap on release
+    bool mSnapOnMove;        //!< Snap on move
+    bool mSnapOnDoubleClick; //!< Snap on double click
 
   private slots:
     /**

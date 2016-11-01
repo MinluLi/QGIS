@@ -20,6 +20,10 @@
 *                                                                         *
 ***************************************************************************
 """
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'September 2013'
@@ -28,8 +32,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterNumber
@@ -63,7 +67,7 @@ class lasview(LAStoolsAlgorithm):
         self.addParametersVerboseCommands(commands)
         self.addParametersPointInputCommands(commands)
         points = self.getParameterValue(lasview.POINTS)
-        commands.append("-points " + unicode(points))
+        commands.append("-points " + str(points))
         coloring = self.getParameterValue(lasview.COLORING)
         if coloring != 0:
             commands.append("-color_by_" + lasview.COLORINGS[coloring])
@@ -72,5 +76,6 @@ class lasview(LAStoolsAlgorithm):
             commands.append("-win " + lasview.SIZES[size])
         self.addParametersAdditionalCommands(commands)
 
-        print commands
+        # fix_print_with_import
+        print(commands)
         LAStoolsUtils.runLAStools(commands, progress)

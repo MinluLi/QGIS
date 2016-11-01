@@ -18,7 +18,8 @@
 
 #include "qgseditorwidgetfactory.h"
 
-/** \class QgsRangeWidgetFactory
+/** \ingroup gui
+ * \class QgsRangeWidgetFactory
  * \note not available in Python bindings
  */
 
@@ -33,10 +34,10 @@ class GUI_EXPORT QgsRangeWidgetFactory : public QgsEditorWidgetFactory
     virtual QgsEditorConfigWidget* configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const override;
     virtual QgsEditorWidgetConfig readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx ) override;
     virtual void writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx ) override;
-    virtual QMap<const char*, int> supportedWidgetTypes() override;
+    virtual QHash<const char *, int> supportedWidgetTypes() override;
 
   private:
-    virtual bool isFieldSupported( QgsVectorLayer *vl, int fieldIdx ) override;
+    virtual unsigned int fieldScore( const QgsVectorLayer *vl, int fieldIdx ) const override;
 };
 
 #endif // QGSRANGEWIDGETFACTORY_H

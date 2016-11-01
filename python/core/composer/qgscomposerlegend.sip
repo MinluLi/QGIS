@@ -1,5 +1,5 @@
 
-/** \ingroup MapComposer
+/** \ingroup core
  * Item model implementation based on layer tree model for composer legend.
  * Overrides some functionality of QgsLayerTreeModel to better fit the needs of composer legend.
  *
@@ -20,7 +20,7 @@ class QgsLegendModelV2 : QgsLayerTreeModel
 };
 
 
-/** \ingroup MapComposer
+/** \ingroup core
  * A legend that can be placed onto a map composition
  */
 class QgsComposerLegend : QgsComposerItem
@@ -34,7 +34,7 @@ class QgsComposerLegend : QgsComposerItem
     QgsComposerLegend( QgsComposition* composition /TransferThis/);
     ~QgsComposerLegend();
 
-    /** Return correct graphics item type. Added in v1.7 */
+    /** Return correct graphics item type. */
     virtual int type() const;
 
     /** \brief Reimplementation of QCanvasItem::paint*/
@@ -46,12 +46,22 @@ class QgsComposerLegend : QgsComposerItem
     /** Sets item box to the whole content*/
     void adjustBoxSize();
 
-    /** Returns pointer to the legend model*/
-    //! @note deprecated in 2.6 - use modelV2()
-    QgsLegendModel* model() /Deprecated/;
+    /** Sets whether the legend should automatically resize to fit its contents.
+     * @param enabled set to false to disable automatic resizing. The legend frame will not
+     * be expanded to fit legend items, and items may be cropped from display.
+     * @see resizeToContents()
+     * @note added in QGIS 3.0
+     */
+    void setResizeToContents( bool enabled );
+
+    /** Returns whether the legend should automatically resize to fit its contents.
+     * @see setResizeToContents()
+     * @note added in QGIS 3.0
+     */
+    bool resizeToContents() const;
 
     //! @note added in 2.6
-    QgsLegendModelV2* modelV2();
+    QgsLegendModelV2* model();
 
     //! @note added in 2.6
     void setAutoUpdateModel( bool autoUpdate );
@@ -64,6 +74,10 @@ class QgsComposerLegend : QgsComposerItem
     //! Find out whether legend items are filtered to show just the ones visible in the associated map
     //! @note added in 2.6
     bool legendFilterByMapEnabled() const;
+
+    //! Update() overloading. Use it rather than update()
+    //! @note added in 2.12
+    virtual void updateItem();
 
     //! When set to true, during an atlas rendering, it will filter out legend elements
     //! where features are outside the current atlas feature.
@@ -83,13 +97,13 @@ class QgsComposerLegend : QgsComposerItem
      * @returns Qt::AlignmentFlag for the legend title
      * @note added in 2.3
      * @see setTitleAlignment
-    */
+     */
     Qt::AlignmentFlag titleAlignment() const;
     /** Sets the alignment of the legend title
      * @param alignment Text alignment for drawing the legend title
      * @note added in 2.3
      * @see titleAlignment
-    */
+     */
     void setTitleAlignment( Qt::AlignmentFlag alignment );
 
     /** Returns reference to modifiable style */
@@ -204,13 +218,16 @@ class QgsComposerLegend : QgsComposerItem
        * @param elem is Dom element corresponding to 'Composer' tag
        * @param doc Dom document
        */
-    bool writeXML( QDomElement& elem, QDomDocument & doc ) const;
+    bool writeXml( QDomElement& elem, QDomDocument & doc ) const;
 
     /** Sets state from Dom document
        * @param itemElem is Dom node corresponding to item tag
        * @param doc is Dom document
        */
-    bool readXML( const QDomElement& itemElem, const QDomDocument& doc );
+    bool readXml( const QDomElement& itemElem, const QDomDocument& doc );
+
+    //Overridden to show legend title
+    virtual QString displayName() const;
 
   public slots:
     /** Data changed*/

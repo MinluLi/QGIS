@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,6 +26,10 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
+
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterString
@@ -33,6 +38,8 @@ from processing.core.parameters import ParameterNumber
 from processing.core.outputs import OutputRaster
 from processing.tools.system import isWindows
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class proximity(GdalAlgorithm):
@@ -49,6 +56,9 @@ class proximity(GdalAlgorithm):
     TYPE = ['Byte', 'Int16', 'UInt16', 'UInt32', 'Int32', 'Float32', 'Float64']
 
     DISTUNITS = ['GEO', 'PIXEL']
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'proximity.png'))
 
     def commandLineName(self):
         return "gdalogr:proximity"
@@ -93,17 +103,17 @@ class proximity(GdalAlgorithm):
             arguments.append('-values')
             arguments.append(values)
 
-        values = unicode(self.getParameterValue(self.MAX_DIST))
+        values = str(self.getParameterValue(self.MAX_DIST))
         if values < 0:
             arguments.append('-maxdist')
             arguments.append(values)
 
-        values = unicode(self.getParameterValue(self.NODATA))
+        values = str(self.getParameterValue(self.NODATA))
         if values < 0:
             arguments.append('-nodata')
             arguments.append(values)
 
-        values = unicode(self.getParameterValue(self.BUF_VAL))
+        values = str(self.getParameterValue(self.BUF_VAL))
         if values < 0:
             arguments.append('-fixed-buf-val')
             arguments.append(values)

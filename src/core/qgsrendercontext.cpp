@@ -21,33 +21,77 @@
 #include "qgsmapsettings.h"
 #include "qgsexpression.h"
 #include "qgsvectorlayer.h"
+#include "qgsfeaturefilterprovider.h"
 
 QgsRenderContext::QgsRenderContext()
     : mFlags( DrawEditingInfo | UseAdvancedEffects | DrawSelection | UseRenderingOptimization )
-    , mPainter( 0 )
-    , mCoordTransform( 0 )
+    , mPainter( nullptr )
     , mRenderingStopped( false )
     , mScaleFactor( 1.0 )
     , mRasterScaleFactor( 1.0 )
     , mRendererScale( 1.0 )
-    , mLabelingEngine( 0 )
-    , mLabelingEngine2( 0 )
-    , mGeometry( 0 )
-    , mFeatureFilterProvider( 0 )
+    , mLabelingEngine( nullptr )
+    , mLabelingEngine2( nullptr )
+    , mGeometry( nullptr )
+    , mFeatureFilterProvider( nullptr )
+    , mSegmentationTolerance( M_PI_2 / 90 )
+    , mSegmentationToleranceType( QgsAbstractGeometry::MaximumAngle )
 {
   mVectorSimplifyMethod.setSimplifyHints( QgsVectorSimplifyMethod::NoSimplification );
 }
 
-QgsRenderContext::~QgsRenderContext()
+QgsRenderContext::QgsRenderContext( const QgsRenderContext& rh )
+    : mFlags( rh.mFlags )
+    , mPainter( rh.mPainter )
+    , mCoordTransform( rh.mCoordTransform )
+    , mExtent( rh.mExtent )
+    , mMapToPixel( rh.mMapToPixel )
+    , mRenderingStopped( rh.mRenderingStopped )
+    , mScaleFactor( rh.mScaleFactor )
+    , mRasterScaleFactor( rh.mRasterScaleFactor )
+    , mRendererScale( rh.mRendererScale )
+    , mLabelingEngine( rh.mLabelingEngine )
+    , mLabelingEngine2( rh.mLabelingEngine2 )
+    , mSelectionColor( rh.mSelectionColor )
+    , mVectorSimplifyMethod( rh.mVectorSimplifyMethod )
+    , mExpressionContext( rh.mExpressionContext )
+    , mGeometry( rh.mGeometry )
+    , mFeatureFilterProvider( rh.mFeatureFilterProvider ? rh.mFeatureFilterProvider->clone() : nullptr )
+    , mSegmentationTolerance( rh.mSegmentationTolerance )
+    , mSegmentationToleranceType( rh.mSegmentationToleranceType )
 {
-  if ( mFeatureFilterProvider )
-  {
-    delete mFeatureFilterProvider;
-    mFeatureFilterProvider = 0;
-  }
 }
 
-void QgsRenderContext::setFlags( const QgsRenderContext::Flags& flags )
+QgsRenderContext&QgsRenderContext::operator=( const QgsRenderContext & rh )
+{
+  mFlags = rh.mFlags;
+  mPainter = rh.mPainter;
+  mCoordTransform = rh.mCoordTransform;
+  mExtent = rh.mExtent;
+  mMapToPixel = rh.mMapToPixel;
+  mRenderingStopped = rh.mRenderingStopped;
+  mScaleFactor = rh.mScaleFactor;
+  mRasterScaleFactor = rh.mRasterScaleFactor;
+  mRendererScale = rh.mRendererScale;
+  mLabelingEngine = rh.mLabelingEngine;
+  mLabelingEngine2 = rh.mLabelingEngine2;
+  mSelectionColor = rh.mSelectionColor;
+  mVectorSimplifyMethod = rh.mVectorSimplifyMethod;
+  mExpressionContext = rh.mExpressionContext;
+  mGeometry = rh.mGeometry;
+  mFeatureFilterProvider = rh.mFeatureFilterProvider ? rh.mFeatureFilterProvider->clone() : nullptr;
+  mSegmentationTolerance = rh.mSegmentationTolerance;
+  mSegmentationToleranceType = rh.mSegmentationToleranceType;
+  return *this;
+}
+
+QgsRenderContext::~QgsRenderContext()
+{
+  delete mFeatureFilterProvider;
+  mFeatureFilterProvider = nullptr;
+}
+
+void QgsRenderContext::setFlags( QgsRenderContext::Flags flags )
 {
   mFlags = flags;
 }
@@ -79,13 +123,19 @@ QgsRenderContext QgsRenderContext::fromMapSettings( const QgsMapSettings& mapSet
   ctx.setFlag( ForceVectorOutput, mapSettings.testFlag( QgsMapSettings::ForceVectorOutput ) );
   ctx.setFlag( UseAdvancedEffects, mapSettings.testFlag( QgsMapSettings::UseAdvancedEffects ) );
   ctx.setFlag( UseRenderingOptimization, mapSettings.testFlag( QgsMapSettings::UseRenderingOptimization ) );
-  ctx.setCoordinateTransform( 0 );
+  ctx.setCoordinateTransform( QgsCoordinateTransform() );
   ctx.setSelectionColor( mapSettings.selectionColor() );
   ctx.setFlag( DrawSelection, mapSettings.testFlag( QgsMapSettings::DrawSelection ) );
+  ctx.setFlag( DrawSymbolBounds, mapSettings.testFlag( QgsMapSettings::DrawSymbolBounds ) );
+  ctx.setFlag( RenderMapTile, mapSettings.testFlag( QgsMapSettings::RenderMapTile ) );
+  ctx.setFlag( Antialiasing, mapSettings.testFlag( QgsMapSettings::Antialiasing ) );
+  ctx.setFlag( RenderPartialOutput, mapSettings.testFlag( QgsMapSettings::RenderPartialOutput ) );
   ctx.setRasterScaleFactor( 1.0 );
   ctx.setScaleFactor( mapSettings.outputDpi() / 25.4 ); // = pixels per mm
   ctx.setRendererScale( mapSettings.scale() );
   ctx.setExpressionContext( mapSettings.expressionContext() );
+  ctx.setSegmentationTolerance( mapSettings.segmentationTolerance() );
+  ctx.setSegmentationToleranceType( mapSettings.segmentationToleranceType() );
 
   //this flag is only for stopping during the current rendering progress,
   //so must be false at every new render operation
@@ -119,7 +169,7 @@ bool QgsRenderContext::showSelection() const
   return mFlags.testFlag( DrawSelection );
 }
 
-void QgsRenderContext::setCoordinateTransform( const QgsCoordinateTransform* t )
+void QgsRenderContext::setCoordinateTransform( const QgsCoordinateTransform& t )
 {
   mCoordTransform = t;
 }
@@ -151,11 +201,9 @@ void QgsRenderContext::setUseRenderingOptimization( bool enabled )
 
 void QgsRenderContext::setFeatureFilterProvider( const QgsFeatureFilterProvider* ffp )
 {
-  if ( mFeatureFilterProvider )
-  {
-    delete mFeatureFilterProvider;
-    mFeatureFilterProvider = 0;
-  }
+  delete mFeatureFilterProvider;
+  mFeatureFilterProvider = nullptr;
+
   if ( ffp )
   {
     mFeatureFilterProvider = ffp->clone();

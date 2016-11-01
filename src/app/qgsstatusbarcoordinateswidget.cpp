@@ -26,23 +26,24 @@
 #include "qgsapplication.h"
 #include "qgsmapcanvas.h"
 #include "qgsproject.h"
+#include "qgscoordinateutils.h"
 
 
 QgsStatusBarCoordinatesWidget::QgsStatusBarCoordinatesWidget( QWidget *parent )
     : QWidget( parent )
-    , mDizzyTimer( 0 )
-    , mMapCanvas( 0 )
+    , mDizzyTimer( nullptr )
+    , mMapCanvas( nullptr )
     , mMousePrecisionDecimalPlaces( 0 )
 {
   // add a label to show current position
   mLabel = new QLabel( QString(), this );
-  mLabel->setObjectName( "mCoordsLabel" );
+  mLabel->setObjectName( QStringLiteral( "mCoordsLabel" ) );
   mLabel->setMinimumWidth( 10 );
   //mCoordsLabel->setMaximumHeight( 20 );
   mLabel->setMargin( 3 );
   mLabel->setAlignment( Qt::AlignCenter );
   mLabel->setFrameStyle( QFrame::NoFrame );
-  mLabel->setText( tr( "Coordinate:" ) );
+  mLabel->setText( tr( "Coordinate" ) );
   mLabel->setToolTip( tr( "Current map coordinate" ) );
 
   mLineEdit = new QLineEdit( this );
@@ -58,16 +59,15 @@ QgsStatusBarCoordinatesWidget::QgsStatusBarCoordinatesWidget( QWidget *parent )
   mLineEdit->setWhatsThis( tr( "Shows the map coordinates at the "
                                "current cursor position. The display is continuously updated "
                                "as the mouse is moved. It also allows editing to set the canvas "
-                               "center to a given position. The format is lat,lon or east,north" ) );
-  mLineEdit->setToolTip( tr( "Current map coordinate (lat,lon or east,north)" ) );
+                               "center to a given position. The format is longitude,latitude or east,north" ) );
+  mLineEdit->setToolTip( tr( "Current map coordinate (longitude,latitude or east,north)" ) );
 
   //toggle to switch between mouse pos and extents display in status bar widget
   mToggleExtentsViewButton = new QToolButton( this );
-  mToggleExtentsViewButton->setMaximumWidth( 20 );
-  //mToggleExtentsViewButton->setMaximumHeight( 20 );
-  mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( "tracking.png" ) );
+  mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "tracking.svg" ) ) );
   mToggleExtentsViewButton->setToolTip( tr( "Toggle extents and mouse position display" ) );
   mToggleExtentsViewButton->setCheckable( true );
+  mToggleExtentsViewButton->setAutoRaise( true );
   connect( mToggleExtentsViewButton, SIGNAL( toggled( bool ) ), this, SLOT( extentsViewToggled( bool ) ) );
 
   QHBoxLayout* layout = new QHBoxLayout( this );
@@ -116,7 +116,7 @@ void QgsStatusBarCoordinatesWidget::validateCoordinates()
   {
     return;
   }
-  if ( mLineEdit->text() == "dizzy" )
+  if ( mLineEdit->text() == QLatin1String( "dizzy" ) )
   {
     // sometimes you may feel a bit dizzy...
     if ( mDizzyTimer->isActive() )
@@ -131,7 +131,7 @@ void QgsStatusBarCoordinatesWidget::validateCoordinates()
     }
     return;
   }
-  else if ( mLineEdit->text() == "retro" )
+  else if ( mLineEdit->text() == QLatin1String( "retro" ) )
   {
     mMapCanvas->setProperty( "retro", !mMapCanvas->property( "retro" ).toBool() );
     refreshMapCanvas();
@@ -140,9 +140,9 @@ void QgsStatusBarCoordinatesWidget::validateCoordinates()
 
   bool xOk = false;
   bool  yOk = false;
-  double x, y;
+  double x = 0., y = 0.;
   QString coordText = mLineEdit->text();
-  coordText.replace( QRegExp( " {2,}" ), " " );
+  coordText.replace( QRegExp( " {2,}" ), QStringLiteral( " " ) );
 
   QStringList parts = coordText.split( ',' );
   if ( parts.size() == 2 )
@@ -193,7 +193,7 @@ void QgsStatusBarCoordinatesWidget::extentsViewToggled( bool theFlag )
   if ( theFlag )
   {
     //extents view mode!
-    mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( "extents.png" ) );
+    mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "extents.svg" ) ) );
     mLineEdit->setToolTip( tr( "Map coordinates for the current view extents" ) );
     mLineEdit->setReadOnly( true );
     showExtent();
@@ -201,7 +201,7 @@ void QgsStatusBarCoordinatesWidget::extentsViewToggled( bool theFlag )
   else
   {
     //mouse cursor pos view mode!
-    mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( "tracking.png" ) );
+    mToggleExtentsViewButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "tracking.svg" ) ) );
     mLineEdit->setToolTip( tr( "Map coordinates at mouse cursor position" ) );
     mLineEdit->setReadOnly( false );
     mLabel->setText( tr( "Coordinate:" ) );
@@ -225,30 +225,8 @@ void QgsStatusBarCoordinatesWidget::showMouseCoordinates( const QgsPoint & p )
     return;
   }
 
-  if ( mMapCanvas->mapUnits() == QGis::Degrees )
-  {
-    if ( !mMapCanvas->mapSettings().destinationCrs().isValid() )
-      return;
-
-    QgsPoint geo = p;
-    if ( !mMapCanvas->mapSettings().destinationCrs().geographicFlag() )
-    {
-      QgsCoordinateTransform ct( mMapCanvas->mapSettings().destinationCrs(), QgsCoordinateReferenceSystem( GEOSRID ) );
-      geo = ct.transform( p );
-    }
-    QString format = QgsProject::instance()->readEntry( "PositionPrecision", "/DegreeFormat", "D" );
-
-    if ( format == "DM" )
-      mLineEdit->setText( geo.toDegreesMinutes( mMousePrecisionDecimalPlaces ) );
-    else if ( format == "DMS" )
-      mLineEdit->setText( geo.toDegreesMinutesSeconds( mMousePrecisionDecimalPlaces ) );
-    else
-      mLineEdit->setText( geo.toString( mMousePrecisionDecimalPlaces ) );
-  }
-  else
-  {
-    mLineEdit->setText( p.toString( mMousePrecisionDecimalPlaces ) );
-  }
+  mLineEdit->setText( QgsCoordinateUtils::formatCoordinateForProject( p, mMapCanvas->mapSettings().destinationCrs(),
+                      mMousePrecisionDecimalPlaces ) );
 
   if ( mLineEdit->width() > mLineEdit->minimumWidth() )
   {

@@ -42,20 +42,20 @@ QgsMapLayer* QgsSentDataSourceBuilder::createMapLayer( const QDomElement& elem,
 {
   Q_UNUSED( layerName );
   Q_UNUSED( allowCaching );
-  if ( elem.tagName() == "SentRDS" )
+  if ( elem.tagName() == QLatin1String( "SentRDS" ) )
   {
     return rasterLayerFromSentRDS( elem, filesToRemove, layersToRemove );
   }
-  else if ( elem.tagName() == "SentVDS" )
+  else if ( elem.tagName() == QLatin1String( "SentVDS" ) )
   {
     return vectorLayerFromSentVDS( elem, filesToRemove, layersToRemove );
   }
-  return 0;
+  return nullptr;
 }
 
 QgsVectorLayer* QgsSentDataSourceBuilder::vectorLayerFromSentVDS( const QDomElement& sentVDSElem, QList<QTemporaryFile*>& filesToRemove, QList<QgsMapLayer*>& layersToRemove ) const
 {
-  if ( sentVDSElem.attribute( "format" ) == "GML" )
+  if ( sentVDSElem.attribute( QStringLiteral( "format" ) ) == QLatin1String( "GML" ) )
   {
     QTemporaryFile* tmpFile = new QTemporaryFile();
     if ( tmpFile->open() )
@@ -67,14 +67,14 @@ QgsVectorLayer* QgsSentDataSourceBuilder::vectorLayerFromSentVDS( const QDomElem
     }
     else
     {
-      return 0;
+      return nullptr;
     }
 
-    QgsVectorLayer* theVectorLayer = new QgsVectorLayer( tmpFile->fileName(), layerNameFromUri( tmpFile->fileName() ), "WFS" );
+    QgsVectorLayer* theVectorLayer = new QgsVectorLayer( tmpFile->fileName(), layerNameFromUri( tmpFile->fileName() ), QStringLiteral( "WFS" ) );
     if ( !theVectorLayer || !theVectorLayer->isValid() )
     {
       QgsDebugMsg( "invalid maplayer" );
-      return 0;
+      return nullptr;
     }
     QgsDebugMsg( "returning maplayer" );
 
@@ -82,11 +82,11 @@ QgsVectorLayer* QgsSentDataSourceBuilder::vectorLayerFromSentVDS( const QDomElem
 
     if ( !theVectorLayer || !theVectorLayer->isValid() )
     {
-      return 0;
+      return nullptr;
     }
     return theVectorLayer;
   }
-  return 0;
+  return nullptr;
 }
 
 QgsRasterLayer* QgsSentDataSourceBuilder::rasterLayerFromSentRDS( const QDomElement& sentRDSElem, QList<QTemporaryFile*>& filesToRemove, QList<QgsMapLayer*>& layersToRemove ) const
@@ -95,26 +95,26 @@ QgsRasterLayer* QgsSentDataSourceBuilder::rasterLayerFromSentRDS( const QDomElem
   QString tempFilePath = createTempFile();
   if ( tempFilePath.isEmpty() )
   {
-    return 0;
+    return nullptr;
   }
   QFile tempFile( tempFilePath );
 
   QTemporaryFile* tmpFile = new QTemporaryFile();
 
-  QString encoding = sentRDSElem.attribute( "encoding" );
+  QString encoding = sentRDSElem.attribute( QStringLiteral( "encoding" ) );
 
-  if ( encoding == "base64" )
+  if ( encoding == QLatin1String( "base64" ) )
   {
     if ( tmpFile->open() )
     {
-      QByteArray binaryContent = QByteArray::fromBase64( sentRDSElem.text().toAscii() );
+      QByteArray binaryContent = QByteArray::fromBase64( sentRDSElem.text().toLatin1() );
       QDataStream ds( tmpFile );
       ds.writeRawData( binaryContent.data(), binaryContent.length() );
     }
     else
     {
       delete tmpFile;
-      return 0;
+      return nullptr;
     }
 
   }
@@ -128,7 +128,7 @@ QgsRasterLayer* QgsSentDataSourceBuilder::rasterLayerFromSentRDS( const QDomElem
     else
     {
       delete tmpFile;
-      return 0;
+      return nullptr;
     }
   }
 

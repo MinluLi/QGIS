@@ -20,12 +20,11 @@
 
 #include "qgspoint.h"
 #include "qgspointlocator.h"
-#include "qgssnappingutils.h"
 
 class QgsMapCanvas;
 class QgsMapToolAdvancedDigitizing;
 
-/**
+/** \ingroup gui
  * A QgsMapMouseEvent is the result of a user interaction with the mouse on a QgsMapCanvas.
  * It is sent whenever the user moves, clicks, releases or double clicks the mouse.
  * In addition to the coordiantes in pixel space it also knows the coordinates in the mapcanvas' CRS
@@ -38,14 +37,14 @@ class GUI_EXPORT QgsMapMouseEvent : public QMouseEvent
     enum SnappingMode
     {
       NoSnapping,
-      SnapProjectConfig,  //!< snap according to the configuration set in the snapping settings
-      SnapAllLayers,      //!< snap to all rendered layers (tolerance and type from defaultSettings())
+      SnapProjectConfig,  //!< Snap according to the configuration set in the snapping settings
+      SnapAllLayers,      //!< Snap to all rendered layers (tolerance and type from defaultSettings())
     };
 
     /**
      * Creates a new QgsMapMouseEvent. Should only be required to be called from the QgsMapCanvas.
      *
-     * @param mapCanvas The map canvas on which the event occured
+     * @param mapCanvas The map canvas on which the event occurred
      * @param event     The original mouse event
      */
     QgsMapMouseEvent( QgsMapCanvas* mapCanvas, QMouseEvent* event );
@@ -53,14 +52,14 @@ class GUI_EXPORT QgsMapMouseEvent : public QMouseEvent
     /**
      * Creates a new QgsMapMouseEvent. Should only be required to be called from the QgsMapCanvas.
      *
-     * @param mapCanvas The map canvas on which the event occured
+     * @param mapCanvas The map canvas on which the event occurred
      * @param type      The type of the event
      * @param pos       The pixel position of the mouse
      * @param button    The pressed button
      * @param buttons   Further buttons that are pressed
      * @param modifiers Keyboard modifiers
      */
-    QgsMapMouseEvent( QgsMapCanvas* mapCanvas, QEvent::Type type, const QPoint &pos, Qt::MouseButton button = Qt::NoButton,
+    QgsMapMouseEvent( QgsMapCanvas* mapCanvas, QEvent::Type type, QPoint pos, Qt::MouseButton button = Qt::NoButton,
                       Qt::MouseButtons buttons = Qt::NoButton, Qt::KeyboardModifiers modifiers = Qt::NoModifier );
 
     /**
@@ -77,7 +76,7 @@ class GUI_EXPORT QgsMapMouseEvent : public QMouseEvent
      * @param snapped if given, determines if a segment has been snapped
      * @param allLayers if true, override snapping mode
      */
-    QList<QgsPoint> snapSegment( SnappingMode snappingMode, bool* snapped = 0, bool allLayers = false ) const;
+    QList<QgsPoint> snapSegment( SnappingMode snappingMode, bool* snapped = nullptr, bool allLayers = false ) const;
 
     /**
      * Returns true if there is a snapped point cached.
@@ -92,6 +91,13 @@ class GUI_EXPORT QgsMapMouseEvent : public QMouseEvent
      * @return the point in map coordinates, after snapping if requested in the event.
      */
     inline QgsPoint mapPoint() const { return mMapPoint; }
+
+    /**
+      * Returns the matching data from the most recently snapped point.
+      * @return the snapping data structure
+      * @note added in 2.14
+      */
+    QgsPointLocator::Match mapPointMatch() const { return mSnapMatch; }
 
     /**
      * Set the (snapped) point this event points to in map coordinates.

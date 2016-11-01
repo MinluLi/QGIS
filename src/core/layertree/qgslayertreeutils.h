@@ -27,8 +27,9 @@ class QStringList;
 class QgsLayerTreeNode;
 class QgsLayerTreeGroup;
 class QgsLayerTreeLayer;
+class QgsMapLayer;
 
-/**
+/** \ingroup core
  * Assorted functions for dealing with layer trees.
  *
  * @note added in 2.4
@@ -69,9 +70,16 @@ class CORE_EXPORT QgsLayerTreeUtils
     //! Set the expression filter of a legend layer
     static void setLegendFilterByExpression( QgsLayerTreeLayer& layer, const QString& expr, bool enabled = true );
     //! Return the expression filter of a legend layer
-    static QString legendFilterByExpression( const QgsLayerTreeLayer& layer, bool* enabled = 0 );
+    static QString legendFilterByExpression( const QgsLayerTreeLayer& layer, bool* enabled = nullptr );
     //! Test if one of the layers in a group has an expression filter
     static bool hasLegendFilterExpression( const QgsLayerTreeGroup& group );
+
+    //! Insert a QgsMapLayer just below another one
+    //! @param group the tree group where layers are (can be the root group)
+    //! @param refLayer the reference layer
+    //! @param layerToInsert the new layer to insert just below the reference layer
+    //! @returns the new tree layer
+    static QgsLayerTreeLayer* insertLayerBelow( QgsLayerTreeGroup* group, const QgsMapLayer* refLayer, QgsMapLayer* layerToInsert );
 };
 
 #endif // QGSLAYERTREEUTILS_H

@@ -15,9 +15,12 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "qgis.h"
 #include "qgsremotedatasourcebuilder.h"
+#if QT_VERSION < 0x050000
 #include "qgsftptransaction.h"
 #include "qgshttptransaction.h"
+#endif
 #include "qgslogger.h"
 #include "qgsrasterlayer.h"
 #include "qgsvectorlayer.h"
@@ -35,19 +38,18 @@ QgsRemoteDataSourceBuilder::~QgsRemoteDataSourceBuilder()
 
 QgsMapLayer* QgsRemoteDataSourceBuilder::createMapLayer( const QDomElement& elem, const QString& layerName, QList<QTemporaryFile*>& filesToRemove, QList<QgsMapLayer*>& layersToRemove, bool allowCaching ) const
 {
-  QgsDebugMsg( "entering." );
-  QgsMapLayer* theLayer = 0;
-  if ( elem.tagName() == "RemoteRDS" )
+  QgsMapLayer* theLayer = nullptr;
+  if ( elem.tagName() == QLatin1String( "RemoteRDS" ) )
   {
     theLayer = rasterLayerFromRemoteRDS( elem, layerName, filesToRemove, layersToRemove, allowCaching );
   }
-  else if ( elem.tagName() == "RemoteVDS" )
+  else if ( elem.tagName() == QLatin1String( "RemoteVDS" ) )
   {
     theLayer = vectorLayerFromRemoteVDS( elem, layerName, filesToRemove, layersToRemove, allowCaching );
   }
   else
   {
-    return 0;
+    return nullptr;
   }
   return theLayer;
 }
@@ -60,16 +62,15 @@ QgsRasterLayer* QgsRemoteDataSourceBuilder::rasterLayerFromRemoteRDS( const QDom
 {
   Q_UNUSED( layerName );
   Q_UNUSED( allowCaching );
-  QgsDebugMsg( "entering." );
 
   //load file with QgsHttpTransaction or QgsFtpTransaction
   QByteArray fileContents;
   QString uri = remoteRDSElem.text();
 
-  QgsRasterLayer* rl = 0;
+  QgsRasterLayer* rl = nullptr;
   if ( loadData( uri, fileContents ) != 0 )
   {
-    return 0;
+    return nullptr;
   }
 
   QTemporaryFile* tmpFile = new QTemporaryFile();
@@ -82,7 +83,7 @@ QgsRasterLayer* QgsRemoteDataSourceBuilder::rasterLayerFromRemoteRDS( const QDom
   {
     QgsDebugMsg( "Error, creation of temp file failed" );
     delete tmpFile;
-    return 0;
+    return nullptr;
   }
 
   //create rasterlayer
@@ -102,10 +103,10 @@ QgsVectorLayer* QgsRemoteDataSourceBuilder::vectorLayerFromRemoteVDS( const QDom
   Q_UNUSED( layerName );
   Q_UNUSED( allowCaching );
   QString providerString;
-  QString formatString = remoteVDSElem.attribute( "format" );
-  if ( formatString.compare( "gml", Qt::CaseInsensitive ) == 0 )
+  QString formatString = remoteVDSElem.attribute( QStringLiteral( "format" ) );
+  if ( formatString.compare( QLatin1String( "gml" ), Qt::CaseInsensitive ) == 0 )
   {
-    providerString = "WFS";
+    providerString = QStringLiteral( "WFS" );
   }
   else
   {
@@ -116,11 +117,11 @@ QgsVectorLayer* QgsRemoteDataSourceBuilder::vectorLayerFromRemoteVDS( const QDom
   QByteArray fileContents;
   QString uri = remoteVDSElem.text();
 
-  QgsVectorLayer* vl = 0;
+  QgsVectorLayer* vl = nullptr;
 
   if ( loadData( uri, fileContents ) != 0 )
   {
-    return 0;
+    return nullptr;
   }
 
   //store content into temporary file
@@ -133,13 +134,13 @@ QgsVectorLayer* QgsRemoteDataSourceBuilder::vectorLayerFromRemoteVDS( const QDom
   else
   {
     delete tmpFile;
-    return 0;
+    return nullptr;
   }
 
   //create vector layer
 
   //SOS has a special datasource key...
-  if ( formatString.compare( "SOS", Qt::CaseInsensitive ) == 0 )
+  if ( formatString.compare( QLatin1String( "SOS" ), Qt::CaseInsensitive ) == 0 )
   {
     QString url = "url=" + tmpFile->fileName() + " method=FILE xml=";
     vl =  new QgsVectorLayer( url, layerNameFromUri( tmpFile->fileName() ), providerString );
@@ -161,6 +162,7 @@ QgsVectorLayer* QgsRemoteDataSourceBuilder::vectorLayerFromRemoteVDS( const QDom
 
 int QgsRemoteDataSourceBuilder::loadData( const QString& url, QByteArray& data ) const
 {
+#if QT_VERSION < 0x050000
   if ( url.startsWith( "http", Qt::CaseInsensitive ) )
   {
     QgsHttpTransaction http( url );
@@ -172,11 +174,18 @@ int QgsRemoteDataSourceBuilder::loadData( const QString& url, QByteArray& data )
   }
   else if ( url.startsWith( "ftp", Qt::CaseInsensitive ) )
   {
+    Q_NOWARN_DEPRECATED_PUSH;
     QgsFtpTransaction ftp;
     if ( ftp.get( url, data ) != 0 )
     {
       return 1;
     }
+    Q_NOWARN_DEPRECATED_POP;
   }
+#else
+  Q_UNUSED( url )
+  Q_UNUSED( data )
+  QgsDebugMsg( "http and ftp remote datasources not supported with Qt5" );
+#endif
   return 0;
 }

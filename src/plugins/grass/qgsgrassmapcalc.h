@@ -14,6 +14,7 @@
 #ifndef QGSGRASSMAPCALC_H
 #define QGSGRASSMAPCALC_H
 
+#include "qgsgrassmoduleinput.h"
 #include "ui_qgsgrassmapcalcbase.h"
 #include "qgsgrassmodule.h"
 
@@ -69,32 +70,32 @@ class QgsGrassMapcalc: public QMainWindow, private Ui::QgsGrassMapcalcBase,
     bool hasOutput( int type ) override
       { Q_UNUSED( type ); return true; }
 
-    /** \brief receives contentsMousePressEvent from view */
+    //! \brief receives contentsMousePressEvent from view
     void mousePressEvent( QMouseEvent* ) override;
 
-    /** \brief receives contentsMouseReleaseEvent from view */
+    //! \brief receives contentsMouseReleaseEvent from view
     void mouseReleaseEvent( QMouseEvent* ) override;
 
-    /** \brief receives contentsMouseMoveEvent from view */
+    //! \brief receives contentsMouseMoveEvent from view
     void mouseMoveEvent( QMouseEvent* ) override;
 
     void keyPressEvent( QKeyEvent * e ) override;
 
-    /** Cut coordinates by current canvas extent */
+    //! Cut coordinates by current canvas extent
     void limit( QPoint* );
 
-    /** Grow canvas and move items */
+    //! Grow canvas and move items
     void growCanvas( int left, int right, int top, int bottom );
 
-    /** Grow automaticaly if an item is near border */
+    //! Grow automaticaly if an item is near border
     void autoGrow();
 
     void resizeCanvas( int width, int height );
 
-    /** Show/hide options for tool */
+    //! Show/hide options for tool
     void showOptions( int tool );
 
-    /** Set option for selected object */
+    //! Set option for selected object
     void setOption( void );
 
   public slots:
@@ -123,8 +124,7 @@ class QgsGrassMapcalc: public QMainWindow, private Ui::QgsGrassMapcalcBase,
     void setTool( int );
 
     //! Map selection changed
-    void on_mMapComboBox_activated() { mapChanged(); }
-    void mapChanged();
+    void mapChanged( const QString & text );
 
     //! Constant changed
     void on_mConstantLineEdit_textChanged() { constantChanged(); }
@@ -164,11 +164,7 @@ class QgsGrassMapcalc: public QMainWindow, private Ui::QgsGrassMapcalcBase,
     // Pointer to current connector
     QgsGrassMapcalcConnector *mConnector;
 
-    // Update combobox with maps
-    void updateMaps();
-
-    //! Vector of map@mapset in the combobox
-    std::vector<QString> mMaps;
+    QgsGrassModuleInputComboBox *mMapComboBox;
 
     //! Last point position
     QPoint mLastPoint;

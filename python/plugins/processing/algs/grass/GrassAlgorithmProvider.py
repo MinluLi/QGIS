@@ -27,13 +27,13 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon
 from processing.core.ProcessingConfig import ProcessingConfig, Setting
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingLog import ProcessingLog
-from GrassUtils import GrassUtils
-from GrassAlgorithm import GrassAlgorithm
-from nviz import nviz
+from .GrassUtils import GrassUtils
+from .GrassAlgorithm import GrassAlgorithm
+from .nviz import nviz
 from processing.tools.system import isMac, isWindows
 
 pluginPath = os.path.normpath(os.path.join(
@@ -44,6 +44,7 @@ class GrassAlgorithmProvider(AlgorithmProvider):
 
     def __init__(self):
         AlgorithmProvider.__init__(self)
+        self.activate = False
         self.createAlgsList()  # Preloading algorithms to speed up
 
     def initializeSettings(self):
@@ -52,9 +53,10 @@ class GrassAlgorithmProvider(AlgorithmProvider):
             ProcessingConfig.addSetting(Setting(self.getDescription(),
                                                 GrassUtils.GRASS_FOLDER, self.tr('GRASS folder'),
                                                 GrassUtils.grassPath(), valuetype=Setting.FOLDER))
-            ProcessingConfig.addSetting(Setting(self.getDescription(),
-                                                GrassUtils.GRASS_WIN_SHELL, self.tr('Msys folder'),
-                                                GrassUtils.grassWinShell(), valuetype=Setting.FOLDER))
+            if isWindows():
+                ProcessingConfig.addSetting(Setting(self.getDescription(),
+                                                    GrassUtils.GRASS_WIN_SHELL, self.tr('Msys folder'),
+                                                    GrassUtils.grassWinShell(), valuetype=Setting.FOLDER))
         ProcessingConfig.addSetting(Setting(self.getDescription(),
                                             GrassUtils.GRASS_LOG_COMMANDS,
                                             self.tr('Log execution commands'), False))
@@ -82,7 +84,7 @@ class GrassAlgorithmProvider(AlgorithmProvider):
                     else:
                         ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
                                                self.tr('Could not open GRASS algorithm: %s' % descriptionFile))
-                except Exception as e:
+                except Exception:
                     ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
                                            self.tr('Could not open GRASS algorithm: %s' % descriptionFile))
         self.preloadedAlgs.append(nviz())
@@ -97,10 +99,13 @@ class GrassAlgorithmProvider(AlgorithmProvider):
         return 'grass'
 
     def getIcon(self):
-        return QIcon(os.path.join(pluginPath, 'images', 'grass.png'))
+        return QIcon(os.path.join(pluginPath, 'images', 'grass.svg'))
 
     def getSupportedOutputVectorLayerExtensions(self):
         return ['shp']
 
     def getSupportedOutputRasterLayerExtensions(self):
         return ['tif']
+
+    def canBeActivated(self):
+        return not bool(GrassUtils.checkGrassIsInstalled())

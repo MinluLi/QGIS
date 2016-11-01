@@ -4,7 +4,7 @@
 ***************************************************************************
     lasnoise.py
     ---------------------
-    Date                 : September 2013
+    Date                 : September 2013 and May 2016
     Copyright            : (C) 2013 by Martin Isenburg
     Email                : martin near rapidlasso point com
 ***************************************************************************
@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'September 2013'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterSelection
@@ -45,6 +48,8 @@ class lasnoise(LAStoolsAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('LAStools')
         self.addParametersVerboseGUI()
         self.addParametersPointInputGUI()
+        self.addParametersIgnoreClass1GUI()
+        self.addParametersIgnoreClass2GUI()
         self.addParameter(ParameterNumber(lasnoise.ISOLATED,
                                           self.tr("isolated if surrounding cells have only"), 0, None, 5))
         self.addParameter(ParameterNumber(lasnoise.STEP_XY,
@@ -62,22 +67,24 @@ class lasnoise(LAStoolsAlgorithm):
         commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "lasnoise")]
         self.addParametersVerboseCommands(commands)
         self.addParametersPointInputCommands(commands)
+        self.addParametersIgnoreClass1Commands(commands)
+        self.addParametersIgnoreClass2Commands(commands)
         isolated = self.getParameterValue(lasnoise.ISOLATED)
         commands.append("-isolated")
-        commands.append(unicode(isolated))
+        commands.append(str(isolated))
         step_xy = self.getParameterValue(lasnoise.STEP_XY)
         commands.append("-step_xy")
-        commands.append(unicode(step_xy))
+        commands.append(str(step_xy))
         step_z = self.getParameterValue(lasnoise.STEP_Z)
         commands.append("-step_z")
-        commands.append(unicode(step_z))
+        commands.append(str(step_z))
         operation = self.getParameterValue(lasnoise.OPERATION)
         if operation != 0:
             commands.append("-remove_noise")
         else:
             commands.append("-classify_as")
             classify_as = self.getParameterValue(lasnoise.CLASSIFY_AS)
-            commands.append(unicode(classify_as))
+            commands.append(str(classify_as))
         self.addParametersPointOutputCommands(commands)
         self.addParametersAdditionalCommands(commands)
 

@@ -23,7 +23,9 @@ ELSE(EXISTS QSCI_MOD_VERSION_STR)
 
   FIND_FILE(_find_qsci_py FindQsci.py PATHS ${CMAKE_MODULE_PATH})
 
-  EXECUTE_PROCESS(COMMAND ${PYTHON_EXECUTABLE} ${_find_qsci_py} OUTPUT_VARIABLE qsci_ver)
+  SET(QSCI_VER 5)
+
+  EXECUTE_PROCESS(COMMAND ${PYTHON_EXECUTABLE} ${_find_qsci_py} ${QSCI_VER} OUTPUT_VARIABLE qsci_ver)
 
   IF(qsci_ver)
     STRING(REGEX REPLACE "^qsci_version_str:([^\n]+).*$" "\\1" QSCI_MOD_VERSION_STR ${qsci_ver})
@@ -31,17 +33,10 @@ ELSE(EXISTS QSCI_MOD_VERSION_STR)
   ENDIF(qsci_ver)
 
   IF(QSCI_FOUND)
-    IF(ENABLE_QT5)
-      FIND_PATH(QSCI_SIP_DIR
-        NAMES Qsci/qscimod5.sip
-        PATHS ${PYQT5_SIP_DIR}
-      )
-    ELSE(ENABLE_QT5)
-      FIND_PATH(QSCI_SIP_DIR
-        NAMES Qsci/qscimod4.sip
-        PATHS ${PYQT4_SIP_DIR}
-      )
-    ENDIF(ENABLE_QT5)
+    FIND_PATH(QSCI_SIP_DIR
+      NAMES Qsci/qscimod5.sip
+      PATHS ${PYQT5_SIP_DIR}
+    )
 
     IF(NOT QSCI_FIND_QUIETLY)
       MESSAGE(STATUS "Found QScintilla2 PyQt module: ${QSCI_MOD_VERSION_STR}")

@@ -23,7 +23,6 @@
 #include <QStandardItem>
 
 #include "ui_qgsfieldconditionalformatwidget.h"
-#include "qgsfieldcombobox.h"
 #include "qgsconditionalstyle.h"
 
 /** \ingroup gui
@@ -39,7 +38,7 @@ class GUI_EXPORT QgsFieldConditionalFormatWidget : public QWidget, private Ui::Q
     /** Constructor for QgsFieldConditionalFormatWidget.
      * @param parent parent widget
      */
-    explicit QgsFieldConditionalFormatWidget( QWidget *parent = 0 );
+    explicit QgsFieldConditionalFormatWidget( QWidget *parent = nullptr );
 
     ~QgsFieldConditionalFormatWidget();
 
@@ -95,7 +94,7 @@ class GUI_EXPORT QgsFieldConditionalFormatWidget : public QWidget, private Ui::Q
     bool mEditing;
     QStandardItemModel* mModel;
     QStandardItemModel* mPresetsModel;
-    QgsSymbolV2* mSymbol;
+    QgsSymbol* mSymbol;
     QList<QgsConditionalStyle> mPresets;
 
     QList<QgsConditionalStyle> getStyles();

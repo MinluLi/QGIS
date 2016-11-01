@@ -17,6 +17,7 @@
 #define QGSOGRCONNPOOL_H
 
 #include "qgsconnectionpool.h"
+#include "qgsogrprovider.h"
 #include <ogr_api.h>
 
 
@@ -32,17 +33,18 @@ inline QString qgsConnectionPool_ConnectionToName( QgsOgrConn* c )
   return c->path;
 }
 
-inline void qgsConnectionPool_ConnectionCreate( QString connInfo, QgsOgrConn*& c )
+inline void qgsConnectionPool_ConnectionCreate( const QString& connInfo, QgsOgrConn*& c )
 {
   c = new QgsOgrConn;
-  c->ds = OGROpen( connInfo.toUtf8().constData(), false, NULL );
+  QString filePath = connInfo.left( connInfo.indexOf( QLatin1String( "|" ) ) );
+  c->ds = OGROpen( filePath.toUtf8().constData(), false, nullptr );
   c->path = connInfo;
   c->valid = true;
 }
 
 inline void qgsConnectionPool_ConnectionDestroy( QgsOgrConn* c )
 {
-  OGR_DS_Destroy( c->ds );
+  QgsOgrProviderUtils::OGRDestroyWrapper( c->ds );
   delete c;
 }
 
@@ -61,7 +63,10 @@ class QgsOgrConnPoolGroup : public QObject, public QgsConnectionPoolGroup<QgsOgr
     Q_OBJECT
 
   public:
-    explicit QgsOgrConnPoolGroup( QString name ) : QgsConnectionPoolGroup<QgsOgrConn*>( name ), mRefCount( 0 ) { initTimer( this ); }
+    explicit QgsOgrConnPoolGroup( const QString& name )
+        : QgsConnectionPoolGroup<QgsOgrConn*>( name )
+        , mRefCount( 0 )
+    { initTimer( this ); }
     void ref() { ++mRefCount; }
     bool unref()
     {
@@ -82,27 +87,62 @@ class QgsOgrConnPoolGroup : public QObject, public QgsConnectionPoolGroup<QgsOgr
 
 };
 
-/** Ogr connection pool - singleton */
+//! Ogr connection pool - singleton
 class QgsOgrConnPool : public QgsConnectionPool<QgsOgrConn*, QgsOgrConnPoolGroup>
 {
   public:
+
+    // NOTE: first call to this function initializes the
+    //       singleton.
+    // WARNING: concurrent call from multiple threads may result
+    //          in multiple instances being created, and memory
+    //          leaking at exit.
+    //
     static QgsOgrConnPool* instance();
 
+    // Singleton cleanup
+    //
+    // Make sure nobody is using the instance before calling
+    // this function.
+    //
+    // WARNING: concurrent call from multiple threads may result
+    //          in double-free of the instance.
+    //
+    static void cleanupInstance();
+
+    /**
+     * @brief Increases the reference count on the connection pool for the specified connection.
+     * @param connInfo The connection string.
+     * @note
+     *     Any user of the connection pool needs to increase the reference count
+     *     before it acquires any connections and decrease the reference count after
+     *     releasing all acquired connections to ensure that all open OGR handles
+     *     are freed when and only when no one is using the pool anymore.
+     */
     void ref( const QString& connInfo )
     {
       mMutex.lock();
-      T_Groups::iterator it = mGroups.find( connInfo );
-      if ( it == mGroups.end() )
+      T_Groups::const_iterator it = mGroups.constFind( connInfo );
+      if ( it == mGroups.constEnd() )
         it = mGroups.insert( connInfo, new QgsOgrConnPoolGroup( connInfo ) );
       it.value()->ref();
       mMutex.unlock();
     }
 
+    /**
+     * @brief Decrease the reference count on the connection pool for the specified connection.
+     * @param connInfo The connection string.
+     */
     void unref( const QString& connInfo )
     {
       mMutex.lock();
       T_Groups::iterator it = mGroups.find( connInfo );
-      Q_ASSERT( it != mGroups.end() );
+      if ( it == mGroups.end() )
+      {
+        mMutex.unlock();
+        return;
+      }
+
       if ( it.value()->unref() )
       {
         delete it.value();
@@ -111,27 +151,13 @@ class QgsOgrConnPool : public QgsConnectionPool<QgsOgrConn*, QgsOgrConnPoolGroup
       mMutex.unlock();
     }
 
-    static void refS( const QString &connInfo )
-    {
-      if ( instance() )
-        instance()->ref( connInfo );
-    }
-
-    static void unrefS( const QString &connInfo )
-    {
-      if ( instance() )
-        instance()->unref( connInfo );
-    }
-
   protected:
     Q_DISABLE_COPY( QgsOgrConnPool )
 
   private:
     QgsOgrConnPool();
     ~QgsOgrConnPool();
-
-    static QgsOgrConnPool sInstance;
-    static bool sInstanceDestroyed;
+    static QgsOgrConnPool *mInstance;
 };
 
 

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import map
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'April 2012'
@@ -196,16 +197,16 @@ def getSqlDictionary(spatial=True):
         f += postgis_functions
         c += postgis_constants
 
-    return {'keyword': map(strip_star, k), 'constant': map(strip_star, c), 'function': map(strip_star, f)}
+    return {'keyword': list(map(strip_star, k)), 'constant': list(map(strip_star, c)), 'function': list(map(strip_star, f))}
 
 
 def getQueryBuilderDictionary():
     # concat functions
     def ff(l):
-        return filter(lambda s: s[0] != '*', l)
+        return [s for s in l if s[0] != '*']
 
     def add_paren(l):
-        return map(lambda s: s + "(", l)
+        return [s + "(" for s in l]
     foo = sorted(add_paren(ff(list(set.union(set(functions), set(postgis_functions))))))
     m = sorted(add_paren(ff(math_functions)))
     agg = sorted(add_paren(ff(aggregate_functions)))

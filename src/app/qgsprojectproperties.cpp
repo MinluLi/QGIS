@@ -29,27 +29,33 @@
 #include "qgsmapcanvas.h"
 #include "qgsmaplayer.h"
 #include "qgsmaplayerregistry.h"
-#include "qgsmaprenderer.h"
 #include "qgsproject.h"
 #include "qgsprojectlayergroupdialog.h"
-#include "qgssnappingdialog.h"
 #include "qgsrasterlayer.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 #include "qgsscaleutils.h"
 #include "qgsgenericprojectionselector.h"
-#include "qgsstylev2.h"
-#include "qgssymbolv2.h"
-#include "qgsstylev2managerdialog.h"
-#include "qgsvectorcolorrampv2.h"
-#include "qgssymbolv2selectordialog.h"
+#include "qgsstyle.h"
+#include "qgssymbol.h"
+#include "qgsstylemanagerdialog.h"
+#include "qgscolorramp.h"
+#include "qgssymbolselectordialog.h"
 #include "qgsrelationmanagerdialog.h"
 #include "qgsrelationmanager.h"
 #include "qgscolorschemeregistry.h"
-#include "qgssymbollayerv2utils.h"
+#include "qgssymbollayerutils.h"
 #include "qgscolordialog.h"
 #include "qgsexpressioncontext.h"
 #include "qgsmapoverviewcanvas.h"
+#include "qgslayertreenode.h"
+#include "qgslayertreegroup.h"
+#include "qgslayertreelayer.h"
+#include "qgslayertreemodel.h"
+#include "qgsunittypes.h"
+#include "qgstablewidgetitem.h"
+
+#include "qgsmessagelog.h"
 
 //qt includes
 #include <QInputDialog>
@@ -62,7 +68,7 @@ const char * QgsProjectProperties::GEO_NONE_DESC = QT_TRANSLATE_NOOP( "QgsOption
 //stdc++ includes
 
 QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *parent, Qt::WindowFlags fl )
-    : QgsOptionsDialogBase( "ProjectProperties", parent, fl )
+    : QgsOptionsDialogBase( QStringLiteral( "ProjectProperties" ), parent, fl )
     , mMapCanvas( mapCanvas )
     , mEllipsoidList()
     , mEllipsoidIndex( 0 )
@@ -74,20 +80,42 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   // and connecting QDialogButtonBox's accepted/rejected signals to dialog's accept/reject slots
   initOptionsBase( false );
 
+  mCoordinateDisplayComboBox->addItem( tr( "Map units" ), MapUnits );
+  mCoordinateDisplayComboBox->addItem( tr( "Decimal degrees" ), DecimalDegrees );
+  mCoordinateDisplayComboBox->addItem( tr( "Degrees, minutes" ), DegreesMinutes );
+  mCoordinateDisplayComboBox->addItem( tr( "Degrees, minutes, seconds" ), DegreesMinutesSeconds );
+
+  mDistanceUnitsCombo->addItem( tr( "Meters" ), QgsUnitTypes::DistanceMeters );
+  mDistanceUnitsCombo->addItem( tr( "Kilometers" ), QgsUnitTypes::DistanceKilometers );
+  mDistanceUnitsCombo->addItem( tr( "Feet" ), QgsUnitTypes::DistanceFeet );
+  mDistanceUnitsCombo->addItem( tr( "Yards" ), QgsUnitTypes::DistanceYards );
+  mDistanceUnitsCombo->addItem( tr( "Miles" ), QgsUnitTypes::DistanceMiles );
+  mDistanceUnitsCombo->addItem( tr( "Nautical miles" ), QgsUnitTypes::DistanceNauticalMiles );
+  mDistanceUnitsCombo->addItem( tr( "Degrees" ), QgsUnitTypes::DistanceDegrees );
+  mDistanceUnitsCombo->addItem( tr( "Map units" ), QgsUnitTypes::DistanceUnknownUnit );
+
+  mAreaUnitsCombo->addItem( tr( "Square meters" ), QgsUnitTypes::AreaSquareMeters );
+  mAreaUnitsCombo->addItem( tr( "Square kilometers" ), QgsUnitTypes::AreaSquareKilometers );
+  mAreaUnitsCombo->addItem( tr( "Square feet" ), QgsUnitTypes::AreaSquareFeet );
+  mAreaUnitsCombo->addItem( tr( "Square yards" ), QgsUnitTypes::AreaSquareYards );
+  mAreaUnitsCombo->addItem( tr( "Square miles" ), QgsUnitTypes::AreaSquareMiles );
+  mAreaUnitsCombo->addItem( tr( "Hectares" ), QgsUnitTypes::AreaHectares );
+  mAreaUnitsCombo->addItem( tr( "Acres" ), QgsUnitTypes::AreaAcres );
+  mAreaUnitsCombo->addItem( tr( "Square nautical miles" ), QgsUnitTypes::AreaSquareNauticalMiles );
+  mAreaUnitsCombo->addItem( tr( "Square degrees" ), QgsUnitTypes::AreaSquareDegrees );
+  mAreaUnitsCombo->addItem( tr( "Map units" ), QgsUnitTypes::AreaUnknownUnit );
+
   connect( buttonBox->button( QDialogButtonBox::Apply ), SIGNAL( clicked() ), this, SLOT( apply() ) );
   connect( this, SIGNAL( accepted() ), this, SLOT( apply() ) );
-  connect( projectionSelector, SIGNAL( sridSelected( QString ) ), this, SLOT( setMapUnitsToCurrentProjection() ) );
+  connect( projectionSelector, SIGNAL( sridSelected( QString ) ), this, SLOT( srIdUpdated() ) );
   connect( projectionSelector, SIGNAL( initialized() ), this, SLOT( projectionSelectorInitialized() ) );
 
   connect( cmbEllipsoid, SIGNAL( currentIndexChanged( int ) ), this, SLOT( updateEllipsoidUI( int ) ) );
 
-  connect( radMeters, SIGNAL( toggled( bool ) ), btnGrpDegreeDisplay, SLOT( setDisabled( bool ) ) );
-  connect( radFeet, SIGNAL( toggled( bool ) ), btnGrpDegreeDisplay, SLOT( setDisabled( bool ) ) );
-  connect( radNMiles, SIGNAL( toggled( bool ) ), btnGrpDegreeDisplay, SLOT( setDisabled( bool ) ) );
-  connect( radDegrees, SIGNAL( toggled( bool ) ), btnGrpDegreeDisplay, SLOT( setEnabled( bool ) ) );
-
-  connect( radAutomatic, SIGNAL( toggled( bool ) ), mPrecisionFrame, SLOT( setDisabled( bool ) ) );
-  connect( radManual, SIGNAL( toggled( bool ) ), mPrecisionFrame, SLOT( setEnabled( bool ) ) );
+  connect( radAutomatic, SIGNAL( toggled( bool ) ), spinBoxDP, SLOT( setDisabled( bool ) ) );
+  connect( radAutomatic, SIGNAL( toggled( bool ) ), labelDP, SLOT( setDisabled( bool ) ) );
+  connect( radManual, SIGNAL( toggled( bool ) ), spinBoxDP, SLOT( setEnabled( bool ) ) );
+  connect( radManual, SIGNAL( toggled( bool ) ), labelDP, SLOT( setEnabled( bool ) ) );
 
   QSettings settings;
 
@@ -95,107 +123,121 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   // Properties stored in map canvas's QgsMapRenderer
   // these ones are propagated to QgsProject by a signal
 
-  QGis::UnitType myUnit = mMapCanvas->mapSettings().mapUnits();
-  setMapUnits( myUnit );
-
   // we need to initialize it, since the on_cbxProjectionEnabled_toggled()
   // slot triggered by setChecked() might use it.
   mProjectSrsId = mMapCanvas->mapSettings().destinationCrs().srsid();
 
+  QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromSrsId( mProjectSrsId );
+  updateGuiForMapUnits( srs.mapUnits() );
+
   QgsDebugMsg( "Read project CRSID: " + QString::number( mProjectSrsId ) );
   projectionSelector->setSelectedCrsId( mProjectSrsId );
+
+  mMapTileRenderingCheckBox->setChecked( mMapCanvas->mapSettings().testFlag( QgsMapSettings::RenderMapTile ) );
 
   // see end of constructor for updating of projection selector
 
   ///////////////////////////////////////////////////////////
   // Properties stored in QgsProject
 
+  Q_FOREACH ( QgsVectorLayer* layer, QgsMapLayerRegistry::instance()->layers<QgsVectorLayer*>() )
+  {
+    if ( layer->isEditable() )
+    {
+      mAutoTransaction->setEnabled( false );
+      mAutoTransaction->setToolTip( tr( "Layers are in edit mode. Stop edit mode on all layers to toggle transactional editing." ) );
+    }
+  }
+
+  mAutoTransaction->setChecked( QgsProject::instance()->autoTransaction() );
   title( QgsProject::instance()->title() );
-  projectFileName->setText( QgsProject::instance()->fileName() );
+  mProjectFileLineEdit->setText( QgsProject::instance()->fileName() );
 
   // get the manner in which the number of decimal places in the mouse
   // position display is set (manual or automatic)
-  bool automaticPrecision = QgsProject::instance()->readBoolEntry( "PositionPrecision", "/Automatic", true );
+  bool automaticPrecision = QgsProject::instance()->readBoolEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/Automatic" ), true );
   if ( automaticPrecision )
   {
     radAutomatic->setChecked( true );
-    mPrecisionFrame->setEnabled( false );
+    spinBoxDP->setEnabled( false );
+    labelDP->setEnabled( false );
   }
   else
   {
     radManual->setChecked( true );
-    mPrecisionFrame->setEnabled( true );
+    spinBoxDP->setEnabled( true );
+    labelDP->setEnabled( true );
   }
+  int dp = QgsProject::instance()->readNumEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/DecimalPlaces" ) );
+  spinBoxDP->setValue( dp );
 
-  cbxAbsolutePath->setCurrentIndex( QgsProject::instance()->readBoolEntry( "Paths", "/Absolute", true ) ? 0 : 1 );
+  cbxAbsolutePath->setCurrentIndex( QgsProject::instance()->readBoolEntry( QStringLiteral( "Paths" ), QStringLiteral( "/Absolute" ), true ) ? 0 : 1 );
 
   // populate combo box with ellipsoids
   // selection of the ellipsoid from settings is defferred to a later point, because it would
   // be overridden in the meanwhile by the projection selector
   populateEllipsoidList();
 
-
-  int dp = QgsProject::instance()->readNumEntry( "PositionPrecision", "/DecimalPlaces" );
-  spinBoxDP->setValue( dp );
-
-  QString format = QgsProject::instance()->readEntry( "PositionPrecision", "/DegreeFormat", "D" );
-  if ( format == "DM" )
-    radDM->setChecked( true );
-  else if ( format == "DMS" )
-    radDMS->setChecked( true );
+  QString format = QgsProject::instance()->readEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/DegreeFormat" ), QStringLiteral( "MU" ) );
+  if ( format == QLatin1String( "MU" ) )
+    mCoordinateDisplayComboBox->setCurrentIndex( mCoordinateDisplayComboBox->findData( MapUnits ) );
+  else if ( format == QLatin1String( "DM" ) )
+    mCoordinateDisplayComboBox->setCurrentIndex( mCoordinateDisplayComboBox->findData( DegreesMinutes ) );
+  else if ( format == QLatin1String( "DMS" ) )
+    mCoordinateDisplayComboBox->setCurrentIndex( mCoordinateDisplayComboBox->findData( DegreesMinutesSeconds ) );
   else
-    radD->setChecked( true );
+    mCoordinateDisplayComboBox->setCurrentIndex( mCoordinateDisplayComboBox->findData( DecimalDegrees ) );
+
+  mDistanceUnitsCombo->setCurrentIndex( mDistanceUnitsCombo->findData( QgsProject::instance()->distanceUnits() ) );
+  mAreaUnitsCombo->setCurrentIndex( mAreaUnitsCombo->findData( QgsProject::instance()->areaUnits() ) );
 
   //get the color selections and set the button color accordingly
-  int myRedInt = QgsProject::instance()->readNumEntry( "Gui", "/SelectionColorRedPart", 255 );
-  int myGreenInt = QgsProject::instance()->readNumEntry( "Gui", "/SelectionColorGreenPart", 255 );
-  int myBlueInt = QgsProject::instance()->readNumEntry( "Gui", "/SelectionColorBluePart", 0 );
-  int myAlphaInt = QgsProject::instance()->readNumEntry( "Gui", "/SelectionColorAlphaPart", 255 );
+  int myRedInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorRedPart" ), 255 );
+  int myGreenInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorGreenPart" ), 255 );
+  int myBlueInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorBluePart" ), 0 );
+  int myAlphaInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorAlphaPart" ), 255 );
   QColor myColor = QColor( myRedInt, myGreenInt, myBlueInt, myAlphaInt );
-  myRedInt = settings.value( "/qgis/default_selection_color_red", 255 ).toInt();
-  myGreenInt = settings.value( "/qgis/default_selection_color_green", 255 ).toInt();
-  myBlueInt = settings.value( "/qgis/default_selection_color_blue", 0 ).toInt();
-  myAlphaInt = settings.value( "/qgis/default_selection_color_alpha", 255 ).toInt();
+  myRedInt = settings.value( QStringLiteral( "/qgis/default_selection_color_red" ), 255 ).toInt();
+  myGreenInt = settings.value( QStringLiteral( "/qgis/default_selection_color_green" ), 255 ).toInt();
+  myBlueInt = settings.value( QStringLiteral( "/qgis/default_selection_color_blue" ), 0 ).toInt();
+  myAlphaInt = settings.value( QStringLiteral( "/qgis/default_selection_color_alpha" ), 255 ).toInt();
   QColor defaultSelectionColor = QColor( myRedInt, myGreenInt, myBlueInt, myAlphaInt );
-  pbnSelectionColor->setContext( "gui" );
+  pbnSelectionColor->setContext( QStringLiteral( "gui" ) );
   pbnSelectionColor->setColor( myColor );
   pbnSelectionColor->setDefaultColor( defaultSelectionColor );
   pbnSelectionColor->setColorDialogTitle( tr( "Selection color" ) );
   pbnSelectionColor->setAllowAlpha( true );
 
   //get the color for map canvas background and set button color accordingly (default white)
-  myRedInt = QgsProject::instance()->readNumEntry( "Gui", "/CanvasColorRedPart", 255 );
-  myGreenInt = QgsProject::instance()->readNumEntry( "Gui", "/CanvasColorGreenPart", 255 );
-  myBlueInt = QgsProject::instance()->readNumEntry( "Gui", "/CanvasColorBluePart", 255 );
+  myRedInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorRedPart" ), 255 );
+  myGreenInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorGreenPart" ), 255 );
+  myBlueInt = QgsProject::instance()->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorBluePart" ), 255 );
   myColor = QColor( myRedInt, myGreenInt, myBlueInt );
-  myRedInt = settings.value( "/qgis/default_canvas_color_red", 255 ).toInt();
-  myGreenInt = settings.value( "/qgis/default_canvas_color_green", 255 ).toInt();
-  myBlueInt = settings.value( "/qgis/default_canvas_color_blue", 255 ).toInt();
+  myRedInt = settings.value( QStringLiteral( "/qgis/default_canvas_color_red" ), 255 ).toInt();
+  myGreenInt = settings.value( QStringLiteral( "/qgis/default_canvas_color_green" ), 255 ).toInt();
+  myBlueInt = settings.value( QStringLiteral( "/qgis/default_canvas_color_blue" ), 255 ).toInt();
   QColor defaultCanvasColor = QColor( myRedInt, myGreenInt, myBlueInt );
 
-  pbnCanvasColor->setContext( "gui" );
+  pbnCanvasColor->setContext( QStringLiteral( "gui" ) );
   pbnCanvasColor->setColor( myColor );
   pbnCanvasColor->setDefaultColor( defaultCanvasColor );
 
   //get project scales
-  QStringList myScales = QgsProject::instance()->readListEntry( "Scales", "/ScalesList" );
+  QStringList myScales = QgsProject::instance()->readListEntry( QStringLiteral( "Scales" ), QStringLiteral( "/ScalesList" ) );
   if ( !myScales.isEmpty() )
   {
-    QStringList::const_iterator scaleIt = myScales.constBegin();
-    for ( ; scaleIt != myScales.constEnd(); ++scaleIt )
+    Q_FOREACH ( const QString& scale, myScales )
     {
-      QListWidgetItem* newItem = new QListWidgetItem( lstScales );
-      newItem->setText( *scaleIt );
-      newItem->setFlags( Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-      lstScales->addItem( newItem );
+      addScaleToScaleList( scale );
     }
   }
+  connect( lstScales, SIGNAL( itemChanged( QListWidgetItem* ) ), this, SLOT( scaleItemChanged( QListWidgetItem* ) ) );
 
-  grpProjectScales->setChecked( QgsProject::instance()->readBoolEntry( "Scales", "/useProjectScales" ) );
+  grpProjectScales->setChecked( QgsProject::instance()->readBoolEntry( QStringLiteral( "Scales" ), QStringLiteral( "/useProjectScales" ) ) );
 
-  QgsMapLayer* currentLayer = 0;
+  QgsMapLayer* currentLayer = nullptr;
 
-  QStringList noIdentifyLayerIdList = QgsProject::instance()->readListEntry( "Identify", "/disabledLayers" );
+  QStringList noIdentifyLayerIdList = QgsProject::instance()->nonIdentifiableLayers();
 
   const QMap<QString, QgsMapLayer*> &mapLayers = QgsMapLayerRegistry::instance()->mapLayers();
 
@@ -203,7 +245,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   {
     mLayerSrsId = mMapCanvas->currentLayer()->crs().srsid();
   }
-  else if ( mapLayers.size() > 0 )
+  else if ( !mapLayers.isEmpty() )
   {
     mLayerSrsId = mapLayers.begin().value()->crs().srsid();
   }
@@ -212,11 +254,12 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
     mLayerSrsId = mProjectSrsId;
   }
 
-  twIdentifyLayers->setColumnCount( 3 );
+  twIdentifyLayers->setColumnCount( 4 );
   twIdentifyLayers->horizontalHeader()->setVisible( true );
   twIdentifyLayers->setHorizontalHeaderItem( 0, new QTableWidgetItem( tr( "Layer" ) ) );
   twIdentifyLayers->setHorizontalHeaderItem( 1, new QTableWidgetItem( tr( "Type" ) ) );
   twIdentifyLayers->setHorizontalHeaderItem( 2, new QTableWidgetItem( tr( "Identifiable" ) ) );
+  twIdentifyLayers->setHorizontalHeaderItem( 3, new QTableWidgetItem( tr( "Read Only" ) ) );
   twIdentifyLayers->setRowCount( mapLayers.size() );
   twIdentifyLayers->verticalHeader()->setResizeMode( QHeaderView::ResizeToContents );
 
@@ -225,10 +268,10 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   {
     currentLayer = it.value();
 
-    QTableWidgetItem *twi = new QTableWidgetItem( QString::number( i ) );
+    QgsTableWidgetItem *twi = new QgsTableWidgetItem( QString::number( i ) );
     twIdentifyLayers->setVerticalHeaderItem( i, twi );
 
-    twi = new QTableWidgetItem( currentLayer->name() );
+    twi = new QgsTableWidgetItem( currentLayer->name() );
     twi->setData( Qt::UserRole, it.key() );
     twi->setFlags( twi->flags() & ~Qt::ItemIsEditable );
     twIdentifyLayers->setItem( i, 0, twi );
@@ -242,7 +285,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
     {
       QgsRasterLayer *rl = qobject_cast<QgsRasterLayer *>( currentLayer );
 
-      if ( rl && rl->providerType() == "wms" )
+      if ( rl && rl->providerType() == QLatin1String( "wms" ) )
       {
         type = tr( "WMS" );
       }
@@ -252,30 +295,172 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
       }
     }
 
-    twi = new QTableWidgetItem( type );
+    twi = new QgsTableWidgetItem( type );
     twi->setFlags( twi->flags() & ~Qt::ItemIsEditable );
     twIdentifyLayers->setItem( i, 1, twi );
 
-    QCheckBox *cb = new QCheckBox();
-    cb->setChecked( !noIdentifyLayerIdList.contains( currentLayer->id() ) );
-    twIdentifyLayers->setCellWidget( i, 2, cb );
+    twi = new QgsTableWidgetItem();
+    twi->setFlags( twi->flags() & ~Qt::ItemIsEditable );
+    twi->setFlags( twi->flags() | Qt::ItemIsUserCheckable );
+    twi->setCheckState( noIdentifyLayerIdList.contains( currentLayer->id() ) ? Qt::Unchecked : Qt::Checked );
+    twi->setSortRole( Qt::CheckStateRole );
+    twIdentifyLayers->setItem( i, 2, twi );
+
+    twi = new QgsTableWidgetItem();
+    twi->setFlags( twi->flags() & ~Qt::ItemIsEditable );
+    twi->setFlags( twi->flags() | Qt::ItemIsUserCheckable );
+    twi->setCheckState( currentLayer->readOnly() ? Qt::Checked : Qt::Unchecked );
+    twi->setSortRole( Qt::CheckStateRole );
+    twIdentifyLayers->setItem( i, 3, twi );
   }
 
-  grpOWSServiceCapabilities->setChecked( QgsProject::instance()->readBoolEntry( "WMSServiceCapabilities", "/", false ) );
-  mWMSTitle->setText( QgsProject::instance()->readEntry( "WMSServiceTitle", "/" ) );
-  mWMSContactOrganization->setText( QgsProject::instance()->readEntry( "WMSContactOrganization", "/", "" ) );
-  mWMSContactPerson->setText( QgsProject::instance()->readEntry( "WMSContactPerson", "/", "" ) );
-  mWMSContactMail->setText( QgsProject::instance()->readEntry( "WMSContactMail", "/", "" ) );
-  mWMSContactPhone->setText( QgsProject::instance()->readEntry( "WMSContactPhone", "/", "" ) );
-  mWMSAbstract->setPlainText( QgsProject::instance()->readEntry( "WMSServiceAbstract", "/", "" ) );
-  mWMSOnlineResourceLineEdit->setText( QgsProject::instance()->readEntry( "WMSOnlineResource", "/", "" ) );
-  mWMSUrlLineEdit->setText( QgsProject::instance()->readEntry( "WMSUrl", "/", "" ) );
-  mWMSFees->setText( QgsProject::instance()->readEntry( "WMSFees", "/", "" ) );
-  mWMSAccessConstraints->setText( QgsProject::instance()->readEntry( "WMSAccessConstraints", "/", "" ) );
-  mWMSKeywordList->setText( QgsProject::instance()->readListEntry( "WMSKeywordList", "/" ).join( "," ) );
+  grpOWSServiceCapabilities->setChecked( QgsProject::instance()->readBoolEntry( QStringLiteral( "WMSServiceCapabilities" ), QStringLiteral( "/" ), false ) );
+  mWMSTitle->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSServiceTitle" ), QStringLiteral( "/" ) ) );
+  mWMSName->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSRootName" ), QStringLiteral( "/" ) ) );
+  mWMSContactOrganization->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSContactOrganization" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSContactPerson->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSContactPerson" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSContactMail->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSContactMail" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSContactPhone->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSContactPhone" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSAbstract->setPlainText( QgsProject::instance()->readEntry( QStringLiteral( "WMSServiceAbstract" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSOnlineResourceLineEdit->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSOnlineResource" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSUrlLineEdit->setText( QgsProject::instance()->readEntry( QStringLiteral( "WMSUrl" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  mWMSKeywordList->setText( QgsProject::instance()->readListEntry( QStringLiteral( "WMSKeywordList" ), QStringLiteral( "/" ) ).join( QStringLiteral( ", " ) ) );
+
+  // WMS Name validator
+  QValidator *shortNameValidator = new QRegExpValidator( QgsApplication::shortNameRegExp(), this );
+  mWMSName->setValidator( shortNameValidator );
+
+  // WMS Contact Position
+  QString contactPositionText = QgsProject::instance()->readEntry( QStringLiteral( "WMSContactPosition" ), QStringLiteral( "/" ), QLatin1String( "" ) );
+  mWMSContactPositionCb->addItem( QLatin1String( "" ) );
+  mWMSContactPositionCb->addItem( tr( "Custodian" ), "custodian" );
+  mWMSContactPositionCb->addItem( tr( "Owner" ), "owner" );
+  mWMSContactPositionCb->addItem( tr( "User" ), "user" );
+  mWMSContactPositionCb->addItem( tr( "Distributor" ), "distributor" );
+  mWMSContactPositionCb->addItem( tr( "Originator" ), "originator" );
+  mWMSContactPositionCb->addItem( tr( "Point of contact" ), "pointOfContact" );
+  mWMSContactPositionCb->addItem( tr( "Principal investigator" ), "principalInvestigator" );
+  mWMSContactPositionCb->addItem( tr( "Processor" ), "processor" );
+  mWMSContactPositionCb->addItem( tr( "Publisher" ), "publisher" );
+  mWMSContactPositionCb->addItem( tr( "Author" ), "author" );
+  int contactPositionIndex = mWMSContactPositionCb->findData( contactPositionText );
+  if ( contactPositionIndex > 0 )
+  {
+    mWMSContactPositionCb->setCurrentIndex( contactPositionIndex );
+  }
+  else if ( !contactPositionText.isEmpty() )
+  {
+    mWMSContactPositionCb->setEditText( contactPositionText );
+  }
+
+  // WMS Fees
+  QString feesText = QgsProject::instance()->readEntry( QStringLiteral( "WMSFees" ), QStringLiteral( "/" ), QLatin1String( "" ) );
+  mWMSFeesCb->addItem( tr( "Conditions unknown" ), "conditions unknown" );
+  mWMSFeesCb->addItem( tr( "No conditions apply" ), "no conditions apply" );
+  int feesIndex = mWMSFeesCb->findData( feesText );
+  if ( feesIndex > -1 )
+  {
+    mWMSFeesCb->setCurrentIndex( feesIndex );
+  }
+  else if ( !feesText.isEmpty() )
+  {
+    mWMSFeesCb->setEditText( feesText );
+  }
+
+  // WMS Access Constraints
+  QString accessConstraintsText = QgsProject::instance()->readEntry( QStringLiteral( "WMSAccessConstraints" ), QStringLiteral( "/" ), QLatin1String( "" ) );
+  mWMSAccessConstraintsCb->addItem( tr( "None" ), "None" );
+  mWMSAccessConstraintsCb->addItem( tr( "Copyright" ), "copyright" );
+  mWMSAccessConstraintsCb->addItem( tr( "Patent" ), "patent" );
+  mWMSAccessConstraintsCb->addItem( tr( "Patent pending" ), "patentPending" );
+  mWMSAccessConstraintsCb->addItem( tr( "Trademark" ), "trademark" );
+  mWMSAccessConstraintsCb->addItem( tr( "License" ), "license" );
+  mWMSAccessConstraintsCb->addItem( tr( "Intellectual property rights" ), "intellectualPropertyRights" );
+  mWMSAccessConstraintsCb->addItem( tr( "Restricted" ), "restricted" );
+  mWMSAccessConstraintsCb->addItem( tr( "Other restrictions" ), "otherRestrictions" );
+  int accessConstraintsIndex = mWMSAccessConstraintsCb->findData( accessConstraintsText );
+  if ( accessConstraintsIndex > -1 )
+  {
+    mWMSAccessConstraintsCb->setCurrentIndex( accessConstraintsIndex );
+  }
+  else if ( !accessConstraintsText.isEmpty() )
+  {
+    mWMSAccessConstraintsCb->setEditText( accessConstraintsText );
+  }
+
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "bg" ) ), QLocale( QStringLiteral( "bg" ) ).nativeLanguageName(), "bul" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "cs" ) ), QLocale( QStringLiteral( "cs" ) ).nativeLanguageName(), "cze" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "da" ) ), QLocale( QStringLiteral( "da" ) ).nativeLanguageName(), "dan" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "nl" ) ), QLocale( QStringLiteral( "nl" ) ).nativeLanguageName(), "dut" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "en_GB" ) ), QLocale( QStringLiteral( "en_GB" ) ).nativeLanguageName(), "eng" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "et" ) ), QLocale( QStringLiteral( "et" ) ).nativeLanguageName(), "est" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "fi" ) ), QLocale( QStringLiteral( "fi" ) ).nativeLanguageName(), "fin" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "fr" ) ), QLocale( QStringLiteral( "fr" ) ).nativeLanguageName(), "fre" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "de" ) ), QLocale( QStringLiteral( "de" ) ).nativeLanguageName(), "ger" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "ga" ) ), QLocale( QStringLiteral( "ga" ) ).nativeLanguageName(), "gle" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "el" ) ), QLocale( QStringLiteral( "el" ) ).nativeLanguageName(), "gre" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "hu" ) ), QLocale( QStringLiteral( "hu" ) ).nativeLanguageName(), "hun" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "it" ) ), QLocale( QStringLiteral( "it" ) ).nativeLanguageName(), "ita" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "lv" ) ), QLocale( QStringLiteral( "lv" ) ).nativeLanguageName(), "lav" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "lt" ) ), QLocale( QStringLiteral( "lt" ) ).nativeLanguageName(), "lit" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "mt" ) ), QLocale( QStringLiteral( "mt" ) ).nativeLanguageName(), "mlt" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "pl" ) ), QLocale( QStringLiteral( "pl" ) ).nativeLanguageName(), "pol" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "pt_PT" ) ), QLocale( QStringLiteral( "pt_PT" ) ).nativeLanguageName(), "por" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "ro" ) ), QLocale( QStringLiteral( "ro" ) ).nativeLanguageName(), "rum" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "sk" ) ), QLocale( QStringLiteral( "sk" ) ).nativeLanguageName(), "slo" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "sl" ) ), QLocale( QStringLiteral( "sl" ) ).nativeLanguageName(), "slv" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "es" ) ), QLocale( QStringLiteral( "es" ) ).nativeLanguageName(), "spa" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "sv" ) ), QLocale( QStringLiteral( "sv" ) ).nativeLanguageName(), "swe" );
+
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "eu" ) ), QLocale( QStringLiteral( "eu" ) ).nativeLanguageName(), "eus" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "ca" ) ), QLocale( QStringLiteral( "ca" ) ).nativeLanguageName(), "cat" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "gl" ) ), QLocale( QStringLiteral( "gl" ) ).nativeLanguageName(), "gal" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "gd" ) ), QLocale( QStringLiteral( "gd" ) ).nativeLanguageName(), "gla" );
+  mWMSInspireLanguage->addItem( QIcon( QString( ":/images/flags/%1.png" ).arg( "cy" ) ), QLocale( QStringLiteral( "cy" ) ).nativeLanguageName(), "cym" );
+  mWMSInspireLanguage->setCurrentIndex(
+    mWMSInspireLanguage->findText(
+      QLocale::system().nativeLanguageName()
+    )
+  );
+
+  bool addWMSInspire = QgsProject::instance()->readBoolEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/activated" ) );
+  if ( addWMSInspire )
+  {
+    mWMSInspire->setChecked( addWMSInspire );
+    QString inspireLanguage = QgsProject::instance()->readEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/language" ), QLatin1String( "" ) );
+    int inspireLanguageIndex = mWMSInspireLanguage->findData( inspireLanguage );
+    mWMSInspireLanguage->setCurrentIndex( inspireLanguageIndex );
+
+    QString inspireMetadataUrl = QgsProject::instance()->readEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataUrl" ), QLatin1String( "" ) );
+    if ( !inspireMetadataUrl.isEmpty() )
+    {
+      mWMSInspireScenario1->setChecked( true );
+      mWMSInspireMetadataUrl->setText( inspireMetadataUrl );
+      mWMSInspireMetadataUrlType->setCurrentIndex(
+        mWMSInspireMetadataUrlType->findText(
+          QgsProject::instance()->readEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataUrlType" ), QLatin1String( "" ) )
+        )
+      );
+    }
+    else
+    {
+      QString inspireTemporalReference = QgsProject::instance()->readEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/temporalReference" ), QLatin1String( "" ) );
+      if ( !inspireTemporalReference.isEmpty() )
+      {
+        mWMSInspireScenario2->setChecked( true );
+        mWMSInspireTemporalReference->setDate( QDate::fromString( inspireTemporalReference, QStringLiteral( "yyyy-MM-dd" ) ) );
+      }
+      QString inspireMetadataDate = QgsProject::instance()->readEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataDate" ), QLatin1String( "" ) );
+      if ( !inspireMetadataDate.isEmpty() )
+      {
+        mWMSInspireScenario2->setChecked( true );
+        mWMSInspireMetadataDate->setDate( QDate::fromString( inspireMetadataDate, QStringLiteral( "yyyy-MM-dd" ) ) );
+      }
+    }
+  }
 
   // WMS GetFeatureInfo precision
-  int WMSprecision = QgsProject::instance()->readNumEntry( "WMSPrecision", "/", -1 );
+  int WMSprecision = QgsProject::instance()->readNumEntry( QStringLiteral( "WMSPrecision" ), QStringLiteral( "/" ), -1 );
   if ( WMSprecision != -1 )
   {
     mWMSPrecisionSpinBox->setValue( WMSprecision );
@@ -289,7 +474,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   mWMSExtMaxX->setValidator( new QDoubleValidator( mWMSExtMaxX ) );
   mWMSExtMaxY->setValidator( new QDoubleValidator( mWMSExtMaxY ) );
 
-  values = QgsProject::instance()->readListEntry( "WMSExtent", "/", QStringList(), &ok );
+  values = QgsProject::instance()->readListEntry( QStringLiteral( "WMSExtent" ), QStringLiteral( "/" ), QStringList(), &ok );
   grpWMSExt->setChecked( ok && values.size() == 4 );
   if ( grpWMSExt->isChecked() )
   {
@@ -299,22 +484,22 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
     mWMSExtMaxY->setText( values[3] );
   }
 
-  values = QgsProject::instance()->readListEntry( "WMSCrsList", "/", QStringList(), &ok );
-  grpWMSList->setChecked( ok && values.size() > 0 );
+  values = QgsProject::instance()->readListEntry( QStringLiteral( "WMSCrsList" ), QStringLiteral( "/" ), QStringList(), &ok );
+  grpWMSList->setChecked( ok && !values.isEmpty() );
   if ( grpWMSList->isChecked() )
   {
     mWMSList->addItems( values );
   }
   else
   {
-    values = QgsProject::instance()->readListEntry( "WMSEpsgList", "/", QStringList(), &ok );
-    grpWMSList->setChecked( ok && values.size() > 0 );
+    values = QgsProject::instance()->readListEntry( QStringLiteral( "WMSEpsgList" ), QStringLiteral( "/" ), QStringList(), &ok );
+    grpWMSList->setChecked( ok && !values.isEmpty() );
     if ( grpWMSList->isChecked() )
     {
       QStringList list;
       Q_FOREACH ( const QString& value, values )
       {
-        list << QString( "EPSG:%1" ).arg( value );
+        list << QStringLiteral( "EPSG:%1" ).arg( value );
       }
 
       mWMSList->addItems( list );
@@ -324,7 +509,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   grpWMSList->setChecked( mWMSList->count() > 0 );
 
   //composer restriction for WMS
-  values = QgsProject::instance()->readListEntry( "WMSRestrictedComposers", "/", QStringList(), &ok );
+  values = QgsProject::instance()->readListEntry( QStringLiteral( "WMSRestrictedComposers" ), QStringLiteral( "/" ), QStringList(), &ok );
   mWMSComposerGroupBox->setChecked( ok );
   if ( ok )
   {
@@ -332,45 +517,48 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   }
 
   //layer restriction for WMS
-  values = QgsProject::instance()->readListEntry( "WMSRestrictedLayers", "/", QStringList(), &ok );
+  values = QgsProject::instance()->readListEntry( QStringLiteral( "WMSRestrictedLayers" ), QStringLiteral( "/" ), QStringList(), &ok );
   mLayerRestrictionsGroupBox->setChecked( ok );
   if ( ok )
   {
     mLayerRestrictionsListWidget->addItems( values );
   }
 
-  bool addWktGeometry = QgsProject::instance()->readBoolEntry( "WMSAddWktGeometry", "/" );
+  bool addWktGeometry = QgsProject::instance()->readBoolEntry( QStringLiteral( "WMSAddWktGeometry" ), QStringLiteral( "/" ) );
   mAddWktGeometryCheckBox->setChecked( addWktGeometry );
 
-  bool useLayerIDs = QgsProject::instance()->readBoolEntry( "WMSUseLayerIDs", "/" );
+  bool segmentizeFeatureInfoGeometry = QgsProject::instance()->readBoolEntry( QStringLiteral( "WMSSegmentizeFeatureInfoGeometry" ), QStringLiteral( "/" ) );
+  mSegmentizeFeatureInfoGeometryCheckBox->setChecked( segmentizeFeatureInfoGeometry );
+
+  bool useLayerIDs = QgsProject::instance()->readBoolEntry( QStringLiteral( "WMSUseLayerIDs" ), QStringLiteral( "/" ) );
   mWmsUseLayerIDs->setChecked( useLayerIDs );
 
   //WMS maxWidth / maxHeight
   mMaxWidthLineEdit->setValidator( new QIntValidator( mMaxWidthLineEdit ) );
-  int maxWidth = QgsProject::instance()->readNumEntry( "WMSMaxWidth", "/", -1 );
+  int maxWidth = QgsProject::instance()->readNumEntry( QStringLiteral( "WMSMaxWidth" ), QStringLiteral( "/" ), -1 );
   if ( maxWidth != -1 )
   {
     mMaxWidthLineEdit->setText( QString::number( maxWidth ) );
   }
   mMaxHeightLineEdit->setValidator( new QIntValidator( mMaxHeightLineEdit ) );
-  int maxHeight = QgsProject::instance()->readNumEntry( "WMSMaxHeight", "/", -1 );
+  int maxHeight = QgsProject::instance()->readNumEntry( QStringLiteral( "WMSMaxHeight" ), QStringLiteral( "/" ), -1 );
   if ( maxHeight != -1 )
   {
     mMaxHeightLineEdit->setText( QString::number( maxHeight ) );
   }
 
   // WMS imageQuality
-  int imageQuality = QgsProject::instance()->readNumEntry( "WMSImageQuality", "/", -1 );
+  int imageQuality = QgsProject::instance()->readNumEntry( QStringLiteral( "WMSImageQuality" ), QStringLiteral( "/" ), -1 );
   if ( imageQuality != -1 )
   {
     mWMSImageQualitySpinBox->setValue( imageQuality );
   }
 
-  mWFSUrlLineEdit->setText( QgsProject::instance()->readEntry( "WFSUrl", "/", "" ) );
-  QStringList wfsLayerIdList = QgsProject::instance()->readListEntry( "WFSLayers", "/" );
-  QStringList wfstUpdateLayerIdList = QgsProject::instance()->readListEntry( "WFSTLayers", "Update" );
-  QStringList wfstInsertLayerIdList = QgsProject::instance()->readListEntry( "WFSTLayers", "Insert" );
-  QStringList wfstDeleteLayerIdList = QgsProject::instance()->readListEntry( "WFSTLayers", "Delete" );
+  mWFSUrlLineEdit->setText( QgsProject::instance()->readEntry( QStringLiteral( "WFSUrl" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  QStringList wfsLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "WFSLayers" ), QStringLiteral( "/" ) );
+  QStringList wfstUpdateLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Update" ) );
+  QStringList wfstInsertLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Insert" ) );
+  QStringList wfstDeleteLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Delete" ) );
 
   QSignalMapper *smPublied = new QSignalMapper( this );
   connect( smPublied, SIGNAL( mapped( int ) ), this, SLOT( cbxWFSPubliedStateChanged( int ) ) );
@@ -403,7 +591,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
       connect( cbp, SIGNAL( stateChanged( int ) ), smPublied, SLOT( map() ) );
 
       QSpinBox* psb = new QSpinBox();
-      psb->setValue( QgsProject::instance()->readNumEntry( "WFSLayersPrecision", "/" + currentLayer->id(), 8 ) );
+      psb->setValue( QgsProject::instance()->readNumEntry( QStringLiteral( "WFSLayersPrecision" ), "/" + currentLayer->id(), 8 ) );
       twWFSLayers->setCellWidget( j, 2, psb );
 
       QgsVectorLayer* vlayer = qobject_cast<QgsVectorLayer*>( currentLayer );
@@ -433,8 +621,8 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   twWFSLayers->setRowCount( j );
   twWFSLayers->verticalHeader()->setResizeMode( QHeaderView::ResizeToContents );
 
-  mWCSUrlLineEdit->setText( QgsProject::instance()->readEntry( "WCSUrl", "/", "" ) );
-  QStringList wcsLayerIdList = QgsProject::instance()->readListEntry( "WCSLayers", "/" );
+  mWCSUrlLineEdit->setText( QgsProject::instance()->readEntry( QStringLiteral( "WCSUrl" ), QStringLiteral( "/" ), QLatin1String( "" ) ) );
+  QStringList wcsLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "WCSLayers" ), QStringLiteral( "/" ) );
 
   QSignalMapper *smWcsPublied = new QSignalMapper( this );
   connect( smWcsPublied, SIGNAL( mapped( int ) ), this, SLOT( cbxWCSPubliedStateChanged( int ) ) );
@@ -473,13 +661,15 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   twWCSLayers->verticalHeader()->setResizeMode( QHeaderView::ResizeToContents );
 
   // Default Styles
-  mStyle = QgsStyleV2::defaultStyle();
+  mStyle = QgsStyle::defaultStyle();
   populateStyles();
 
   // Color palette
   connect( mButtonCopyColors, SIGNAL( clicked() ), mTreeProjectColors, SLOT( copyColors() ) );
   connect( mButtonRemoveColor, SIGNAL( clicked() ), mTreeProjectColors, SLOT( removeSelection() ) );
   connect( mButtonPasteColors, SIGNAL( clicked() ), mTreeProjectColors, SLOT( pasteColors() ) );
+  connect( mButtonImportColors, SIGNAL( clicked( bool ) ), mTreeProjectColors, SLOT( showImportColorsDialog() ) );
+  connect( mButtonExportColors, SIGNAL( clicked( bool ) ), mTreeProjectColors, SLOT( showExportColorsDialog() ) );
 
   QList<QgsProjectColorScheme *> projectSchemes;
   QgsColorSchemeRegistry::instance()->schemes( projectSchemes );
@@ -490,7 +680,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
 
 
   // Project macros
-  QString pythonMacros = QgsProject::instance()->readEntry( "Macros", "/pythonCode", QString::null );
+  QString pythonMacros = QgsProject::instance()->readEntry( QStringLiteral( "Macros" ), QStringLiteral( "/pythonCode" ), QString::null );
   grpPythonMacros->setChecked( !pythonMacros.isEmpty() );
   if ( !pythonMacros.isEmpty() )
   {
@@ -506,7 +696,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   mTabRelations->layout()->addWidget( mRelationManagerDlg );
 
   QList<QgsVectorLayer*> vectorLayers;
-  Q_FOREACH ( QgsMapLayer* mapLayer, mapLayers.values() )
+  Q_FOREACH ( QgsMapLayer* mapLayer, mapLayers )
   {
     if ( QgsMapLayer::VectorLayer == mapLayer->type() )
     {
@@ -526,6 +716,10 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
     on_cbxProjectionEnabled_toggled( myProjectionEnabled );
   }
 
+  mAutoTransaction->setChecked( QgsProject::instance()->autoTransaction() );
+  mEvaluateDefaultValues->setChecked( QgsProject::instance()->evaluateDefaultValues() );
+
+  // Variables editor
   mVariableEditor->context()->appendScope( QgsExpressionContextUtils::globalScope() );
   mVariableEditor->context()->appendScope( QgsExpressionContextUtils::projectScope() );
   mVariableEditor->reloadContext();
@@ -542,23 +736,18 @@ QgsProjectProperties::~QgsProjectProperties()
 }
 
 // return the map units
-QGis::UnitType QgsProjectProperties::mapUnits() const
+QgsUnitTypes::DistanceUnit QgsProjectProperties::mapUnits() const
 {
   return mMapCanvas->mapSettings().mapUnits();
 }
 
-void QgsProjectProperties::setMapUnits( QGis::UnitType unit )
+void QgsProjectProperties::setMapUnits( QgsUnitTypes::DistanceUnit unit )
 {
   // select the button
-  if ( unit == QGis::UnknownUnit )
+  if ( unit == QgsUnitTypes::DistanceUnknownUnit )
   {
-    unit = QGis::Meters;
+    unit = QgsUnitTypes::DistanceMeters;
   }
-
-  radMeters->setChecked( unit == QGis::Meters );
-  radFeet->setChecked( unit == QGis::Feet );
-  radNMiles->setChecked( unit == QGis::NauticalMiles );
-  radDegrees->setChecked( unit == QGis::Degrees );
 
   mMapCanvas->setMapUnits( unit );
 }
@@ -577,29 +766,9 @@ void QgsProjectProperties::title( QString const & title )
 //when user clicks apply button
 void QgsProjectProperties::apply()
 {
-  // Set the map units
-  // Note. Qt 3.2.3 and greater have a function selectedId() that
-  // can be used instead of the two part technique here
-  QGis::UnitType mapUnit;
-  if ( radDegrees->isChecked() )
-  {
-    mapUnit = QGis::Degrees;
-  }
-  else if ( radFeet->isChecked() )
-  {
-    mapUnit = QGis::Feet;
-  }
-  else if ( radNMiles->isChecked() )
-  {
-    mapUnit = QGis::NauticalMiles;
-  }
-  else
-  {
-    mapUnit = QGis::Meters;
-  }
-
-  mMapCanvas->setMapUnits( mapUnit );
   mMapCanvas->setCrsTransformEnabled( cbxProjectionEnabled->isChecked() );
+
+  mMapCanvas->enableMapTileRendering( mMapTileRenderingCheckBox->isChecked() );
 
   // Only change the projection if there is a node in the tree
   // selected that has an srid. This prevents error if the user
@@ -608,21 +777,19 @@ void QgsProjectProperties::apply()
   long myCRSID = projectionSelector->selectedCrsId();
   if ( myCRSID )
   {
-    QgsCoordinateReferenceSystem srs( myCRSID, QgsCoordinateReferenceSystem::InternalCrsId );
+    QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromSrsId( myCRSID );
     mMapCanvas->setDestinationCrs( srs );
     QgsDebugMsg( QString( "Selected CRS " ) + srs.description() );
     // write the currently selected projections _proj string_ to project settings
     QgsDebugMsg( QString( "SpatialRefSys/ProjectCRSProj4String: %1" ).arg( projectionSelector->selectedProj4String() ) );
-    QgsProject::instance()->writeEntry( "SpatialRefSys", "/ProjectCRSProj4String", projectionSelector->selectedProj4String() );
-    QgsProject::instance()->writeEntry( "SpatialRefSys", "/ProjectCRSID", ( int ) projectionSelector->selectedCrsId() );
-    QgsProject::instance()->writeEntry( "SpatialRefSys", "/ProjectCrs", projectionSelector->selectedAuthId() );
+    QgsProject::instance()->setCrs( srs );
 
     // Set the map units to the projected coordinates if we are projecting
     if ( isProjected() )
     {
       // If we couldn't get the map units, default to the value in the
       // projectproperties dialog box (set above)
-      if ( srs.mapUnits() != QGis::UnknownUnit )
+      if ( srs.mapUnits() != QgsUnitTypes::DistanceUnknownUnit )
         mMapCanvas->setMapUnits( srs.mapUnits() );
     }
 
@@ -635,25 +802,49 @@ void QgsProjectProperties::apply()
 
   // Set the project title
   QgsProject::instance()->setTitle( title() );
+  QgsProject::instance()->setAutoTransaction( mAutoTransaction->isChecked() );
+  QgsProject::instance()->setEvaluateDefaultValues( mEvaluateDefaultValues->isChecked() );
 
   // set the mouse display precision method and the
   // number of decimal places for the manual option
   // Note. Qt 3.2.3 and greater have a function selectedId() that
   // can be used instead of the two part technique here
-  QgsProject::instance()->writeEntry( "PositionPrecision", "/Automatic", radAutomatic->isChecked() );
-  QgsProject::instance()->writeEntry( "PositionPrecision", "/DecimalPlaces", spinBoxDP->value() );
-  QgsProject::instance()->writeEntry( "PositionPrecision", "/DegreeFormat",
-                                      QString( radDM->isChecked() ? "DM" : radDMS->isChecked() ? "DMS" : "D" ) );
+  QgsProject::instance()->writeEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/Automatic" ), radAutomatic->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/DecimalPlaces" ), spinBoxDP->value() );
+  QString degreeFormat;
+  switch ( static_cast< CoordinateFormat >( mCoordinateDisplayComboBox->currentData().toInt() ) )
+  {
+    case DegreesMinutes:
+      degreeFormat = QStringLiteral( "DM" );
+      break;
+    case DegreesMinutesSeconds:
+      degreeFormat = QStringLiteral( "DMS" );
+      break;
+    case MapUnits:
+      degreeFormat = QStringLiteral( "MU" );
+      break;
+    case DecimalDegrees:
+    default:
+      degreeFormat = QStringLiteral( "D" );
+      break;
+  }
+  QgsProject::instance()->writeEntry( QStringLiteral( "PositionPrecision" ), QStringLiteral( "/DegreeFormat" ), degreeFormat );
 
   // Announce that we may have a new display precision setting
   emit displayPrecisionChanged();
 
-  QgsProject::instance()->writeEntry( "Paths", "/Absolute", cbxAbsolutePath->currentIndex() == 0 );
+  QgsUnitTypes::DistanceUnit distanceUnits = static_cast< QgsUnitTypes::DistanceUnit >( mDistanceUnitsCombo->currentData().toInt() );
+  QgsProject::instance()->setDistanceUnits( distanceUnits );
 
-  if ( mEllipsoidList[ mEllipsoidIndex ].acronym.startsWith( "PARAMETER" ) )
+  QgsUnitTypes::AreaUnit areaUnits = static_cast< QgsUnitTypes::AreaUnit >( mAreaUnitsCombo->currentData().toInt() );
+  QgsProject::instance()->setAreaUnits( areaUnits );
+
+  QgsProject::instance()->writeEntry( QStringLiteral( "Paths" ), QStringLiteral( "/Absolute" ), cbxAbsolutePath->currentIndex() == 0 );
+
+  if ( mEllipsoidList.at( mEllipsoidIndex ).acronym.startsWith( QLatin1String( "PARAMETER" ) ) )
   {
-    double major = mEllipsoidList[ mEllipsoidIndex ].semiMajor;
-    double minor = mEllipsoidList[ mEllipsoidIndex ].semiMinor;
+    double major = mEllipsoidList.at( mEllipsoidIndex ).semiMajor;
+    double minor = mEllipsoidList.at( mEllipsoidIndex ).semiMinor;
     // If the user fields have changed, use them instead.
     if ( leSemiMajor->isModified() || leSemiMinor->isModified() )
     {
@@ -661,28 +852,28 @@ void QgsProjectProperties::apply()
       major = QLocale::system().toDouble( leSemiMajor->text() );
       minor = QLocale::system().toDouble( leSemiMinor->text() );
     }
-    QgsProject::instance()->writeEntry( "Measure", "/Ellipsoid", QString( "PARAMETER:%1:%2" )
-                                        .arg( major, 0, 'g', 17 )
-                                        .arg( minor, 0, 'g', 17 ) );
+    QgsProject::instance()->setEllipsoid( QStringLiteral( "PARAMETER:%1:%2" )
+                                          .arg( major, 0, 'g', 17 )
+                                          .arg( minor, 0, 'g', 17 ) );
   }
   else
   {
-    QgsProject::instance()->writeEntry( "Measure", "/Ellipsoid", mEllipsoidList[ mEllipsoidIndex ].acronym );
+    QgsProject::instance()->setEllipsoid( mEllipsoidList[ mEllipsoidIndex ].acronym );
   }
 
   //set the color for selections
   QColor myColor = pbnSelectionColor->color();
-  QgsProject::instance()->writeEntry( "Gui", "/SelectionColorRedPart", myColor.red() );
-  QgsProject::instance()->writeEntry( "Gui", "/SelectionColorGreenPart", myColor.green() );
-  QgsProject::instance()->writeEntry( "Gui", "/SelectionColorBluePart", myColor.blue() );
-  QgsProject::instance()->writeEntry( "Gui", "/SelectionColorAlphaPart", myColor.alpha() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorRedPart" ), myColor.red() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorGreenPart" ), myColor.green() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorBluePart" ), myColor.blue() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/SelectionColorAlphaPart" ), myColor.alpha() );
   mMapCanvas->setSelectionColor( myColor );
 
   //set the color for canvas
   myColor = pbnCanvasColor->color();
-  QgsProject::instance()->writeEntry( "Gui", "/CanvasColorRedPart", myColor.red() );
-  QgsProject::instance()->writeEntry( "Gui", "/CanvasColorGreenPart", myColor.green() );
-  QgsProject::instance()->writeEntry( "Gui", "/CanvasColorBluePart", myColor.blue() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorRedPart" ), myColor.red() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorGreenPart" ), myColor.green() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorBluePart" ), myColor.blue() );
   mMapCanvas->setCanvasColor( myColor );
   QgisApp::instance()->mapOverviewCanvas()->setBackgroundColor( myColor );
   QgisApp::instance()->mapOverviewCanvas()->refresh();
@@ -697,12 +888,12 @@ void QgsProjectProperties::apply()
 
   if ( !myScales.isEmpty() )
   {
-    QgsProject::instance()->writeEntry( "Scales", "/ScalesList", myScales );
-    QgsProject::instance()->writeEntry( "Scales", "/useProjectScales", grpProjectScales->isChecked() );
+    QgsProject::instance()->writeEntry( QStringLiteral( "Scales" ), QStringLiteral( "/ScalesList" ), myScales );
+    QgsProject::instance()->writeEntry( QStringLiteral( "Scales" ), QStringLiteral( "/useProjectScales" ), grpProjectScales->isChecked() );
   }
   else
   {
-    QgsProject::instance()->removeEntry( "Scales", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "Scales" ), QStringLiteral( "/" ) );
   }
 
   //use global or project scales depending on checkbox state
@@ -718,44 +909,109 @@ void QgsProjectProperties::apply()
   QStringList noIdentifyLayerList;
   for ( int i = 0; i < twIdentifyLayers->rowCount(); i++ )
   {
-    QCheckBox *cb = qobject_cast<QCheckBox *>( twIdentifyLayers->cellWidget( i, 2 ) );
-    if ( cb && !cb->isChecked() )
+    QString id = twIdentifyLayers->item( i, 0 )->data( Qt::UserRole ).toString();
+
+    if ( twIdentifyLayers->item( i, 2 )->checkState() == Qt::Unchecked )
     {
-      QString id = twIdentifyLayers->item( i, 0 )->data( Qt::UserRole ).toString();
       noIdentifyLayerList << id;
     }
+    bool readonly = twIdentifyLayers->item( i, 3 )->checkState() == Qt::Checked;
+    QgsVectorLayer* vl = qobject_cast<QgsVectorLayer*>( QgsMapLayerRegistry::instance()->mapLayer( id ) );
+    if ( vl )
+      vl->setReadOnly( readonly );
   }
 
-  QgsProject::instance()->writeEntry( "Identify", "/disabledLayers", noIdentifyLayerList );
+  QgsProject::instance()->setNonIdentifiableLayers( noIdentifyLayerList );
 
-  QgsProject::instance()->writeEntry( "WMSServiceCapabilities", "/", grpOWSServiceCapabilities->isChecked() );
-  QgsProject::instance()->writeEntry( "WMSServiceTitle", "/", mWMSTitle->text() );
-  QgsProject::instance()->writeEntry( "WMSContactOrganization", "/", mWMSContactOrganization->text() );
-  QgsProject::instance()->writeEntry( "WMSContactPerson", "/", mWMSContactPerson->text() );
-  QgsProject::instance()->writeEntry( "WMSContactMail", "/", mWMSContactMail->text() );
-  QgsProject::instance()->writeEntry( "WMSContactPhone", "/", mWMSContactPhone->text() );
-  QgsProject::instance()->writeEntry( "WMSServiceAbstract", "/", mWMSAbstract->toPlainText() );
-  QgsProject::instance()->writeEntry( "WMSOnlineResource", "/", mWMSOnlineResourceLineEdit->text() );
-  QgsProject::instance()->writeEntry( "WMSUrl", "/", mWMSUrlLineEdit->text() );
-  QgsProject::instance()->writeEntry( "WMSFees", "/", mWMSFees->text() );
-  QgsProject::instance()->writeEntry( "WMSAccessConstraints", "/", mWMSAccessConstraints->text() );
-  //WMS keyword list
-  QStringList keywordStringList = mWMSKeywordList->text().split( ',' );
-  if ( keywordStringList.size() > 0 )
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSServiceCapabilities" ), QStringLiteral( "/" ), grpOWSServiceCapabilities->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSServiceTitle" ), QStringLiteral( "/" ), mWMSTitle->text() );
+
+  if ( !mWMSName->text().isEmpty() )
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSRootName" ), QStringLiteral( "/" ), mWMSName->text() );
+
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactOrganization" ), QStringLiteral( "/" ), mWMSContactOrganization->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactPerson" ), QStringLiteral( "/" ), mWMSContactPerson->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactMail" ), QStringLiteral( "/" ), mWMSContactMail->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactPhone" ), QStringLiteral( "/" ), mWMSContactPhone->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSServiceAbstract" ), QStringLiteral( "/" ), mWMSAbstract->toPlainText() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSOnlineResource" ), QStringLiteral( "/" ), mWMSOnlineResourceLineEdit->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSUrl" ), QStringLiteral( "/" ), mWMSUrlLineEdit->text() );
+
+  // WMS Contact Position
+  int contactPositionIndex = mWMSContactPositionCb->currentIndex();
+  QString contactPositionText = mWMSContactPositionCb->currentText();
+  if ( !contactPositionText.isEmpty() && contactPositionText == mWMSContactPositionCb->itemText( contactPositionIndex ) )
   {
-    QgsProject::instance()->writeEntry( "WMSKeywordList", "/", mWMSKeywordList->text().split( ',' ) );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactPosition" ), QStringLiteral( "/" ), mWMSContactPositionCb->itemData( contactPositionIndex ).toString() );
   }
   else
   {
-    QgsProject::instance()->removeEntry( "WMSKeywordList", "/" );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSContactPosition" ), QStringLiteral( "/" ), contactPositionText );
+  }
+
+  // WMS Fees
+  int feesIndex = mWMSFeesCb->currentIndex();
+  QString feesText = mWMSFeesCb->currentText();
+  if ( !feesText.isEmpty() && feesText == mWMSFeesCb->itemText( feesIndex ) )
+  {
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSFees" ), QStringLiteral( "/" ), mWMSFeesCb->itemData( feesIndex ).toString() );
+  }
+  else
+  {
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSFees" ), QStringLiteral( "/" ), feesText );
+  }
+
+  // WMS Access Constraints
+  int accessConstraintsIndex = mWMSAccessConstraintsCb->currentIndex();
+  QString accessConstraintsText = mWMSAccessConstraintsCb->currentText();
+  if ( !accessConstraintsText.isEmpty() && accessConstraintsText == mWMSAccessConstraintsCb->itemText( accessConstraintsIndex ) )
+  {
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSAccessConstraints" ), QStringLiteral( "/" ), mWMSAccessConstraintsCb->itemData( accessConstraintsIndex ).toString() );
+  }
+  else
+  {
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSAccessConstraints" ), QStringLiteral( "/" ), accessConstraintsText );
+  }
+
+  //WMS keyword list
+  QStringList keywordStringList = mWMSKeywordList->text().split( ',' );
+  if ( !keywordStringList.isEmpty() )
+  {
+    keywordStringList.replaceInStrings( QRegExp( "^\\s+" ), QLatin1String( "" ) ).replaceInStrings( QRegExp( "\\s+$" ), QLatin1String( "" ) );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSKeywordList" ), QStringLiteral( "/" ), keywordStringList );
+  }
+  else
+  {
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSKeywordList" ), QStringLiteral( "/" ) );
+  }
+
+  // WMS INSPIRE configuration
+  QgsProject::instance()->removeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/" ) );
+  if ( mWMSInspire->isChecked() )
+  {
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/activated" ), mWMSInspire->isChecked() );
+
+    int inspireLanguageIndex = mWMSInspireLanguage->currentIndex();
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/language" ), mWMSInspireLanguage->itemData( inspireLanguageIndex ).toString() );
+
+    if ( mWMSInspireScenario1->isChecked() )
+    {
+      QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataUrl" ), mWMSInspireMetadataUrl->text() );
+      QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataUrlType" ), mWMSInspireMetadataUrlType->currentText() );
+    }
+    else if ( mWMSInspireScenario2->isChecked() )
+    {
+      QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/temporalReference" ), mWMSInspireTemporalReference->date().toString( QStringLiteral( "yyyy-MM-dd" ) ) );
+      QgsProject::instance()->writeEntry( QStringLiteral( "WMSInspire" ), QStringLiteral( "/metadataDate" ), mWMSInspireMetadataDate->date().toString( QStringLiteral( "yyyy-MM-dd" ) ) );
+    }
   }
 
   // WMS GetFeatureInfo geometry precision (decimal places)
-  QgsProject::instance()->writeEntry( "WMSPrecision", "/", mWMSPrecisionSpinBox->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSPrecision" ), QStringLiteral( "/" ), mWMSPrecisionSpinBox->text() );
 
   if ( grpWMSExt->isChecked() )
   {
-    QgsProject::instance()->writeEntry( "WMSExtent", "/",
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSExtent" ), QStringLiteral( "/" ),
                                         QStringList()
                                         << mWMSExtMinX->text()
                                         << mWMSExtMinY->text()
@@ -764,7 +1020,7 @@ void QgsProjectProperties::apply()
   }
   else
   {
-    QgsProject::instance()->removeEntry( "WMSExtent", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSExtent" ), QStringLiteral( "/" ) );
   }
 
   if ( grpWMSList->isChecked() && mWMSList->count() == 0 )
@@ -773,7 +1029,7 @@ void QgsProjectProperties::apply()
     grpWMSList->setChecked( false );
   }
 
-  QgsProject::instance()->removeEntry( "WMSEpsgList", "/" );
+  QgsProject::instance()->removeEntry( QStringLiteral( "WMSEpsgList" ), QStringLiteral( "/" ) );
 
   if ( grpWMSList->isChecked() )
   {
@@ -783,11 +1039,11 @@ void QgsProjectProperties::apply()
       crslist << mWMSList->item( i )->text();
     }
 
-    QgsProject::instance()->writeEntry( "WMSCrsList", "/", crslist );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSCrsList" ), QStringLiteral( "/" ), crslist );
   }
   else
   {
-    QgsProject::instance()->removeEntry( "WMSCrsList", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSCrsList" ), QStringLiteral( "/" ) );
   }
 
   //WMS composer restrictions
@@ -798,11 +1054,11 @@ void QgsProjectProperties::apply()
     {
       composerTitles << mComposerListWidget->item( i )->text();
     }
-    QgsProject::instance()->writeEntry( "WMSRestrictedComposers", "/", composerTitles );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSRestrictedComposers" ), QStringLiteral( "/" ), composerTitles );
   }
   else
   {
-    QgsProject::instance()->removeEntry( "WMSRestrictedComposers", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSRestrictedComposers" ), QStringLiteral( "/" ) );
   }
 
   //WMS layer restrictions
@@ -813,47 +1069,48 @@ void QgsProjectProperties::apply()
     {
       layerNames << mLayerRestrictionsListWidget->item( i )->text();
     }
-    QgsProject::instance()->writeEntry( "WMSRestrictedLayers", "/", layerNames );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSRestrictedLayers" ), QStringLiteral( "/" ), layerNames );
   }
   else
   {
-    QgsProject::instance()->removeEntry( "WMSRestrictedLayers", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSRestrictedLayers" ), QStringLiteral( "/" ) );
   }
 
-  QgsProject::instance()->writeEntry( "WMSAddWktGeometry", "/", mAddWktGeometryCheckBox->isChecked() );
-  QgsProject::instance()->writeEntry( "WMSUseLayerIDs", "/", mWmsUseLayerIDs->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSAddWktGeometry" ), QStringLiteral( "/" ), mAddWktGeometryCheckBox->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSSegmentizeFeatureInfoGeometry" ), QStringLiteral( "/" ), mSegmentizeFeatureInfoGeometryCheckBox->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WMSUseLayerIDs" ), QStringLiteral( "/" ), mWmsUseLayerIDs->isChecked() );
 
   QString maxWidthText = mMaxWidthLineEdit->text();
   if ( maxWidthText.isEmpty() )
   {
-    QgsProject::instance()->removeEntry( "WMSMaxWidth", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSMaxWidth" ), QStringLiteral( "/" ) );
   }
   else
   {
-    QgsProject::instance()->writeEntry( "WMSMaxWidth", "/", maxWidthText.toInt() );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSMaxWidth" ), QStringLiteral( "/" ), maxWidthText.toInt() );
   }
   QString maxHeightText = mMaxHeightLineEdit->text();
   if ( maxHeightText.isEmpty() )
   {
-    QgsProject::instance()->removeEntry( "WMSMaxHeight", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSMaxHeight" ), QStringLiteral( "/" ) );
   }
   else
   {
-    QgsProject::instance()->writeEntry( "WMSMaxHeight", "/", maxHeightText.toInt() );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSMaxHeight" ), QStringLiteral( "/" ), maxHeightText.toInt() );
   }
 
   // WMS Image quality
   int imageQualityValue = mWMSImageQualitySpinBox->value();
   if ( imageQualityValue == 0 )
   {
-    QgsProject::instance()->removeEntry( "WMSImageQuality", "/" );
+    QgsProject::instance()->removeEntry( QStringLiteral( "WMSImageQuality" ), QStringLiteral( "/" ) );
   }
   else
   {
-    QgsProject::instance()->writeEntry( "WMSImageQuality", "/", imageQualityValue );
+    QgsProject::instance()->writeEntry( QStringLiteral( "WMSImageQuality" ), QStringLiteral( "/" ), imageQualityValue );
   }
 
-  QgsProject::instance()->writeEntry( "WFSUrl", "/", mWFSUrlLineEdit->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WFSUrl" ), QStringLiteral( "/" ), mWFSUrlLineEdit->text() );
   QStringList wfsLayerList;
   QStringList wfstUpdateLayerList;
   QStringList wfstInsertLayerList;
@@ -868,7 +1125,7 @@ void QgsProjectProperties::apply()
       wfsLayerList << id;
 
       QSpinBox* sb = qobject_cast<QSpinBox *>( twWFSLayers->cellWidget( i, 2 ) );
-      QgsProject::instance()->writeEntry( "WFSLayersPrecision", "/" + id, sb->value() );
+      QgsProject::instance()->writeEntry( QStringLiteral( "WFSLayersPrecision" ), "/" + id, sb->value() );
 
       cb = qobject_cast<QCheckBox *>( twWFSLayers->cellWidget( i, 3 ) );
       if ( cb && cb->isChecked() )
@@ -887,12 +1144,12 @@ void QgsProjectProperties::apply()
       }
     }
   }
-  QgsProject::instance()->writeEntry( "WFSLayers", "/", wfsLayerList );
-  QgsProject::instance()->writeEntry( "WFSTLayers", "Update", wfstUpdateLayerList );
-  QgsProject::instance()->writeEntry( "WFSTLayers", "Insert", wfstInsertLayerList );
-  QgsProject::instance()->writeEntry( "WFSTLayers", "Delete", wfstDeleteLayerList );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WFSLayers" ), QStringLiteral( "/" ), wfsLayerList );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Update" ), wfstUpdateLayerList );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Insert" ), wfstInsertLayerList );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WFSTLayers" ), QStringLiteral( "Delete" ), wfstDeleteLayerList );
 
-  QgsProject::instance()->writeEntry( "WCSUrl", "/", mWCSUrlLineEdit->text() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WCSUrl" ), QStringLiteral( "/" ), mWCSUrlLineEdit->text() );
   QStringList wcsLayerList;
   for ( int i = 0; i < twWCSLayers->rowCount(); i++ )
   {
@@ -904,15 +1161,15 @@ void QgsProjectProperties::apply()
       wcsLayerList << id;
     }
   }
-  QgsProject::instance()->writeEntry( "WCSLayers", "/", wcsLayerList );
+  QgsProject::instance()->writeEntry( QStringLiteral( "WCSLayers" ), QStringLiteral( "/" ), wcsLayerList );
 
   // Default Styles
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/Marker", cboStyleMarker->currentText() );
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/Line", cboStyleLine->currentText() );
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/Fill", cboStyleFill->currentText() );
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/ColorRamp", cboStyleColorRamp->currentText() );
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/AlphaInt", ( int )( 255 - ( mTransparencySlider->value() * 2.55 ) ) );
-  QgsProject::instance()->writeEntry( "DefaultStyles", "/RandomColors", cbxStyleRandomColors->isChecked() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Marker" ), cboStyleMarker->currentText() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Line" ), cboStyleLine->currentText() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Fill" ), cboStyleFill->currentText() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/ColorRamp" ), cboStyleColorRamp->currentText() );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/AlphaInt" ), ( int )( 255 - ( mTransparencySlider->value() * 2.55 ) ) );
+  QgsProject::instance()->writeEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/RandomColors" ), cbxStyleRandomColors->isChecked() );
   if ( mTreeProjectColors->isDirty() )
   {
     mTreeProjectColors->saveColorsToScheme();
@@ -925,12 +1182,12 @@ void QgsProjectProperties::apply()
     pythonMacros = QString::null;
     resetPythonMacros();
   }
-  QgsProject::instance()->writeEntry( "Macros", "/pythonCode", pythonMacros );
+  QgsProject::instance()->writeEntry( QStringLiteral( "Macros" ), QStringLiteral( "/pythonCode" ), pythonMacros );
 
   QgsProject::instance()->relationManager()->setRelations( mRelationManagerDlg->relations() );
 
   //save variables
-  QgsExpressionContextUtils::setProjectVariables( mVariableEditor->variablesInActiveScope() );
+  QgsProject::instance()->setVariables( mVariableEditor->variablesInActiveScope() );
 
   emit refresh();
 }
@@ -947,8 +1204,6 @@ void QgsProjectProperties::showProjectionsTab()
 
 void QgsProjectProperties::on_cbxProjectionEnabled_toggled( bool onFlyEnabled )
 {
-  QString measureOnFlyState = tr( "Measure tool (CRS transformation: %1)" );
-  QString unitsOnFlyState = tr( "Canvas units (CRS transformation: %1)" );
   if ( !onFlyEnabled )
   {
     // reset projection to default
@@ -958,7 +1213,7 @@ void QgsProjectProperties::on_cbxProjectionEnabled_toggled( bool onFlyEnabled )
     {
       mLayerSrsId = mMapCanvas->currentLayer()->crs().srsid();
     }
-    else if ( mapLayers.size() > 0 )
+    else if ( !mapLayers.isEmpty() )
     {
       mLayerSrsId = mapLayers.begin().value()->crs().srsid();
     }
@@ -969,20 +1224,8 @@ void QgsProjectProperties::on_cbxProjectionEnabled_toggled( bool onFlyEnabled )
     mProjectSrsId = mLayerSrsId;
     projectionSelector->setSelectedCrsId( mLayerSrsId );
 
-    QgsCoordinateReferenceSystem srs( mLayerSrsId, QgsCoordinateReferenceSystem::InternalCrsId );
-    //set radio button to crs map unit type
-    QGis::UnitType units = srs.mapUnits();
-
-    radMeters->setChecked( units == QGis::Meters );
-    radFeet->setChecked( units == QGis::Feet );
-    radNMiles->setChecked( units == QGis::NauticalMiles );
-    radDegrees->setChecked( units == QGis::Degrees );
-
     // unset ellipsoid
     mEllipsoidIndex = 0;
-
-    btnGrpMeasureEllipsoid->setTitle( measureOnFlyState.arg( tr( "OFF" ) ) );
-    btnGrpMapUnits->setTitle( unitsOnFlyState.arg( tr( "OFF" ) ) );
   }
   else
   {
@@ -991,16 +1234,12 @@ void QgsProjectProperties::on_cbxProjectionEnabled_toggled( bool onFlyEnabled )
       mLayerSrsId = projectionSelector->selectedCrsId();
     }
     projectionSelector->setSelectedCrsId( mProjectSrsId );
-
-    btnGrpMeasureEllipsoid->setTitle( measureOnFlyState.arg( tr( "ON" ) ) );
-    btnGrpMapUnits->setTitle( unitsOnFlyState.arg( tr( "ON" ) ) );
   }
 
-  setMapUnitsToCurrentProjection();
+  srIdUpdated();
 
   // Enable/Disable selector and update tool-tip
   updateEllipsoidUI( mEllipsoidIndex ); // maybe already done by setMapUnitsToCurrentProjection
-
 }
 
 void QgsProjectProperties::cbxWFSPubliedStateChanged( int aIdx )
@@ -1037,20 +1276,39 @@ void QgsProjectProperties::cbxWCSPubliedStateChanged( int aIdx )
   }
 }
 
-void QgsProjectProperties::setMapUnitsToCurrentProjection()
+void QgsProjectProperties::updateGuiForMapUnits( QgsUnitTypes::DistanceUnit units )
+{
+  //make sure map units option is shown in coordinate display combo
+  int idx = mCoordinateDisplayComboBox->findData( MapUnits );
+  QString mapUnitString = tr( "Map units (%1)" ).arg( QgsUnitTypes::toString( units ) );
+  mCoordinateDisplayComboBox->setItemText( idx, mapUnitString );
+
+  //also update unit combo boxes
+  idx = mDistanceUnitsCombo->findData( QgsUnitTypes::DistanceUnknownUnit );
+  if ( idx >= 0 )
+  {
+    QString mapUnitString = tr( "Map units (%1)" ).arg( QgsUnitTypes::toString( units ) );
+    mDistanceUnitsCombo->setItemText( idx, mapUnitString );
+  }
+  idx = mAreaUnitsCombo->findData( QgsUnitTypes::AreaUnknownUnit );
+  if ( idx >= 0 )
+  {
+    QString mapUnitString = tr( "Map units (%1)" ).arg( QgsUnitTypes::toString( QgsUnitTypes::distanceToAreaUnit( units ) ) );
+    mAreaUnitsCombo->setItemText( idx, mapUnitString );
+  }
+}
+
+void QgsProjectProperties::srIdUpdated()
 {
   long myCRSID = projectionSelector->selectedCrsId();
   if ( !isProjected() || !myCRSID )
     return;
 
-  QgsCoordinateReferenceSystem srs( myCRSID, QgsCoordinateReferenceSystem::InternalCrsId );
+  QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromSrsId( myCRSID );
   //set radio button to crs map unit type
-  QGis::UnitType units = srs.mapUnits();
+  QgsUnitTypes::DistanceUnit units = srs.mapUnits();
 
-  radMeters->setChecked( units == QGis::Meters );
-  radFeet->setChecked( units == QGis::Feet );
-  radNMiles->setChecked( units == QGis::NauticalMiles );
-  radDegrees->setChecked( units == QGis::Degrees );
+  updateGuiForMapUnits( units );
 
   // attempt to reset the projection ellipsoid according to the srs
   int myIndex = 0;
@@ -1104,7 +1362,7 @@ void QgsProjectProperties::on_pbnWMSAddSRS_clicked()
     QString authid = mySelector->selectedAuthId();
 
     QList<QListWidgetItem *> items = mWMSList->findItems( authid.mid( 5 ), Qt::MatchFixedString );
-    if ( items.size() == 0 )
+    if ( items.isEmpty() )
     {
       mWMSList->addItem( authid );
     }
@@ -1139,7 +1397,7 @@ void QgsProjectProperties::on_pbnWMSSetUsedSRS_clicked()
 
   if ( cbxProjectionEnabled->isChecked() )
   {
-    QgsCoordinateReferenceSystem srs( projectionSelector->selectedCrsId(), QgsCoordinateReferenceSystem::InternalCrsId );
+    QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromSrsId( projectionSelector->selectedCrsId() );
     crsList << srs.authid();
   }
 
@@ -1229,6 +1487,20 @@ void QgsProjectProperties::on_pbnWFSLayersSelectAll_clicked()
   }
 }
 
+void QgsProjectProperties::on_mWMSInspireScenario1_toggled( bool on )
+{
+  mWMSInspireScenario2->blockSignals( true );
+  mWMSInspireScenario2->setChecked( !on );
+  mWMSInspireScenario2->blockSignals( false );
+}
+
+void QgsProjectProperties::on_mWMSInspireScenario2_toggled( bool on )
+{
+  mWMSInspireScenario1->blockSignals( true );
+  mWMSInspireScenario1->setChecked( !on );
+  mWMSInspireScenario1->blockSignals( false );
+}
+
 void QgsProjectProperties::on_pbnWFSLayersUnselectAll_clicked()
 {
   for ( int i = 0; i < twWFSLayers->rowCount(); i++ )
@@ -1256,6 +1528,63 @@ void QgsProjectProperties::on_pbnWCSLayersUnselectAll_clicked()
   }
 }
 
+void QgsProjectProperties::on_pbnLaunchOWSChecker_clicked()
+{
+  QString myStyle = QgsApplication::reportStyleSheet();
+  teOWSChecker->clear();
+  teOWSChecker->document()->setDefaultStyleSheet( myStyle );
+  teOWSChecker->setHtml( "<h1>" + tr( "Start checking QGIS Server" ) + "</h1>" );
+
+  QStringList owsNames, encodingMessages;
+  checkOWS( QgisApp::instance()->layerTreeView()->layerTreeModel()->rootGroup(), owsNames, encodingMessages );
+
+  QStringList duplicateNames, regExpMessages;
+  QRegExp snRegExp = QgsApplication::shortNameRegExp();
+  Q_FOREACH ( const QString& name, owsNames )
+  {
+    if ( !snRegExp.exactMatch( name ) )
+      regExpMessages << tr( "Use short name for \"%1\"" ).arg( name );
+    if ( duplicateNames.contains( name ) )
+      continue;
+    if ( owsNames.count( name ) > 1 )
+      duplicateNames << name;
+  }
+
+  if ( duplicateNames.size() != 0 )
+  {
+    QString nameMessage = "<h1>" + tr( "Some layers and groups have the same name or short name" ) + "</h1>";
+    nameMessage += "<h2>" + tr( "Duplicate names:" ) + "</h2>";
+    nameMessage += duplicateNames.join( QStringLiteral( "</li><li>" ) ) + "</li></ul>";
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + nameMessage );
+  }
+  else
+  {
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + "<h1>" + tr( "All names and short names of layer and group are unique" ) + "</h1>" );
+  }
+
+  if ( regExpMessages.size() != 0 )
+  {
+    QString encodingMessage = "<h1>" + tr( "Some layer short names have to be updated:" ) + "</h1><ul><li>" + regExpMessages.join( QStringLiteral( "</li><li>" ) ) + "</li></ul>";
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + encodingMessage );
+  }
+  else
+  {
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + "<h1>" + tr( "All layer short names are well formed" ) + "</h1>" );
+  }
+
+  if ( encodingMessages.size() != 0 )
+  {
+    QString encodingMessage = "<h1>" + tr( "Some layer encodings are not set:" ) + "</h1><ul><li>" + encodingMessages.join( QStringLiteral( "</li><li>" ) ) + "</li></ul>";
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + encodingMessage );
+  }
+  else
+  {
+    teOWSChecker->setHtml( teOWSChecker->toHtml() + "<h1>" + tr( "All layer encodings are set" ) + "</h1>" );
+  }
+
+  teOWSChecker->setHtml( teOWSChecker->toHtml() + "<h1>" + tr( "Start checking QGIS Server" ) + "</h1>" );
+}
+
 void QgsProjectProperties::on_pbnAddScale_clicked()
 {
   int myScale = QInputDialog::getInt(
@@ -1268,10 +1597,7 @@ void QgsProjectProperties::on_pbnAddScale_clicked()
 
   if ( myScale != -1 )
   {
-    QListWidgetItem* newItem = new QListWidgetItem( lstScales );
-    newItem->setText( QString( "1:%1" ).arg( myScale ) );
-    newItem->setFlags( Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-    lstScales->addItem( newItem );
+    QListWidgetItem* newItem = addScaleToScaleList( QStringLiteral( "1:%1" ).arg( myScale ) );
     lstScales->setCurrentItem( newItem );
   }
 }
@@ -1285,7 +1611,7 @@ void QgsProjectProperties::on_pbnRemoveScale_clicked()
 
 void QgsProjectProperties::on_pbnImportScales_clicked()
 {
-  QString fileName = QFileDialog::getOpenFileName( this, tr( "Load scales" ), ".",
+  QString fileName = QFileDialog::getOpenFileName( this, tr( "Load scales" ), QDir::homePath(),
                      tr( "XML files (*.xml *.XML)" ) );
   if ( fileName.isEmpty() )
   {
@@ -1299,19 +1625,15 @@ void QgsProjectProperties::on_pbnImportScales_clicked()
     QgsDebugMsg( msg );
   }
 
-  QStringList::const_iterator scaleIt = myScales.constBegin();
-  for ( ; scaleIt != myScales.constEnd(); ++scaleIt )
+  Q_FOREACH ( const QString& scale, myScales )
   {
-    QListWidgetItem* newItem = new QListWidgetItem( lstScales );
-    newItem->setText( *scaleIt );
-    newItem->setFlags( Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-    lstScales->addItem( newItem );
+    addScaleToScaleList( scale );
   }
 }
 
 void QgsProjectProperties::on_pbnExportScales_clicked()
 {
-  QString fileName = QFileDialog::getSaveFileName( this, tr( "Save scales" ), ".",
+  QString fileName = QFileDialog::getSaveFileName( this, tr( "Save scales" ), QDir::homePath(),
                      tr( "XML files (*.xml *.XML)" ) );
   if ( fileName.isEmpty() )
   {
@@ -1319,9 +1641,9 @@ void QgsProjectProperties::on_pbnExportScales_clicked()
   }
 
   // ensure the user never ommited the extension from the file name
-  if ( !fileName.toLower().endsWith( ".xml" ) )
+  if ( !fileName.endsWith( QLatin1String( ".xml" ), Qt::CaseInsensitive ) )
   {
-    fileName += ".xml";
+    fileName += QLatin1String( ".xml" );
   }
 
   QStringList myScales;
@@ -1339,23 +1661,23 @@ void QgsProjectProperties::on_pbnExportScales_clicked()
 
 void QgsProjectProperties::populateStyles()
 {
-  // Styles - taken from qgsstylev2managerdialog
+  // Styles - taken from qgsstylemanagerdialog
 
   // use QComboBox and QString lists for shorter code
   QStringList prefList;
   QList<QComboBox*> cboList;
   cboList << cboStyleMarker;
-  prefList << QgsProject::instance()->readEntry( "DefaultStyles", "/Marker", "" );
+  prefList << QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Marker" ), QLatin1String( "" ) );
   cboList << cboStyleLine;
-  prefList << QgsProject::instance()->readEntry( "DefaultStyles", "/Line", "" );
+  prefList << QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Line" ), QLatin1String( "" ) );
   cboList << cboStyleFill;
-  prefList << QgsProject::instance()->readEntry( "DefaultStyles", "/Fill", "" );
+  prefList << QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/Fill" ), QLatin1String( "" ) );
   cboList << cboStyleColorRamp;
-  prefList << QgsProject::instance()->readEntry( "DefaultStyles", "/ColorRamp", "" );
+  prefList << QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/ColorRamp" ), QLatin1String( "" ) );
   for ( int i = 0; i < cboList.count(); i++ )
   {
     cboList[i]->clear();
-    cboList[i]->addItem( "" );
+    cboList[i]->addItem( QLatin1String( "" ) );
   }
 
   // populate symbols
@@ -1363,23 +1685,26 @@ void QgsProjectProperties::populateStyles()
   for ( int i = 0; i < symbolNames.count(); ++i )
   {
     QString name = symbolNames[i];
-    QgsSymbolV2* symbol = mStyle->symbol( name );
-    QComboBox* cbo = 0;
+    QgsSymbol* symbol = mStyle->symbol( name );
+    QComboBox* cbo = nullptr;
     switch ( symbol->type() )
     {
-      case QgsSymbolV2::Marker :
+      case QgsSymbol::Marker :
         cbo = cboStyleMarker;
         break;
-      case QgsSymbolV2::Line :
+      case QgsSymbol::Line :
         cbo = cboStyleLine;
         break;
-      case QgsSymbolV2::Fill :
+      case QgsSymbol::Fill :
         cbo = cboStyleFill;
+        break;
+      case QgsSymbol::Hybrid:
+        // Shouldn't get here
         break;
     }
     if ( cbo )
     {
-      QIcon icon = QgsSymbolLayerV2Utils::symbolPreviewIcon( symbol, cbo->iconSize() );
+      QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( symbol, cbo->iconSize() );
       cbo->addItem( icon, name );
     }
     delete symbol;
@@ -1390,10 +1715,9 @@ void QgsProjectProperties::populateStyles()
   for ( int i = 0; i < colorRamps.count(); ++i )
   {
     QString name = colorRamps[i];
-    QgsVectorColorRampV2* ramp = mStyle->colorRamp( name );
-    QIcon icon = QgsSymbolLayerV2Utils::colorRampPreviewIcon( ramp, cboStyleColorRamp->iconSize() );
+    QScopedPointer< QgsColorRamp > ramp( mStyle->colorRamp( name ) );
+    QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.data(), cboStyleColorRamp->iconSize() );
     cboStyleColorRamp->addItem( icon, name );
-    delete ramp;
   }
 
   // set current index if found
@@ -1405,16 +1729,16 @@ void QgsProjectProperties::populateStyles()
   }
 
   // random colors
-  cbxStyleRandomColors->setChecked( QgsProject::instance()->readBoolEntry( "DefaultStyles", "/RandomColors", true ) );
+  cbxStyleRandomColors->setChecked( QgsProject::instance()->readBoolEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/RandomColors" ), true ) );
 
   // alpha transparency
-  int transparencyInt = ( 255 - QgsProject::instance()->readNumEntry( "DefaultStyles", "/AlphaInt", 255 ) ) / 2.55;
+  int transparencyInt = ( 255 - QgsProject::instance()->readNumEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/AlphaInt" ), 255 ) ) / 2.55;
   mTransparencySlider->setValue( transparencyInt );
 }
 
 void QgsProjectProperties::on_pbtnStyleManager_clicked()
 {
-  QgsStyleV2ManagerDialog dlg( mStyle, this );
+  QgsStyleManagerDialog dlg( mStyle, this );
   dlg.exec();
   populateStyles();
 }
@@ -1437,7 +1761,7 @@ void QgsProjectProperties::on_pbtnStyleFill_clicked()
 void QgsProjectProperties::on_pbtnStyleColorRamp_clicked()
 {
   // TODO for now just open style manager
-  // code in QgsStyleV2ManagerDialog::editColorRamp()
+  // code in QgsStyleManagerDialog::editColorRamp()
   on_pbtnStyleManager_clicked();
 }
 
@@ -1458,20 +1782,20 @@ void QgsProjectProperties::on_mTransparencySpinBox_valueChanged( int value )
 void QgsProjectProperties::editSymbol( QComboBox* cbo )
 {
   QString symbolName = cbo->currentText();
-  if ( symbolName == "" )
+  if ( symbolName.isEmpty() )
   {
-    QMessageBox::information( this, "", tr( "Select a valid symbol" ) );
+    QMessageBox::information( this, QLatin1String( "" ), tr( "Select a valid symbol" ) );
     return;
   }
-  QgsSymbolV2* symbol = mStyle->symbol( symbolName );
+  QgsSymbol* symbol = mStyle->symbol( symbolName );
   if ( ! symbol )
   {
-    QMessageBox::warning( this, "", tr( "Invalid symbol : " ) + symbolName );
+    QMessageBox::warning( this, QLatin1String( "" ), tr( "Invalid symbol : " ) + symbolName );
     return;
   }
 
   // let the user edit the symbol and update list when done
-  QgsSymbolV2SelectorDialog dlg( symbol, mStyle, 0, this );
+  QgsSymbolSelectorDialog dlg( symbol, mStyle, nullptr, this );
   if ( dlg.exec() == 0 )
   {
     delete symbol;
@@ -1482,7 +1806,7 @@ void QgsProjectProperties::editSymbol( QComboBox* cbo )
   mStyle->addSymbol( symbolName, symbol );
 
   // update icon
-  QIcon icon = QgsSymbolLayerV2Utils::symbolPreviewIcon( symbol, cbo->iconSize() );
+  QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( symbol, cbo->iconSize() );
   cbo->setItemIcon( cbo->currentIndex(), icon );
 }
 
@@ -1492,6 +1816,41 @@ void QgsProjectProperties::resetPythonMacros()
   ptePythonMacros->setText( "def openProject():\n    pass\n\n" \
                             "def saveProject():\n    pass\n\n" \
                             "def closeProject():\n    pass\n" );
+}
+
+void QgsProjectProperties::checkOWS( QgsLayerTreeGroup* treeGroup, QStringList& owsNames, QStringList& encodingMessages )
+{
+  QList< QgsLayerTreeNode * > treeGroupChildren = treeGroup->children();
+  for ( int i = 0; i < treeGroupChildren.size(); ++i )
+  {
+    QgsLayerTreeNode* treeNode = treeGroupChildren.at( i );
+    if ( treeNode->nodeType() == QgsLayerTreeNode::NodeGroup )
+    {
+      QgsLayerTreeGroup* treeGroupChild = static_cast<QgsLayerTreeGroup *>( treeNode );
+      QString shortName = treeGroupChild->customProperty( QStringLiteral( "wmsShortName" ) ).toString();
+      if ( shortName.isEmpty() )
+        owsNames << treeGroupChild->name();
+      else
+        owsNames << shortName;
+      checkOWS( treeGroupChild, owsNames, encodingMessages );
+    }
+    else
+    {
+      QgsLayerTreeLayer* treeLayer = static_cast<QgsLayerTreeLayer *>( treeNode );
+      QgsMapLayer* l = treeLayer->layer();
+      QString shortName = l->shortName();
+      if ( shortName.isEmpty() )
+        owsNames << l->name();
+      else
+        owsNames << shortName;
+      if ( l->type() == QgsMapLayer::VectorLayer )
+      {
+        QgsVectorLayer* vl = static_cast<QgsVectorLayer *>( l );
+        if ( vl->dataProvider()->encoding() == QLatin1String( "System" ) )
+          encodingMessages << tr( "Update layer \"%1\" encoding" ).arg( l->name() );
+      }
+    }
+  }
 }
 
 void QgsProjectProperties::populateEllipsoidList()
@@ -1511,14 +1870,14 @@ void QgsProjectProperties::populateEllipsoidList()
   myItem.semiMinor = 0.0;
   mEllipsoidList.append( myItem );
 
-  myItem.acronym = QLatin1String( "PARAMETER:6370997:6370997" );
+  myItem.acronym = QStringLiteral( "PARAMETER:6370997:6370997" );
   myItem.description = tr( "Parameters:" );
   myItem.semiMajor = 6370997.0;
   myItem.semiMinor = 6370997.0;
   mEllipsoidList.append( myItem );
 
   //check the db is available
-  myResult = sqlite3_open_v2( QgsApplication::srsDbFilePath().toUtf8().data(), &myDatabase, SQLITE_OPEN_READONLY, NULL );
+  myResult = sqlite3_open_v2( QgsApplication::srsDbFilePath().toUtf8().data(), &myDatabase, SQLITE_OPEN_READONLY, nullptr );
   if ( myResult )
   {
     QgsDebugMsg( QString( "Can't open database: %1" ).arg( sqlite3_errmsg( myDatabase ) ) );
@@ -1528,7 +1887,7 @@ void QgsProjectProperties::populateEllipsoidList()
   }
 
   // Set up the query to retrieve the projection information needed to populate the ELLIPSOID list
-  QString mySql = "select acronym, name, radius, parameter2 from tbl_ellipsoid order by name";
+  QString mySql = QStringLiteral( "select acronym, name, radius, parameter2 from tbl_ellipsoid order by name" );
   myResult = sqlite3_prepare( myDatabase, mySql.toUtf8(), mySql.toUtf8().length(), &myPreparedStatement, &myTail );
   // XXX Need to free memory from the error msg if one is set
   if ( myResult == SQLITE_OK )
@@ -1548,14 +1907,14 @@ void QgsProjectProperties::populateEllipsoidList()
       // Crash if no column?
       para1 = ( const char * )sqlite3_column_text( myPreparedStatement, 2 );
       para2 = ( const char * )sqlite3_column_text( myPreparedStatement, 3 );
-      myItem.semiMajor = para1.mid( 2 ).toDouble();
-      if ( para2.left( 2 ) == "b=" )
+      myItem.semiMajor = para1.midRef( 2 ).toDouble();
+      if ( para2.left( 2 ) == QLatin1String( "b=" ) )
       {
-        myItem.semiMinor = para2.mid( 2 ).toDouble();
+        myItem.semiMinor = para2.midRef( 2 ).toDouble();
       }
-      else if ( para2.left( 3 ) == "rf=" )
+      else if ( para2.left( 3 ) == QLatin1String( "rf=" ) )
       {
-        double invFlattening = para2.mid( 3 ).toDouble();
+        double invFlattening = para2.midRef( 3 ).toDouble();
         if ( invFlattening != 0.0 )
         {
           myItem.semiMinor = myItem.semiMajor - ( myItem.semiMajor / invFlattening );
@@ -1588,8 +1947,8 @@ void QgsProjectProperties::updateEllipsoidUI( int newIndex )
   // Pre-select current ellipsoid
 
   // Check if CRS transformation is on, or else turn everything off
-  double myMajor =  mEllipsoidList[ newIndex ].semiMajor;
-  double myMinor =  mEllipsoidList[ newIndex ].semiMinor;
+  double myMajor =  mEllipsoidList.at( newIndex ).semiMajor;
+  double myMinor =  mEllipsoidList.at( newIndex ).semiMinor;
 
   // If user has modified the radii (only possible if parametric!), before
   // changing ellipsoid, save the modified coordinates
@@ -1603,13 +1962,13 @@ void QgsProjectProperties::updateEllipsoidUI( int newIndex )
   mEllipsoidIndex = newIndex;
   leSemiMajor->setEnabled( false );
   leSemiMinor->setEnabled( false );
-  leSemiMajor->setText( "" );
-  leSemiMinor->setText( "" );
+  leSemiMajor->setText( QLatin1String( "" ) );
+  leSemiMinor->setText( QLatin1String( "" ) );
   if ( cbxProjectionEnabled->isChecked() )
   {
     cmbEllipsoid->setEnabled( true );
-    cmbEllipsoid->setToolTip( "" );
-    if ( mEllipsoidList[ mEllipsoidIndex ].acronym.startsWith( "PARAMETER:" ) )
+    cmbEllipsoid->setToolTip( QLatin1String( "" ) );
+    if ( mEllipsoidList.at( mEllipsoidIndex ).acronym.startsWith( QLatin1String( "PARAMETER:" ) ) )
     {
       leSemiMajor->setEnabled( true );
       leSemiMinor->setEnabled( true );
@@ -1638,12 +1997,12 @@ void QgsProjectProperties::projectionSelectorInitialized()
   QgsDebugMsg( "Setting up ellipsoid" );
 
   // Reading ellipsoid from setttings
-  QStringList mySplitEllipsoid = QgsProject::instance()->readEntry( "Measure", "/Ellipsoid", GEO_NONE ).split( ':' );
+  QStringList mySplitEllipsoid = QgsProject::instance()->ellipsoid().split( ':' );
 
   int myIndex = 0;
   for ( int i = 0; i < mEllipsoidList.length(); i++ )
   {
-    if ( mEllipsoidList[ i ].acronym.startsWith( mySplitEllipsoid[ 0 ] ) )
+    if ( mEllipsoidList.at( i ).acronym.startsWith( mySplitEllipsoid[ 0 ] ) )
     {
       myIndex = i;
       break;
@@ -1662,70 +2021,63 @@ void QgsProjectProperties::projectionSelectorInitialized()
 
 void QgsProjectProperties::on_mButtonAddColor_clicked()
 {
-  QColor newColor = QgsColorDialogV2::getColor( QColor(), this->parentWidget(), tr( "Select Color" ), true );
+  QColor newColor = QgsColorDialog::getColor( QColor(), this->parentWidget(), tr( "Select Color" ), true );
   if ( !newColor.isValid() )
   {
     return;
   }
   activateWindow();
 
-  mTreeProjectColors->addColor( newColor, QgsSymbolLayerV2Utils::colorToName( newColor ) );
+  mTreeProjectColors->addColor( newColor, QgsSymbolLayerUtils::colorToName( newColor ) );
 }
 
-void QgsProjectProperties::on_mButtonImportColors_clicked()
+QListWidgetItem* QgsProjectProperties::addScaleToScaleList( const QString &newScale )
 {
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", "" ).toString();
-  QString filePath = QFileDialog::getOpenFileName( this, tr( "Select palette file" ), lastDir, "GPL (*.gpl);;All files (*.*)" );
-  activateWindow();
-  if ( filePath.isEmpty() )
-  {
-    return;
-  }
-
-  //check if file exists
-  QFileInfo fileInfo( filePath );
-  if ( !fileInfo.exists() || !fileInfo.isReadable() )
-  {
-    QMessageBox::critical( 0, tr( "Invalid file" ), tr( "Error, file does not exist or is not readable" ) );
-    return;
-  }
-
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-  QFile file( filePath );
-  bool importOk = mTreeProjectColors->importColorsFromGpl( file );
-  if ( !importOk )
-  {
-    QMessageBox::critical( 0, tr( "Invalid file" ), tr( "Error, no colors found in palette file" ) );
-    return;
-  }
+  // TODO QGIS3: Rework the scale list widget to be a reusable piece of code, see PR #2558
+  QListWidgetItem* newItem = new QListWidgetItem( newScale );
+  addScaleToScaleList( newItem );
+  return newItem;
 }
 
-void QgsProjectProperties::on_mButtonExportColors_clicked()
+void QgsProjectProperties::addScaleToScaleList( QListWidgetItem* newItem )
 {
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", "" ).toString();
-  QString fileName = QFileDialog::getSaveFileName( this, tr( "Palette file" ), lastDir, "GPL (*.gpl)" );
-  activateWindow();
-  if ( fileName.isEmpty() )
+  // If the new scale already exists, delete it.
+  QListWidgetItem* duplicateItem = lstScales->findItems( newItem->text(), Qt::MatchExactly ).value( 0 );
+  delete duplicateItem;
+
+  int newDenominator = newItem->text().split( QStringLiteral( ":" ) ).value( 1 ).toInt();
+  int i;
+  for ( i = 0; i < lstScales->count(); i++ )
   {
-    return;
+    int denominator = lstScales->item( i )->text().split( QStringLiteral( ":" ) ).value( 1 ).toInt();
+    if ( newDenominator > denominator )
+      break;
   }
 
-  // ensure filename contains extension
-  if ( !fileName.toLower().endsWith( ".gpl" ) )
+  newItem->setData( Qt::UserRole, newItem->text() );
+  newItem->setFlags( Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable );
+  lstScales->insertItem( i, newItem );
+}
+
+void QgsProjectProperties::scaleItemChanged( QListWidgetItem* changedScaleItem )
+{
+  // Check if the new value is valid, restore the old value if not.
+  QRegExp regExp( "1:0*[1-9]\\d*" );
+  if ( regExp.exactMatch( changedScaleItem->text() ) )
   {
-    fileName += ".gpl";
+    //Remove leading zeroes from the denominator
+    regExp.setPattern( QStringLiteral( "1:0*" ) );
+    changedScaleItem->setText( changedScaleItem->text().replace( regExp, QStringLiteral( "1:" ) ) );
+  }
+  else
+  {
+    QMessageBox::warning( this, tr( "Invalid scale" ), tr( "The text you entered is not a valid scale." ) );
+    changedScaleItem->setText( changedScaleItem->data( Qt::UserRole ).toString() );
   }
 
-  QFileInfo fileInfo( fileName );
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-
-  QFile file( fileName );
-  bool exportOk = mTreeProjectColors->exportColorsToGpl( file );
-  if ( !exportOk )
-  {
-    QMessageBox::critical( 0, tr( "Error exporting" ), tr( "Error writing palette file" ) );
-    return;
-  }
+  // Take the changed item out of the list and re-add it. This keeps things ordered and creates correct meta-data for the changed item.
+  int row = lstScales->row( changedScaleItem );
+  lstScales->takeItem( row );
+  addScaleToScaleList( changedScaleItem );
+  lstScales->setCurrentItem( changedScaleItem );
 }

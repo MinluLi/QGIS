@@ -27,9 +27,6 @@
 #include <QSettings>
 #include <QScrollArea>
 
-QIcon QgsCollapsibleGroupBoxBasic::mCollapseIcon;
-QIcon QgsCollapsibleGroupBoxBasic::mExpandIcon;
-
 QgsCollapsibleGroupBoxBasic::QgsCollapsibleGroupBoxBasic( QWidget *parent )
     : QGroupBox( parent )
 {
@@ -45,35 +42,30 @@ QgsCollapsibleGroupBoxBasic::QgsCollapsibleGroupBoxBasic( const QString &title,
 
 QgsCollapsibleGroupBoxBasic::~QgsCollapsibleGroupBoxBasic()
 {
-  //QgsDebugMsg( "Entered" );
 }
 
 void QgsCollapsibleGroupBoxBasic::init()
 {
-  //QgsDebugMsg( "Entered" );
   // variables
   mCollapsed = false;
   mInitFlat = false;
   mInitFlatChecked = false;
   mScrollOnExpand = true;
   mShown = false;
-  mParentScrollArea = 0;
-  mSyncParent = 0;
-  mSyncGroup = "";
+  mParentScrollArea = nullptr;
+  mSyncParent = nullptr;
+  mSyncGroup = QLatin1String( "" );
   mAltDown = false;
   mShiftDown = false;
   mTitleClicked = false;
 
   // init icons
-  if ( mCollapseIcon.isNull() )
-  {
-    mCollapseIcon = QgsApplication::getThemeIcon( "/mIconCollapse.png" );
-    mExpandIcon = QgsApplication::getThemeIcon( "/mIconExpand.png" );
-  }
+  mCollapseIcon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconCollapse.png" ) );
+  mExpandIcon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconExpand.png" ) );
 
   // collapse button
   mCollapseButton = new QgsGroupBoxCollapseButton( this );
-  mCollapseButton->setObjectName( "collapseButton" );
+  mCollapseButton->setObjectName( QStringLiteral( "collapseButton" ) );
   mCollapseButton->setAutoRaise( true );
   mCollapseButton->setFixedSize( 16, 16 );
   // TODO set size (as well as margins) depending on theme, in updateStyle()
@@ -89,7 +81,6 @@ void QgsCollapsibleGroupBoxBasic::init()
 
 void QgsCollapsibleGroupBoxBasic::showEvent( QShowEvent * event )
 {
-  //QgsDebugMsg( "Entered" );
   // initialise widget on first show event only
   if ( mShown )
   {
@@ -108,7 +99,7 @@ void QgsCollapsibleGroupBoxBasic::showEvent( QShowEvent * event )
   if ( parent() && parent()->parent() )
     mParentScrollArea = dynamic_cast<QScrollArea*>( parent()->parent()->parent() );
   else
-    mParentScrollArea = 0;
+    mParentScrollArea = nullptr;
   if ( mParentScrollArea )
   {
     QgsDebugMsg( "found a QScrollArea parent: " + mParentScrollArea->objectName() );
@@ -262,7 +253,7 @@ void QgsCollapsibleGroupBoxBasic::toggleCollapsed()
     }
     else
     {
-      mSyncParent = 0;
+      mSyncParent = nullptr;
     }
 
     if ( mSyncParent )
@@ -314,7 +305,7 @@ void QgsCollapsibleGroupBoxBasic::updateStyle()
 
   QSettings settings;
   // NOTE: QGIS-Style groupbox styled in app stylesheet
-  bool usingQgsStyle = settings.value( "qgis/stylesheet/groupBoxCustom", QVariant( false ) ).toBool();
+  bool usingQgsStyle = settings.value( QStringLiteral( "qgis/stylesheet/groupBoxCustom" ), QVariant( false ) ).toBool();
 
   QStyleOptionGroupBox box;
   initStyleOption( &box );
@@ -326,7 +317,7 @@ void QgsCollapsibleGroupBoxBasic::updateStyle()
   int marginLeft = 20;  // title margin for disclosure triangle
   int marginRight = 5;  // a little bit of space on the right, to match space on the left
   int offsetLeft = 0;   // offset for oxygen theme
-  int offsetStyle = QApplication::style()->objectName().contains( "macintosh" ) ? ( usingQgsStyle ? 1 : 8 ) : 0;
+  int offsetStyle = QApplication::style()->objectName().contains( QLatin1String( "macintosh" ) ) ? ( usingQgsStyle ? 1 : 8 ) : 0;
   int topBuffer = ( usingQgsStyle ? 3 : 1 ) + offsetStyle; // space between top of title or triangle and widget above
   int offsetTop =  topBuffer;
   int offsetTopTri = topBuffer; // offset for triangle
@@ -343,7 +334,7 @@ void QgsCollapsibleGroupBoxBasic::updateStyle()
 
   // calculate offset if frame overlaps triangle (oxygen theme)
   // using an offset of 6 pixels from frame border
-  if ( QApplication::style()->objectName().toLower() == "oxygen" )
+  if ( QApplication::style()->objectName().toLower() == QLatin1String( "oxygen" ) )
   {
     QStyleOptionGroupBox box;
     initStyleOption( &box );
@@ -375,31 +366,31 @@ void QgsCollapsibleGroupBoxBasic::updateStyle()
 
   // customize style sheet for collapse/expand button and force left-aligned title
   QString ss;
-  if ( usingQgsStyle || QApplication::style()->objectName().contains( "macintosh" ) )
+  if ( usingQgsStyle || QApplication::style()->objectName().contains( QLatin1String( "macintosh" ) ) )
   {
-    ss += "QgsCollapsibleGroupBoxBasic, QgsCollapsibleGroupBox {";
-    ss += QString( "  margin-top: %1px;" ).arg( topBuffer + ( usingQgsStyle ? rectTitle.height() + 5 : rectFrame.top() ) );
+    ss += QLatin1String( "QgsCollapsibleGroupBoxBasic, QgsCollapsibleGroupBox {" );
+    ss += QStringLiteral( "  margin-top: %1px;" ).arg( topBuffer + ( usingQgsStyle ? rectTitle.height() + 5 : rectFrame.top() ) );
     ss += '}';
   }
-  ss += "QgsCollapsibleGroupBoxBasic::title, QgsCollapsibleGroupBox::title {";
-  ss += "  subcontrol-origin: margin;";
-  ss += "  subcontrol-position: top left;";
-  ss += QString( "  margin-left: %1px;" ).arg( marginLeft );
-  ss += QString( "  margin-right: %1px;" ).arg( marginRight );
-  ss += QString( "  left: %1px;" ).arg( offsetLeft );
-  ss += QString( "  top: %1px;" ).arg( offsetTop );
-  if ( QApplication::style()->objectName().contains( "macintosh" ) )
+  ss += QLatin1String( "QgsCollapsibleGroupBoxBasic::title, QgsCollapsibleGroupBox::title {" );
+  ss += QLatin1String( "  subcontrol-origin: margin;" );
+  ss += QLatin1String( "  subcontrol-position: top left;" );
+  ss += QStringLiteral( "  margin-left: %1px;" ).arg( marginLeft );
+  ss += QStringLiteral( "  margin-right: %1px;" ).arg( marginRight );
+  ss += QStringLiteral( "  left: %1px;" ).arg( offsetLeft );
+  ss += QStringLiteral( "  top: %1px;" ).arg( offsetTop );
+  if ( QApplication::style()->objectName().contains( QLatin1String( "macintosh" ) ) )
   {
-    ss += "  background-color: rgba(0,0,0,0)";
+    ss += QLatin1String( "  background-color: rgba(0,0,0,0)" );
   }
   ss += '}';
   setStyleSheet( ss );
 
   // clear toolbutton default background and border and apply offset
   QString ssd;
-  ssd = QString( "QgsCollapsibleGroupBoxBasic > QToolButton#%1, QgsCollapsibleGroupBox > QToolButton#%1 {" ).arg( mCollapseButton->objectName() );
-  ssd += "  background-color: rgba(255, 255, 255, 0); border: none;";
-  ssd += QString( "} QgsCollapsibleGroupBoxBasic > QToolButton#%1:focus, QgsCollapsibleGroupBox > QToolButton#%1:focus {  border: 1px solid palette(highlight); }" ).arg( mCollapseButton->objectName() );
+  ssd = QStringLiteral( "QgsCollapsibleGroupBoxBasic > QToolButton#%1, QgsCollapsibleGroupBox > QToolButton#%1 {" ).arg( mCollapseButton->objectName() );
+  ssd += QLatin1String( "  background-color: rgba(255, 255, 255, 0); border: none;" );
+  ssd += QStringLiteral( "} QgsCollapsibleGroupBoxBasic > QToolButton#%1:focus, QgsCollapsibleGroupBox > QToolButton#%1:focus {  border: 1px solid palette(highlight); }" ).arg( mCollapseButton->objectName() );
   mCollapseButton->setStyleSheet( ssd );
   if ( offsetLeft != 0 || offsetTopTri != 0 )
     mCollapseButton->move( offsetLeft, offsetTopTri );
@@ -408,6 +399,7 @@ void QgsCollapsibleGroupBoxBasic::updateStyle()
 
 void QgsCollapsibleGroupBoxBasic::setCollapsed( bool collapse )
 {
+  bool changed = collapse != mCollapsed;
   mCollapsed = collapse;
 
   if ( !isVisible() )
@@ -444,7 +436,8 @@ void QgsCollapsibleGroupBoxBasic::setCollapsed( bool collapse )
     mParentScrollArea->setUpdatesEnabled( true );
   }
   // emit signal for connections using collapsed state
-  emit collapsedStateChanged( isCollapsed() );
+  if ( changed )
+    emit collapsedStateChanged( isCollapsed() );
 }
 
 void QgsCollapsibleGroupBoxBasic::collapseExpandFixes()
@@ -482,25 +475,26 @@ void QgsCollapsibleGroupBoxBasic::collapseExpandFixes()
 // ----
 
 QgsCollapsibleGroupBox::QgsCollapsibleGroupBox( QWidget *parent, QSettings* settings )
-    : QgsCollapsibleGroupBoxBasic( parent ), mSettings( settings )
+    : QgsCollapsibleGroupBoxBasic( parent )
+    , mSettings( settings )
 {
   init();
 }
 
 QgsCollapsibleGroupBox::QgsCollapsibleGroupBox( const QString &title,
     QWidget *parent, QSettings* settings )
-    : QgsCollapsibleGroupBoxBasic( title, parent ), mSettings( settings )
+    : QgsCollapsibleGroupBoxBasic( title, parent )
+    , mSettings( settings )
 {
   init();
 }
 
 QgsCollapsibleGroupBox::~QgsCollapsibleGroupBox()
 {
-  //QgsDebugMsg( "Entered" );
   saveState();
   if ( mDelSettings ) // local settings obj to delete
     delete mSettings;
-  mSettings = 0; // null the pointer (in case of outside settings obj)
+  mSettings = nullptr; // null the pointer (in case of outside settings obj)
 }
 
 void QgsCollapsibleGroupBox::setSettings( QSettings* settings )
@@ -514,7 +508,6 @@ void QgsCollapsibleGroupBox::setSettings( QSettings* settings )
 
 void QgsCollapsibleGroupBox::init()
 {
-  //QgsDebugMsg( "Entered" );
   // use pointer to app qsettings if no custom qsettings specified
   // custom qsettings object may be from Python plugin
   mDelSettings = false;
@@ -528,12 +521,11 @@ void QgsCollapsibleGroupBox::init()
   // NOTE: only turn on mSaveCheckedState for groupboxes NOT used
   // in multiple places or used as options for different parent objects
   mSaveCheckedState = false;
-  mSettingGroup = ""; // if not set, use window object name
+  mSettingGroup = QLatin1String( "" ); // if not set, use window object name
 }
 
 void QgsCollapsibleGroupBox::showEvent( QShowEvent * event )
 {
-  //QgsDebugMsg( "Entered" );
   // initialise widget on first show event only
   if ( mShown )
   {
@@ -559,12 +551,12 @@ QString QgsCollapsibleGroupBox::saveKey() const
   // currently QgsCollapsibleGroupBox/window()/object
   QString saveKey = '/' + objectName();
   // QObject* parentWidget = parent();
-  // while ( parentWidget != NULL )
+  // while ( parentWidget )
   // {
   //   saveKey = "/" + parentWidget->objectName() + saveKey;
   //   parentWidget = parentWidget->parent();
   // }
-  // if ( parent() != NULL )
+  // if ( parent() )
   //   saveKey = "/" + parent()->objectName() + saveKey;
   QString setgrp = mSettingGroup.isEmpty() ? window()->objectName() : mSettingGroup;
   saveKey = '/' + setgrp + saveKey;
@@ -574,7 +566,6 @@ QString QgsCollapsibleGroupBox::saveKey() const
 
 void QgsCollapsibleGroupBox::loadState()
 {
-  //QgsDebugMsg( "Entered" );
   if ( !mSettings )
     return;
 
@@ -603,7 +594,6 @@ void QgsCollapsibleGroupBox::loadState()
 
 void QgsCollapsibleGroupBox::saveState() const
 {
-  //QgsDebugMsg( "Entered" );
   if ( !mSettings )
     return;
 

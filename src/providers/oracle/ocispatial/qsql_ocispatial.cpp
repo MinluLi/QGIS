@@ -94,6 +94,10 @@
 #define QOCISPATIAL_THREADED
 
 
+#if QT_VERSION >= 0x050000
+Q_DECLARE_OPAQUE_POINTER( OCIEnv* )
+Q_DECLARE_OPAQUE_POINTER( OCIStmt* )
+#endif
 Q_DECLARE_METATYPE( OCIEnv* )
 Q_DECLARE_METATYPE( OCIStmt* )
 
@@ -658,6 +662,7 @@ int QOCISpatialResultPrivate::bindValue( OCIStmt *sql, OCIBind **hbnd, OCIError 
                           ba.data(),
                           ba.capacity(),
                           SQLT_STR, indPtr, tmpSize, 0, 0, 0, OCI_DEFAULT );
+        tmpStorage.append( ba );
       }
       else
       {
@@ -669,7 +674,6 @@ int QOCISpatialResultPrivate::bindValue( OCIStmt *sql, OCIBind **hbnd, OCIError 
       }
       if ( r == OCI_SUCCESS )
         setCharset( *hbnd, OCI_HTYPE_BIND );
-      tmpStorage.append( ba );
       break;
     } // default case
   } // switch
@@ -778,7 +782,7 @@ QOCISpatialDriverPrivate::QOCISpatialDriverPrivate()
     , err( 0 )
     , transaction( false )
     , serverVersion( -1 )
-    , prefetchRows( -1 )
+    , prefetchRows( 0xffffffff )
     , prefetchMem( QOCISPATIAL_PREFETCH_MEM )
     , geometryTDO( 0 )
 {
@@ -814,6 +818,7 @@ OCIType *QOCISpatialDriverPrivate::tdo( QString type )
   }
   catch ( int r )
   {
+    Q_UNUSED( r );
     return 0;
   }
 
@@ -1977,7 +1982,7 @@ bool QOCISpatialCols::execBatch( QOCISpatialResultPrivate *d, QVector<QVariant> 
           case QVariant::String:
           {
             const QString s = val.toString();
-            columns[i].lengths[row] = ( s.length() + 1 ) * sizeof( QChar );
+            columns[i].lengths[row] = ( ub2 )( s.length() + 1 ) * sizeof( QChar );
             memcpy( dataPtr, s.utf16(), columns[i].lengths[row] );
             break;
           }
@@ -2524,7 +2529,7 @@ bool QOCISpatialCols::convertToWkb( QVariant &v, int index )
     }
 
     Q_ASSERT( nPoints % nDims == 0 );
-    Q_ASSERT( iType == gtMultipoint || nPoints == nDims );
+    Q_ASSERT( iType == gtMultiPoint || nPoints == nDims );
 
     int wkbSize = 0;
 
@@ -2695,7 +2700,7 @@ bool QOCISpatialCols::convertToWkb( QVariant &v, int index )
     }
 
     Q_ASSERT( nPolygons > 0 );
-    Q_ASSERT( nRings.size() >= nPolygons );
+    Q_ASSERT( nRings >= nPolygons );
     Q_ASSERT( nPoints % nDims == 0 );
 
     qDebug() << "polygon" << nPolygons << "rings" << nRings << "points" << nPoints;
@@ -3075,7 +3080,18 @@ int QOCISpatialResult::numRowsAffected()
 bool QOCISpatialResult::prepare( const QString& query )
 {
   ENTER
-  qDebug() << "prepare(" << query << ")";
+
+  static int sDebugLevel = -1;
+  if ( sDebugLevel < 0 )
+  {
+    if ( getenv( "QGIS_DEBUG" ) )
+      sDebugLevel = atoi( getenv( "QGIS_DEBUG" ) );
+    else
+      sDebugLevel = 0;
+  }
+
+  if ( sDebugLevel >= 4 )
+    qDebug() << "prepare(" << query << ")";
 
   int r = 0;
   QSqlResult::prepare( query );
@@ -3147,9 +3163,7 @@ bool QOCISpatialResult::exec()
     qOraWarning( "Unable to get statement type:", d->err );
     setLastError( qMakeError( QCoreApplication::translate( "QOCISpatialResult",
                               "Unable to get statement type" ), QSqlError::StatementError, d->err ) );
-#ifdef QOCISPATIAL_DEBUG
-    qDebug() << "lastQuery()" << lastQuery();
-#endif
+    qWarning( "type retrieval failed with statement:%s", lastQuery().toLocal8Bit().constData() );
     return false;
   }
 
@@ -3173,9 +3187,7 @@ bool QOCISpatialResult::exec()
     qOraWarning( "unable to bind value: ", d->err );
     setLastError( qMakeError( QCoreApplication::translate( "QOCISpatialResult", "Unable to bind value" ),
                               QSqlError::StatementError, d->err ) );
-#ifdef QOCISPATIAL_DEBUG
-    qDebug() << "lastQuery()" << lastQuery();
-#endif
+    qWarning( "bind failed with statement:%s", lastQuery().toLocal8Bit().constData() );
     return false;
   }
 
@@ -3186,9 +3198,7 @@ bool QOCISpatialResult::exec()
     qOraWarning( "unable to execute statement:", d->err );
     setLastError( qMakeError( QCoreApplication::translate( "QOCISpatialResult",
                               "Unable to execute statement" ), QSqlError::StatementError, d->err ) );
-#ifdef QOCISPATIAL_DEBUG
-    qDebug() << "lastQuery()" << lastQuery();
-#endif
+    qWarning( "execution failed with statement:%s", lastQuery().toLocal8Bit().constData() );
     return false;
   }
 
@@ -3252,9 +3262,11 @@ void QOCISpatialResult::virtual_hook( int id, void *data )
 
   switch ( id )
   {
+#if QT_VERSION < 0x050000
     case QSqlResult::BatchOperation:
       QOCISpatialCols::execBatch( d, boundValues(), *reinterpret_cast<bool *>( data ) );
       break;
+#endif
     default:
       QSqlCachedResult::virtual_hook( id, data );
   }
@@ -3344,6 +3356,9 @@ bool QOCISpatialDriver::hasFeature( DriverFeature f ) const
     case EventNotifications:
     case FinishQuery:
     case MultipleResultSets:
+#if QT_VERSION >= 0x050000
+    case CancelQuery:
+#endif
       return false;
     case Unicode:
       return d->serverVersion >= 9;
@@ -3372,13 +3387,13 @@ static void qParseOpts( const QString &options, QOCISpatialDriverPrivate *d )
     {
       d->prefetchRows = val.toInt( &ok );
       if ( !ok )
-        d->prefetchRows = -1;
+        d->prefetchRows = 0xffffffff;
     }
     else if ( opt == QLatin1String( "OCI_ATTR_PREFETCH_MEMORY" ) )
     {
       d->prefetchMem = val.toInt( &ok );
       if ( !ok )
-        d->prefetchMem = -1;
+        d->prefetchMem = 0xffff;
     }
     else
     {
@@ -3427,7 +3442,7 @@ bool QOCISpatialDriver::open( const QString & db,
     r = OCIAttrSet( d->authp, OCI_HTYPE_SESSION, const_cast<ushort *>( password.utf16() ),
                     password.length() * sizeof( QChar ), OCI_ATTR_PASSWORD, d->err );
 
-  OCITrans* trans;
+  OCITrans *trans = nullptr;
   if ( r == OCI_SUCCESS )
     r = OCIHandleAlloc( d->env, reinterpret_cast<void **>( &trans ), OCI_HTYPE_TRANS, 0, 0 );
   if ( r == OCI_SUCCESS )

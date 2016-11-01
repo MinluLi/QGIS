@@ -18,6 +18,7 @@
 #include <QtAlgorithms>
 
 #include "qgsatlascomposition.h"
+#include "qgsfeatureiterator.h"
 #include "qgsvectorlayer.h"
 #include "qgscomposermap.h"
 #include "qgscomposition.h"
@@ -29,13 +30,14 @@
 #include "qgsmessagelog.h"
 #include "qgsexpressioncontext.h"
 #include "qgscrscache.h"
+#include "qgsmapsettings.h"
 
 QgsAtlasComposition::QgsAtlasComposition( QgsComposition* composition )
     : mComposition( composition )
     , mEnabled( false )
     , mHideCoverage( false )
-    , mFilenamePattern( "'output_'||@atlas_featurenumber" )
-    , mCoverageLayer( 0 )
+    , mFilenamePattern( QStringLiteral( "'output_'||@atlas_featurenumber" ) )
+    , mCoverageLayer( nullptr )
     , mSingleFile( false )
     , mSortFeatures( false )
     , mSortAscending( true )
@@ -76,7 +78,7 @@ void QgsAtlasComposition::removeLayers( const QStringList& layers )
     if ( layerId == mCoverageLayer->id() )
     {
       //current coverage layer removed
-      mCoverageLayer = 0;
+      mCoverageLayer = nullptr;
       setEnabled( false );
       return;
     }
@@ -102,91 +104,27 @@ QString QgsAtlasComposition::nameForPage( int pageNumber ) const
   return mFeatureIds.at( pageNumber ).second;
 }
 
-QgsComposerMap* QgsAtlasComposition::composerMap() const
-{
-  //deprecated method. Until removed just return the first atlas-enabled composer map
-
-  //build a list of composer maps
-  QList<QgsComposerMap*> maps;
-  mComposition->composerItems( maps );
-  for ( QList<QgsComposerMap*>::iterator mit = maps.begin(); mit != maps.end(); ++mit )
-  {
-    QgsComposerMap* currentMap = ( *mit );
-    if ( currentMap->atlasDriven() )
-    {
-      return currentMap;
-    }
-  }
-
-  return 0;
-}
-
-void QgsAtlasComposition::setComposerMap( QgsComposerMap* map )
-{
-  //deprecated
-
-  if ( !map )
-  {
-    return;
-  }
-
-  map->setAtlasDriven( true );
-}
-
-
-int QgsAtlasComposition::sortKeyAttributeIndex() const
-{
-  if ( !mCoverageLayer )
-  {
-    return -1;
-  }
-  return mCoverageLayer->fieldNameIndex( mSortKeyAttributeName );
-}
-
-void QgsAtlasComposition::setSortKeyAttributeIndex( int idx )
-{
-  if ( mCoverageLayer )
-  {
-    const QgsFields fields = mCoverageLayer->fields();
-    if ( idx >= 0 && idx < fields.count() )
-    {
-      mSortKeyAttributeName = fields[idx].name();
-      return;
-    }
-  }
-  mSortKeyAttributeName = "";
-}
-
-//
-// Private class only used for the sorting of features
+/// @cond PRIVATE
 class FieldSorter
 {
   public:
-    FieldSorter( QgsAtlasComposition::SorterKeys& keys, bool ascending = true ) : mKeys( keys ), mAscending( ascending ) {}
+    FieldSorter( QgsAtlasComposition::SorterKeys& keys, bool ascending = true )
+        : mKeys( keys )
+        , mAscending( ascending )
+    {}
 
     bool operator()( const QPair< QgsFeatureId, QString > & id1, const QPair< QgsFeatureId, QString >& id2 )
     {
-      bool result = true;
-
-      if ( mKeys[ id1.first ].type() == QVariant::Int )
-      {
-        result = mKeys[ id1.first ].toInt() < mKeys[ id2.first ].toInt();
-      }
-      else if ( mKeys[ id1.first ].type() == QVariant::Double )
-      {
-        result = mKeys[ id1.first ].toDouble() < mKeys[ id2.first ].toDouble();
-      }
-      else if ( mKeys[ id1.first ].type() == QVariant::String )
-      {
-        result = ( QString::localeAwareCompare( mKeys[ id1.first ].toString(), mKeys[ id2.first ].toString() ) < 0 );
-      }
-
-      return mAscending ? result : !result;
+      return mAscending ? qgsVariantLessThan( mKeys.value( id1.first ), mKeys.value( id2.first ) )
+             : qgsVariantGreaterThan( mKeys.value( id1.first ), mKeys.value( id2.first ) );
     }
+
   private:
     QgsAtlasComposition::SorterKeys& mKeys;
     bool mAscending;
 };
+
+/// @endcond
 
 int QgsAtlasComposition::updateFeatures()
 {
@@ -227,9 +165,12 @@ int QgsAtlasComposition::updateFeatures()
     nameExpression.reset( new QgsExpression( mPageNameExpression ) );
     if ( nameExpression->hasParserError() )
     {
-      nameExpression.reset( 0 );
+      nameExpression.reset( nullptr );
     }
-    nameExpression->prepare( &expressionContext );
+    else
+    {
+      nameExpression->prepare( &expressionContext );
+    }
   }
 
   // We cannot use nextFeature() directly since the feature pointer is rewinded by the rendering process
@@ -237,7 +178,7 @@ int QgsAtlasComposition::updateFeatures()
   QgsFeature feat;
   mFeatureIds.clear();
   mFeatureKeys.clear();
-  int sortIdx = mCoverageLayer->fieldNameIndex( mSortKeyAttributeName );
+  int sortIdx = mCoverageLayer->fields().lookupField( mSortKeyAttributeName );
 
   while ( fit.nextFeature( feat ) )
   {
@@ -263,7 +204,7 @@ int QgsAtlasComposition::updateFeatures()
   }
 
   // sort features, if asked for
-  if ( mFeatureKeys.count() )
+  if ( !mFeatureKeys.isEmpty() )
   {
     FieldSorter sorter( mFeatureKeys, mSortAscending );
     qSort( mFeatureIds.begin(), mFeatureIds.end(), sorter );
@@ -312,7 +253,7 @@ void QgsAtlasComposition::endRender()
     return;
   }
 
-  emit featureChanged( 0 );
+  emit featureChanged( nullptr );
 
   updateAtlasMaps();
 
@@ -408,7 +349,7 @@ bool QgsAtlasComposition::prepareForFeature( const int featureI, const bool upda
     return false;
   }
 
-  if ( mFeatureIds.size() == 0 )
+  if ( mFeatureIds.isEmpty() )
   {
     emit statusMsgChanged( tr( "No matching atlas features" ) );
     return false;
@@ -469,7 +410,7 @@ bool QgsAtlasComposition::prepareForFeature( const int featureI, const bool upda
     atlasMaps << currentMap;
   }
 
-  if ( atlasMaps.count() > 0 )
+  if ( !atlasMaps.isEmpty() )
   {
     //clear the transformed bounds of the previous feature
     mTransformedFeatureBounds = QgsRectangle();
@@ -508,7 +449,7 @@ void QgsAtlasComposition::computeExtent( QgsComposerMap* map )
 
 void QgsAtlasComposition::prepareMap( QgsComposerMap* map )
 {
-  if ( !map->atlasDriven() || mCoverageLayer->wkbType() == QGis::WKBNoGeometry )
+  if ( !map->atlasDriven() || mCoverageLayer->wkbType() == QgsWkbTypes::NoGeometry )
   {
     return;
   }
@@ -531,10 +472,10 @@ void QgsAtlasComposition::prepareMap( QgsComposerMap* map )
   bool isPointLayer = false;
   switch ( mCoverageLayer->wkbType() )
   {
-    case QGis::WKBPoint:
-    case QGis::WKBPoint25D:
-    case QGis::WKBMultiPoint:
-    case QGis::WKBMultiPoint25D:
+    case QgsWkbTypes::Point:
+    case QgsWkbTypes::Point25D:
+    case QgsWkbTypes::MultiPoint:
+    case QgsWkbTypes::MultiPoint25D:
       isPointLayer = true;
       break;
     default:
@@ -639,10 +580,10 @@ QString QgsAtlasComposition::currentFilename() const
   return mCurrentFilename;
 }
 
-void QgsAtlasComposition::writeXML( QDomElement& elem, QDomDocument& doc ) const
+void QgsAtlasComposition::writeXml( QDomElement& elem, QDomDocument& doc ) const
 {
-  QDomElement atlasElem = doc.createElement( "Atlas" );
-  atlasElem.setAttribute( "enabled", mEnabled ? "true" : "false" );
+  QDomElement atlasElem = doc.createElement( QStringLiteral( "Atlas" ) );
+  atlasElem.setAttribute( QStringLiteral( "enabled" ), mEnabled ? "true" : "false" );
   if ( !mEnabled )
   {
     return;
@@ -650,36 +591,36 @@ void QgsAtlasComposition::writeXML( QDomElement& elem, QDomDocument& doc ) const
 
   if ( mCoverageLayer )
   {
-    atlasElem.setAttribute( "coverageLayer", mCoverageLayer->id() );
+    atlasElem.setAttribute( QStringLiteral( "coverageLayer" ), mCoverageLayer->id() );
   }
   else
   {
-    atlasElem.setAttribute( "coverageLayer", "" );
+    atlasElem.setAttribute( QStringLiteral( "coverageLayer" ), QLatin1String( "" ) );
   }
 
-  atlasElem.setAttribute( "hideCoverage", mHideCoverage ? "true" : "false" );
-  atlasElem.setAttribute( "singleFile", mSingleFile ? "true" : "false" );
-  atlasElem.setAttribute( "filenamePattern", mFilenamePattern );
-  atlasElem.setAttribute( "pageNameExpression", mPageNameExpression );
+  atlasElem.setAttribute( QStringLiteral( "hideCoverage" ), mHideCoverage ? "true" : "false" );
+  atlasElem.setAttribute( QStringLiteral( "singleFile" ), mSingleFile ? "true" : "false" );
+  atlasElem.setAttribute( QStringLiteral( "filenamePattern" ), mFilenamePattern );
+  atlasElem.setAttribute( QStringLiteral( "pageNameExpression" ), mPageNameExpression );
 
-  atlasElem.setAttribute( "sortFeatures", mSortFeatures ? "true" : "false" );
+  atlasElem.setAttribute( QStringLiteral( "sortFeatures" ), mSortFeatures ? "true" : "false" );
   if ( mSortFeatures )
   {
-    atlasElem.setAttribute( "sortKey", mSortKeyAttributeName );
-    atlasElem.setAttribute( "sortAscending", mSortAscending ? "true" : "false" );
+    atlasElem.setAttribute( QStringLiteral( "sortKey" ), mSortKeyAttributeName );
+    atlasElem.setAttribute( QStringLiteral( "sortAscending" ), mSortAscending ? "true" : "false" );
   }
-  atlasElem.setAttribute( "filterFeatures", mFilterFeatures ? "true" : "false" );
+  atlasElem.setAttribute( QStringLiteral( "filterFeatures" ), mFilterFeatures ? "true" : "false" );
   if ( mFilterFeatures )
   {
-    atlasElem.setAttribute( "featureFilter", mFeatureFilter );
+    atlasElem.setAttribute( QStringLiteral( "featureFilter" ), mFeatureFilter );
   }
 
   elem.appendChild( atlasElem );
 }
 
-void QgsAtlasComposition::readXML( const QDomElement& atlasElem, const QDomDocument& )
+void QgsAtlasComposition::readXml( const QDomElement& atlasElem, const QDomDocument& )
 {
-  mEnabled = atlasElem.attribute( "enabled", "false" ) == "true" ? true : false;
+  mEnabled = atlasElem.attribute( QStringLiteral( "enabled" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
   emit toggled( mEnabled );
   if ( !mEnabled )
   {
@@ -688,25 +629,25 @@ void QgsAtlasComposition::readXML( const QDomElement& atlasElem, const QDomDocum
   }
 
   // look for stored layer name
-  mCoverageLayer = 0;
+  mCoverageLayer = nullptr;
   QMap<QString, QgsMapLayer*> layers = QgsMapLayerRegistry::instance()->mapLayers();
   for ( QMap<QString, QgsMapLayer*>::const_iterator it = layers.begin(); it != layers.end(); ++it )
   {
-    if ( it.key() == atlasElem.attribute( "coverageLayer" ) )
+    if ( it.key() == atlasElem.attribute( QStringLiteral( "coverageLayer" ) ) )
     {
       mCoverageLayer = dynamic_cast<QgsVectorLayer*>( it.value() );
       break;
     }
   }
 
-  mPageNameExpression = atlasElem.attribute( "pageNameExpression", QString() );
-  mSingleFile = atlasElem.attribute( "singleFile", "false" ) == "true" ? true : false;
-  mFilenamePattern = atlasElem.attribute( "filenamePattern", "" );
+  mPageNameExpression = atlasElem.attribute( QStringLiteral( "pageNameExpression" ), QString() );
+  mSingleFile = atlasElem.attribute( QStringLiteral( "singleFile" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
+  mFilenamePattern = atlasElem.attribute( QStringLiteral( "filenamePattern" ), QLatin1String( "" ) );
 
-  mSortFeatures = atlasElem.attribute( "sortFeatures", "false" ) == "true" ? true : false;
+  mSortFeatures = atlasElem.attribute( QStringLiteral( "sortFeatures" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
   if ( mSortFeatures )
   {
-    mSortKeyAttributeName = atlasElem.attribute( "sortKey", "" );
+    mSortKeyAttributeName = atlasElem.attribute( QStringLiteral( "sortKey" ), QLatin1String( "" ) );
     // since 2.3, the field name is saved instead of the field index
     // following code keeps compatibility with version 2.2 projects
     // to be removed in QGIS 3.0
@@ -714,31 +655,31 @@ void QgsAtlasComposition::readXML( const QDomElement& atlasElem, const QDomDocum
     int idx = mSortKeyAttributeName.toInt( &isIndex );
     if ( isIndex && mCoverageLayer )
     {
-      const QgsFields fields = mCoverageLayer->fields();
+      QgsFields fields = mCoverageLayer->fields();
       if ( idx >= 0 && idx < fields.count() )
       {
-        mSortKeyAttributeName = fields[idx].name();
+        mSortKeyAttributeName = fields.at( idx ).name();
       }
     }
-    mSortAscending = atlasElem.attribute( "sortAscending", "true" ) == "true" ? true : false;
+    mSortAscending = atlasElem.attribute( QStringLiteral( "sortAscending" ), QStringLiteral( "true" ) ) == QLatin1String( "true" ) ? true : false;
   }
-  mFilterFeatures = atlasElem.attribute( "filterFeatures", "false" ) == "true" ? true : false;
+  mFilterFeatures = atlasElem.attribute( QStringLiteral( "filterFeatures" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
   if ( mFilterFeatures )
   {
-    mFeatureFilter = atlasElem.attribute( "featureFilter", "" );
+    mFeatureFilter = atlasElem.attribute( QStringLiteral( "featureFilter" ), QLatin1String( "" ) );
   }
 
-  mHideCoverage = atlasElem.attribute( "hideCoverage", "false" ) == "true" ? true : false;
+  mHideCoverage = atlasElem.attribute( QStringLiteral( "hideCoverage" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
 
   emit parameterChanged();
 }
 
-void QgsAtlasComposition::readXMLMapSettings( const QDomElement &elem, const QDomDocument &doc )
+void QgsAtlasComposition::readXmlMapSettings( const QDomElement &elem, const QDomDocument &doc )
 {
   Q_UNUSED( doc );
   //look for stored composer map, to upgrade pre 2.1 projects
-  int composerMapNo = elem.attribute( "composerMap", "-1" ).toInt();
-  QgsComposerMap * composerMap = 0;
+  int composerMapNo = elem.attribute( QStringLiteral( "composerMap" ), QStringLiteral( "-1" ) ).toInt();
+  QgsComposerMap * composerMap = nullptr;
   if ( composerMapNo != -1 )
   {
     QList<QgsComposerMap*> maps;
@@ -755,12 +696,12 @@ void QgsAtlasComposition::readXMLMapSettings( const QDomElement &elem, const QDo
   }
 
   //upgrade pre 2.1 projects
-  double margin = elem.attribute( "margin", "0.0" ).toDouble();
-  if ( composerMap && margin != 0 )
+  double margin = elem.attribute( QStringLiteral( "margin" ), QStringLiteral( "0.0" ) ).toDouble();
+  if ( composerMap && !qgsDoubleNear( margin, 0.0 ) )
   {
     composerMap->setAtlasMargin( margin );
   }
-  bool fixedScale = elem.attribute( "fixedScale", "false" ) == "true" ? true : false;
+  bool fixedScale = elem.attribute( QStringLiteral( "fixedScale" ), QStringLiteral( "false" ) ) == QLatin1String( "true" ) ? true : false;
   if ( composerMap && fixedScale )
   {
     composerMap->setAtlasScalingMode( QgsComposerMap::Fixed );
@@ -812,7 +753,7 @@ bool QgsAtlasComposition::updateFilenameExpression()
 
   QgsExpressionContext expressionContext = createExpressionContext();
 
-  if ( mFilenamePattern.size() > 0 )
+  if ( !mFilenamePattern.isEmpty() )
   {
     mFilenameExpr.reset( new QgsExpression( mFilenamePattern ) );
     // expression used to evaluate each filename
@@ -838,7 +779,7 @@ bool QgsAtlasComposition::updateFilenameExpression()
 bool QgsAtlasComposition::evalFeatureFilename( const QgsExpressionContext &context )
 {
   //generate filename for current atlas feature
-  if ( mFilenamePattern.size() > 0 && !mFilenameExpr.isNull() )
+  if ( !mFilenamePattern.isEmpty() && !mFilenameExpr.isNull() )
   {
     QVariant filenameRes = mFilenameExpr->evaluate( &context );
     if ( mFilenameExpr->hasEvalError() )
@@ -859,58 +800,9 @@ void QgsAtlasComposition::setPredefinedScales( const QVector<qreal>& scales )
   qSort( mPredefinedScales.begin(), mPredefinedScales.end() );
 }
 
-Q_NOWARN_DEPRECATED_PUSH
-bool QgsAtlasComposition::fixedScale() const
-{
-  //deprecated method. Until removed just return the property for the first atlas-enabled composer map
-  QgsComposerMap * map = composerMap();
-  if ( !map )
-  {
-    return false;
-  }
-
-  return map->atlasFixedScale();
-}
-
-void QgsAtlasComposition::setFixedScale( bool fixed )
-{
-  //deprecated method. Until removed just set the property for the first atlas-enabled composer map
-  QgsComposerMap * map = composerMap();
-  if ( !map )
-  {
-    return;
-  }
-
-  map->setAtlasScalingMode( fixed ? QgsComposerMap::Fixed : QgsComposerMap::Auto );
-}
-
-float QgsAtlasComposition::margin() const
-{
-  //deprecated method. Until removed just return the property for the first atlas-enabled composer map
-  QgsComposerMap * map = composerMap();
-  if ( !map )
-  {
-    return 0;
-  }
-
-  return map->atlasMargin();
-}
-
-void QgsAtlasComposition::setMargin( float margin )
-{
-  //deprecated method. Until removed just set the property for the first atlas-enabled composer map
-  QgsComposerMap * map = composerMap();
-  if ( !map )
-  {
-    return;
-  }
-
-  map->setAtlasMargin(( double ) margin );
-}
-
 QgsGeometry QgsAtlasComposition::currentGeometry( const QgsCoordinateReferenceSystem& crs ) const
 {
-  if ( !mCoverageLayer || !mCurrentFeature.isValid() || !mCurrentFeature.constGeometry() )
+  if ( !mCoverageLayer || !mCurrentFeature.isValid() || !mCurrentFeature.hasGeometry() )
   {
     return QgsGeometry();
   }
@@ -918,11 +810,11 @@ QgsGeometry QgsAtlasComposition::currentGeometry( const QgsCoordinateReferenceSy
   if ( !crs.isValid() )
   {
     // no projection, return the native geometry
-    return *mCurrentFeature.constGeometry();
+    return mCurrentFeature.geometry();
   }
 
-  QMap<long, QgsGeometry>::const_iterator it = mGeometryCache.find( crs.srsid() );
-  if ( it != mGeometryCache.end() )
+  QMap<long, QgsGeometry>::const_iterator it = mGeometryCache.constFind( crs.srsid() );
+  if ( it != mGeometryCache.constEnd() )
   {
     // we have it in cache, return it
     return it.value();
@@ -930,13 +822,11 @@ QgsGeometry QgsAtlasComposition::currentGeometry( const QgsCoordinateReferenceSy
 
   if ( mCoverageLayer->crs() == crs )
   {
-    return *mCurrentFeature.constGeometry();
+    return mCurrentFeature.geometry();
   }
 
-  QgsGeometry transformed = *mCurrentFeature.constGeometry();
-  transformed.transform( *QgsCoordinateTransformCache::instance()->transform( mCoverageLayer->crs().authid(), crs.authid() ) );
+  QgsGeometry transformed = mCurrentFeature.geometry();
+  transformed.transform( QgsCoordinateTransformCache::instance()->transform( mCoverageLayer->crs().authid(), crs.authid() ) );
   mGeometryCache[crs.srsid()] = transformed;
   return transformed;
 }
-
-Q_NOWARN_DEPRECATED_POP

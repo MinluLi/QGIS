@@ -25,7 +25,7 @@ QgsDoubleBoxScaleBarStyle::QgsDoubleBoxScaleBarStyle( const QgsComposerScaleBar*
 
 }
 
-QgsDoubleBoxScaleBarStyle::QgsDoubleBoxScaleBarStyle(): QgsScaleBarStyle( 0 )
+QgsDoubleBoxScaleBarStyle::QgsDoubleBoxScaleBarStyle(): QgsScaleBarStyle( nullptr )
 {
 
 }
@@ -37,7 +37,7 @@ QgsDoubleBoxScaleBarStyle::~QgsDoubleBoxScaleBarStyle()
 
 QString QgsDoubleBoxScaleBarStyle::name() const
 {
-  return "Double Box";
+  return QStringLiteral( "Double Box" );
 }
 
 void QgsDoubleBoxScaleBarStyle::draw( QPainter* p, double xOffset ) const

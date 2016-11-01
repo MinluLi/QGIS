@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 
 __author__ = 'Martin Isenburg'
@@ -25,8 +28,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterNumber
@@ -61,7 +64,7 @@ class las2shp(LAStoolsAlgorithm):
         record_size = self.getParameterValue(las2shp.RECORD_SIZE)
         if record_size != 1024:
             commands.append("-record_size")
-            commands.append(unicode(record_size))
+            commands.append(str(record_size))
         commands.append("-o")
         commands.append(self.getOutputValue(las2shp.OUTPUT))
         self.addParametersAdditionalCommands(commands)

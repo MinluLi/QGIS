@@ -32,9 +32,12 @@
 #include <QMessageBox>
 #include <QStringList>
 #include <QDir>
+#include <QDebug>
 
-#ifdef PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
 #define PYOBJ2QSTRING(obj) PyString_AsString( obj )
+#elif (PY_VERSION_HEX < 0x03030000)
+#define PYOBJ2QSTRING(obj) QString::fromUtf8( PyBytes_AsString(PyUnicode_AsUTF8String( obj ) ) )
 #else
 #define PYOBJ2QSTRING(obj) QString::fromUtf8( PyUnicode_AsUTF8( obj ) )
 #endif
@@ -43,8 +46,8 @@ PyThreadState* _mainState;
 
 QgsPythonUtilsImpl::QgsPythonUtilsImpl()
 {
-  mMainModule = NULL;
-  mMainDict = NULL;
+  mMainModule = nullptr;
+  mMainDict = nullptr;
   mPythonEnabled = false;
 }
 
@@ -57,16 +60,16 @@ QgsPythonUtilsImpl::~QgsPythonUtilsImpl()
 
 bool QgsPythonUtilsImpl::checkSystemImports()
 {
-  runString( "import sys" ); // import sys module (for display / exception hooks)
-  runString( "import os" ); // import os module (for user paths)
+  runString( QStringLiteral( "import sys" ) ); // import sys module (for display / exception hooks)
+  runString( QStringLiteral( "import os" ) ); // import os module (for user paths)
 
   // support for PYTHONSTARTUP-like environment variable: PYQGIS_STARTUP
   // (unlike PYTHONHOME and PYTHONPATH, PYTHONSTARTUP is not supported for embedded interpreter by default)
   // this is different than user's 'startup.py' (below), since it is loaded just after Py_Initialize
   // it is very useful for cleaning sys.path, which may have undesireable paths, or for
   // isolating/loading the initial environ without requiring a virt env, e.g. homebrew or MacPorts installs on Mac
-  runString( "pyqgstart = os.getenv('PYQGIS_STARTUP')\n" );
-  runString( "if pyqgstart is not None and os.path.exists(pyqgstart): execfile(pyqgstart)\n" );
+  runString( QStringLiteral( "pyqgstart = os.getenv('PYQGIS_STARTUP')\n" ) );
+  runString( QStringLiteral( "if pyqgstart is not None and os.path.exists(pyqgstart):\n    with open(pyqgstart) as f:\n        exec(f.read())\n" ) );
 
 #ifdef Q_OS_WIN
   runString( "oldhome=None" );
@@ -85,7 +88,7 @@ bool QgsPythonUtilsImpl::checkSystemImports()
     {
       QgsMessageOutput* msg = QgsMessageOutput::createMessageOutput();
       msg->setTitle( QObject::tr( "Python error" ) );
-      msg->setMessage( QString( QObject::tr( "The extra plugin path '%1' does not exist !" ) ).arg( p ), QgsMessageOutput::MessageText );
+      msg->setMessage( QObject::tr( "The extra plugin path '%1' does not exist!" ).arg( p ), QgsMessageOutput::MessageText );
       msg->showMessage();
     }
 #ifdef Q_OS_WIN
@@ -94,7 +97,11 @@ bool QgsPythonUtilsImpl::checkSystemImports()
     // we store here paths in unicode strings
     // the str constant will contain utf8 code (through runString)
     // so we call '...'.decode('utf-8') to make a unicode string
+#if (PY_VERSION_HEX < 0x03000000)
     pluginpaths << '"' + p + "\".decode('utf-8')";
+#else
+    pluginpaths << '"' + p + '"';
+#endif
   }
   pluginpaths << homePluginsPath();
   pluginpaths << '"' + pluginsPath() + '"';
@@ -105,10 +112,10 @@ bool QgsPythonUtilsImpl::checkSystemImports()
   newpaths << '"' + pythonPath() + '"';
   newpaths << homePythonPath();
   newpaths << pluginpaths;
-  runString( "sys.path = [" + newpaths.join( "," ) + "] + sys.path" );
+  runString( "sys.path = [" + newpaths.join( QStringLiteral( "," ) ) + "] + sys.path" );
 
   // import SIP
-  if ( !runString( "import sip",
+  if ( !runString( QStringLiteral( "import sip" ),
                    QObject::tr( "Couldn't load SIP module." ) + '\n' + QObject::tr( "Python support will be disabled." ) ) )
   {
     return false;
@@ -116,16 +123,16 @@ bool QgsPythonUtilsImpl::checkSystemImports()
 
   // set PyQt4 api versions
   QStringList apiV2classes;
-  apiV2classes << "QDate" << "QDateTime" << "QString" << "QTextStream" << "QTime" << "QUrl" << "QVariant";
+  apiV2classes << QStringLiteral( "QDate" ) << QStringLiteral( "QDateTime" ) << QStringLiteral( "QString" ) << QStringLiteral( "QTextStream" ) << QStringLiteral( "QTime" ) << QStringLiteral( "QUrl" ) << QStringLiteral( "QVariant" );
   Q_FOREACH ( const QString& clsName, apiV2classes )
   {
-    if ( !runString( QString( "sip.setapi('%1', 2)" ).arg( clsName ),
+    if ( !runString( QStringLiteral( "sip.setapi('%1', 2)" ).arg( clsName ),
                      QObject::tr( "Couldn't set SIP API versions." ) + '\n' + QObject::tr( "Python support will be disabled." ) ) )
     {
       return false;
     }
   }
-#ifdef PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
   // import Qt bindings
   if ( !runString( "from PyQt4 import QtCore, QtGui",
                    QObject::tr( "Couldn't load PyQt." ) + '\n' + QObject::tr( "Python support will be disabled." ) ) )
@@ -134,7 +141,7 @@ bool QgsPythonUtilsImpl::checkSystemImports()
   }
 #else
   // import Qt bindings
-  if ( !runString( "from PyQt5 import QtCore, QtGui",
+  if ( !runString( QStringLiteral( "from PyQt5 import QtCore, QtGui" ),
                    QObject::tr( "Couldn't load PyQt." ) + '\n' + QObject::tr( "Python support will be disabled." ) ) )
   {
     return false;
@@ -143,20 +150,20 @@ bool QgsPythonUtilsImpl::checkSystemImports()
 
   // import QGIS bindings
   QString error_msg = QObject::tr( "Couldn't load PyQGIS." ) + '\n' + QObject::tr( "Python support will be disabled." );
-  if ( !runString( "from qgis.core import *", error_msg ) || !runString( "from qgis.gui import *", error_msg ) )
+  if ( !runString( QStringLiteral( "from qgis.core import *" ), error_msg ) || !runString( QStringLiteral( "from qgis.gui import *" ), error_msg ) )
   {
     return false;
   }
 
   // import QGIS utils
   error_msg = QObject::tr( "Couldn't load QGIS utils." ) + '\n' + QObject::tr( "Python support will be disabled." );
-  if ( !runString( "import qgis.utils", error_msg ) )
+  if ( !runString( QStringLiteral( "import qgis.utils" ), error_msg ) )
   {
     return false;
   }
 
   // tell the utils script where to look for the plugins
-  runString( "qgis.utils.plugin_paths = [" + pluginpaths.join( "," ) + ']' );
+  runString( "qgis.utils.plugin_paths = [" + pluginpaths.join( QStringLiteral( "," ) ) + ']' );
   runString( "qgis.utils.sys_plugin_path = \"" + pluginsPath() + '\"' );
   runString( "qgis.utils.home_plugin_path = " + homePluginsPath() );
 
@@ -194,19 +201,12 @@ bool QgsPythonUtilsImpl::checkQgisUser()
 {
   // import QGIS user
   QString error_msg = QObject::tr( "Couldn't load qgis.user." ) + '\n' + QObject::tr( "Python support will be disabled." );
-  if ( !runString( "import qgis.user", error_msg ) )
+  if ( !runString( QStringLiteral( "import qgis.user" ), error_msg ) )
   {
     // Should we really bail because of this?!
     return false;
   }
   return true;
-}
-
-void QgsPythonUtilsImpl::doUserImports()
-{
-
-  QString startuppath = homePythonPath() + " + \"/startup.py\"";
-  runString( "if os.path.exists(" + startuppath + "): from startup import *\n" );
 }
 
 void QgsPythonUtilsImpl::initPython( QgisInterface* interface )
@@ -224,7 +224,6 @@ void QgsPythonUtilsImpl::initPython( QgisInterface* interface )
     exitPython();
     return;
   }
-  doUserImports();
   finish();
 }
 
@@ -242,7 +241,7 @@ void QgsPythonUtilsImpl::initServerPython( QgsServerInterface* interface )
   // This is the main difference with initInterface() for desktop plugins
   // import QGIS Server bindings
   QString error_msg = QObject::tr( "Couldn't load PyQGIS Server." ) + '\n' + QObject::tr( "Python support will be disabled." );
-  if ( !runString( "from qgis.server import *", error_msg ) )
+  if ( !runString( QStringLiteral( "from qgis.server import *" ), error_msg ) )
   {
     return;
   }
@@ -250,7 +249,6 @@ void QgsPythonUtilsImpl::initServerPython( QgsServerInterface* interface )
   // This is the other main difference with initInterface() for desktop plugins
   runString( "qgis.utils.initServerInterface(" + QString::number(( unsigned long ) interface ) + ')' );
 
-  doUserImports();
   finish();
 }
 
@@ -258,7 +256,7 @@ bool QgsPythonUtilsImpl::startServerPlugin( QString packageName )
 {
   QString output;
   evalString( "qgis.utils.startServerPlugin('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 #endif // End HAVE_SERVER_PYTHON_PLUGINS
@@ -266,8 +264,8 @@ bool QgsPythonUtilsImpl::startServerPlugin( QString packageName )
 void QgsPythonUtilsImpl::exitPython()
 {
   Py_Finalize();
-  mMainModule = NULL;
-  mMainDict = NULL;
+  mMainModule = nullptr;
+  mMainDict = nullptr;
   mPythonEnabled = false;
 }
 
@@ -279,12 +277,12 @@ bool QgsPythonUtilsImpl::isEnabled()
 
 void QgsPythonUtilsImpl::installErrorHook()
 {
-  runString( "qgis.utils.installErrorHook()" );
+  runString( QStringLiteral( "qgis.utils.installErrorHook()" ) );
 }
 
 void QgsPythonUtilsImpl::uninstallErrorHook()
 {
-  runString( "qgis.utils.uninstallErrorHook()" );
+  runString( QStringLiteral( "qgis.utils.uninstallErrorHook()" ) );
 }
 
 
@@ -298,9 +296,9 @@ bool QgsPythonUtilsImpl::runStringUnsafe( const QString& command, bool single )
   // TODO: convert special characters from unicode strings u"..." to \uXXXX
   // so that they're not mangled to utf-8
   // (non-unicode strings can be mangled)
-  PyRun_String( command.toUtf8().data(), single ? Py_single_input : Py_file_input, mMainDict, mMainDict );
-
-  bool res = ( PyErr_Occurred() == 0 );
+  PyObject* obj = PyRun_String( command.toUtf8().data(), single ? Py_single_input : Py_file_input, mMainDict, mMainDict );
+  bool res = nullptr == PyErr_Occurred();
+  Py_XDECREF( obj );
 
   // we are done calling python API, release global interpreter lock
   PyGILState_Release( gstate );
@@ -317,22 +315,23 @@ bool QgsPythonUtilsImpl::runString( const QString& command, QString msgOnError, 
   if ( msgOnError.isEmpty() )
   {
     // use some default message if custom hasn't been specified
-    msgOnError = QObject::tr( "An error occured during execution of following code:" ) + "\n<tt>" + command + "</tt>";
+    msgOnError = QObject::tr( "An error occurred during execution of following code:" ) + "\n<tt>" + command + "</tt>";
   }
 
   // TODO: use python implementation
 
   QString traceback = getTraceback();
   QString path, version;
-  evalString( "str(sys.path)", path );
-  evalString( "sys.version", version );
+  evalString( QStringLiteral( "str(sys.path)" ), path );
+  evalString( QStringLiteral( "sys.version" ), version );
 
   QString str = "<font color=\"red\">" + msgOnError + "</font><br><pre>\n" + traceback + "\n</pre>"
                 + QObject::tr( "Python version:" ) + "<br>" + version + "<br><br>"
-                + QObject::tr( "QGIS version:" ) + "<br>" + QString( "%1 '%2', %3" ).arg( QGis::QGIS_VERSION, QGis::QGIS_RELEASE_NAME, QGis::QGIS_DEV_VERSION ) + "<br><br>"
+                + QObject::tr( "QGIS version:" ) + "<br>" + QStringLiteral( "%1 '%2', %3" ).arg( Qgis::QGIS_VERSION, Qgis::QGIS_RELEASE_NAME, Qgis::QGIS_DEV_VERSION ) + "<br><br>"
                 + QObject::tr( "Python path:" ) + "<br>" + path;
-  str.replace( '\n', "<br>" ).replace( "  ", "&nbsp; " );
+  str.replace( '\n', QLatin1String( "<br>" ) ).replace( QLatin1String( "  " ), QLatin1String( "&nbsp; " ) );
 
+  qDebug() << str;
   QgsMessageOutput* msg = QgsMessageOutput::createMessageOutput();
   msg->setTitle( QObject::tr( "Python error" ) );
   msg->setMessage( str, QgsMessageOutput::MessageHtml );
@@ -353,34 +352,34 @@ QString QgsPythonUtilsImpl::getTraceback()
   QString errMsg;
   QString result;
 
-  PyObject *modStringIO = NULL;
-  PyObject *modTB = NULL;
-  PyObject *obStringIO = NULL;
-  PyObject *obResult = NULL;
+  PyObject *modStringIO = nullptr;
+  PyObject *modTB = nullptr;
+  PyObject *obStringIO = nullptr;
+  PyObject *obResult = nullptr;
 
   PyObject *type, *value, *traceback;
 
   PyErr_Fetch( &type, &value, &traceback );
   PyErr_NormalizeException( &type, &value, &traceback );
 
-#ifdef PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
   const char* iomod = "cStringIO";
 #else
   const char* iomod = "io";
 #endif
 
   modStringIO = PyImport_ImportModule( iomod );
-  if ( modStringIO == NULL )
+  if ( !modStringIO )
     TRACEBACK_FETCH_ERROR( QString( "can't import %1" ).arg( iomod ) );
 
-  obStringIO = PyObject_CallMethod( modStringIO, ( char* ) "StringIO", NULL );
+  obStringIO = PyObject_CallMethod( modStringIO, ( char* ) "StringIO", nullptr );
 
   /* Construct a cStringIO object */
-  if ( obStringIO == NULL )
+  if ( !obStringIO )
     TRACEBACK_FETCH_ERROR( "cStringIO.StringIO() failed" );
 
   modTB = PyImport_ImportModule( "traceback" );
-  if ( modTB == NULL )
+  if ( !modTB )
     TRACEBACK_FETCH_ERROR( "can't import traceback" );
 
   obResult = PyObject_CallMethod( modTB, ( char* ) "print_exception",
@@ -390,17 +389,18 @@ QString QgsPythonUtilsImpl::getTraceback()
                                   Py_None,
                                   obStringIO );
 
-  if ( obResult == NULL )
+  if ( !obResult )
     TRACEBACK_FETCH_ERROR( "traceback.print_exception() failed" );
+
   Py_DECREF( obResult );
 
-  obResult = PyObject_CallMethod( obStringIO, ( char* ) "getvalue", NULL );
-  if ( obResult == NULL )
+  obResult = PyObject_CallMethod( obStringIO, ( char* ) "getvalue", nullptr );
+  if ( !obResult )
     TRACEBACK_FETCH_ERROR( "getvalue() failed." );
 
   /* And it should be a string all ready to go - duplicate it. */
   if ( !
-#ifdef PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
        PyString_Check( obResult )
 #else
        PyUnicode_Check( obResult )
@@ -435,9 +435,9 @@ done:
 QString QgsPythonUtilsImpl::getTypeAsString( PyObject* obj )
 {
   if ( !obj )
-    return 0;
+    return QString();
 
-#ifdef PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
   if ( PyClass_Check( obj ) )
   {
     QgsDebugMsg( "got class" );
@@ -480,7 +480,7 @@ bool QgsPythonUtilsImpl::getError( QString& errorClassName, QString& errorText )
   errorClassName = getTypeAsString( err_type );
 
   // get exception's text
-  if ( err_value != NULL && err_value != Py_None )
+  if ( nullptr != err_value && err_value != Py_None )
   {
     errorText = PyObjectToQString( err_value );
   }
@@ -512,20 +512,11 @@ QString QgsPythonUtilsImpl::PyObjectToQString( PyObject* obj )
   // check whether the object is already a unicode string
   if ( PyUnicode_Check( obj ) )
   {
-#ifdef PYTHON2
-    PyObject* utf8 = PyUnicode_AsUTF8String( obj );
-    if ( utf8 )
-      result = QString::fromUtf8( PyString_AS_STRING( utf8 ) );
-    else
-      result = "(qgis error)";
-    Py_XDECREF( utf8 );
-#else
     result = PYOBJ2QSTRING( obj );
-#endif
     return result;
   }
 
-#if PYTHON2
+#if (PY_VERSION_HEX < 0x03000000)
   // check whether the object is a classical (8-bit) string
   if ( PyString_Check( obj ) )
   {
@@ -562,7 +553,7 @@ QString QgsPythonUtilsImpl::PyObjectToQString( PyObject* obj )
 
   // some problem with conversion to unicode string
   QgsDebugMsg( "unable to convert PyObject to a QString!" );
-  return "(qgis error)";
+  return QStringLiteral( "(qgis error)" );
 }
 
 
@@ -573,12 +564,14 @@ bool QgsPythonUtilsImpl::evalString( const QString& command, QString& result )
   gstate = PyGILState_Ensure();
 
   PyObject* res = PyRun_String( command.toUtf8().data(), Py_eval_input, mMainDict, mMainDict );
-  bool success = ( res != NULL );
+  bool success = nullptr != res;
 
   // TODO: error handling
 
   if ( success )
     result = PyObjectToQString( res );
+
+  Py_XDECREF( res );
 
   // we are done calling python API, release global interpreter lock
   PyGILState_Release( gstate );
@@ -602,13 +595,13 @@ QString QgsPythonUtilsImpl::pluginsPath()
 QString QgsPythonUtilsImpl::homePythonPath()
 {
   QString settingsDir = QgsApplication::qgisSettingsDirPath();
-  if ( QDir::cleanPath( settingsDir ) == QDir::homePath() + QString( "/.qgis%1" ).arg( QGis::QGIS_VERSION_INT / 10000 ) )
+  if ( QDir::cleanPath( settingsDir ) == QDir::homePath() + QStringLiteral( "/.qgis3" ) )
   {
-    return QString( "b\"%1/.qgis%2/python\".decode('utf-8')" ).arg( QDir::homePath() ).arg( QGis::QGIS_VERSION_INT / 10000 );
+    return QStringLiteral( "b\"%1/.qgis3/python\".decode('utf-8')" ).arg( QDir::homePath() );
   }
   else
   {
-    return "b\"" + settingsDir.replace( '\\', "\\\\" ) + "python\".decode('utf-8')";
+    return "b\"" + settingsDir.replace( '\\', QLatin1String( "\\\\" ) ) + "python\".decode('utf-8')";
   }
 }
 
@@ -620,7 +613,7 @@ QString QgsPythonUtilsImpl::homePluginsPath()
 QStringList QgsPythonUtilsImpl::extraPluginsPaths()
 {
   const char* cpaths = getenv( "QGIS_PLUGINPATH" );
-  if ( cpaths == NULL )
+  if ( !cpaths )
     return QStringList();
 
   QString paths = QString::fromLocal8Bit( cpaths );
@@ -637,10 +630,10 @@ QStringList QgsPythonUtilsImpl::extraPluginsPaths()
 
 QStringList QgsPythonUtilsImpl::pluginList()
 {
-  runString( "qgis.utils.updateAvailablePlugins()" );
+  runString( QStringLiteral( "qgis.utils.updateAvailablePlugins()" ) );
 
   QString output;
-  evalString( "'\\n'.join(qgis.utils.available_plugins)", output );
+  evalString( QStringLiteral( "'\\n'.join(qgis.utils.available_plugins)" ), output );
   return output.split( QChar( '\n' ), QString::SkipEmptyParts );
 }
 
@@ -657,40 +650,40 @@ bool QgsPythonUtilsImpl::loadPlugin( const QString& packageName )
 {
   QString output;
   evalString( "qgis.utils.loadPlugin('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 bool QgsPythonUtilsImpl::startPlugin( const QString& packageName )
 {
   QString output;
   evalString( "qgis.utils.startPlugin('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 bool QgsPythonUtilsImpl::canUninstallPlugin( const QString& packageName )
 {
   QString output;
   evalString( "qgis.utils.canUninstallPlugin('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 bool QgsPythonUtilsImpl::unloadPlugin( const QString& packageName )
 {
   QString output;
   evalString( "qgis.utils.unloadPlugin('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 bool QgsPythonUtilsImpl::isPluginLoaded( const QString& packageName )
 {
   QString output;
   evalString( "qgis.utils.isPluginLoaded('" + packageName + "')", output );
-  return ( output == "True" );
+  return ( output == QLatin1String( "True" ) );
 }
 
 QStringList QgsPythonUtilsImpl::listActivePlugins()
 {
   QString output;
-  evalString( "'\\n'.join(qgis.utils.active_plugins)", output );
+  evalString( QStringLiteral( "'\\n'.join(qgis.utils.active_plugins)" ), output );
   return output.split( QChar( '\n' ), QString::SkipEmptyParts );
 }

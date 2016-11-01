@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,12 +24,11 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL
-from PyQt4.QtGui import QWidget
+from qgis.PyQt.QtWidgets import QWidget
 
-from ui_widgetSieve import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetSieve import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -44,14 +44,14 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.outputFormat = Utils.fillRasterOutputFormat()
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.thresholdSpin, SIGNAL("valueChanged(int)"), self.thresholdCheck),
-            (self.connectionsCombo, SIGNAL("currentIndexChanged(int)"), self.connectionsCheck)
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.thresholdSpin, "valueChanged", self.thresholdCheck),
+            (self.connectionsCombo, "currentIndexChanged", self.connectionsCheck)
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getRasterLayers())
@@ -79,7 +79,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         arguments = []
         if self.thresholdCheck.isChecked():
             arguments.append("-st")
-            arguments.append(unicode(self.thresholdSpin.value()))
+            arguments.append(str(self.thresholdSpin.value()))
         if self.connectionsCheck.isChecked() and self.connectionsCombo.currentIndex() >= 0:
             arguments.append("-" + self.connectionsCombo.currentText())
         outputFn = self.getOutputFileName()

@@ -16,17 +16,20 @@
 
 #include "qgsfeaturepool.h"
 #include "qgsfeature.h"
+#include "qgsfeatureiterator.h"
 #include "qgsgeometry.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
-#include "qgsgeomutils.h"
+#include "qgsgeometryutils.h"
 
 #include <QMutexLocker>
 #include <qmath.h>
 #include <limits>
 
 QgsFeaturePool::QgsFeaturePool( QgsVectorLayer *layer, bool selectedOnly )
-    : mFeatureCache( sCacheSize ), mLayer( layer ), mSelectedOnly( selectedOnly )
+    : mFeatureCache( sCacheSize )
+    , mLayer( layer )
+    , mSelectedOnly( selectedOnly )
 {
   if ( selectedOnly )
   {
@@ -41,30 +44,31 @@ QgsFeaturePool::QgsFeaturePool( QgsVectorLayer *layer, bool selectedOnly )
   QgsFeature feature;
   QgsFeatureRequest req;
   req.setSubsetOfAttributes( QgsAttributeList() );
-  QgsFeatureIterator it = layer->getFeatures( req );
-  while ( it.nextFeature( feature ) )
-  {
-    mIndex.insertFeature( feature );
-  }
+  mIndex = QgsSpatialIndex( layer->getFeatures( req ) );
 }
 
-bool QgsFeaturePool::get( const QgsFeatureId& id , QgsFeature& feature )
+bool QgsFeaturePool::get( QgsFeatureId id , QgsFeature& feature )
 {
   QMutexLocker lock( &mLayerMutex );
   QgsFeature* pfeature = mFeatureCache.object( id );
-  if ( pfeature == 0 )
+  if ( pfeature )
   {
-    // Get new feature
-    pfeature = new QgsFeature();
-    // TODO: avoid always querying all attributes (attribute values are needed when merging by attribute)
-    if ( !mLayer->getFeatures( QgsFeatureRequest( id ) ).nextFeature( *pfeature ) )
-    {
-      delete pfeature;
-      return false;
-    }
-    mFeatureCache.insert( id, pfeature );
+    //feature was cached
+    feature = *pfeature;
   }
-  feature = *pfeature;
+
+  // Feature not in cache, retrieve from layer
+  pfeature = new QgsFeature();
+  // TODO: avoid always querying all attributes (attribute values are needed when merging by attribute)
+  if ( !mLayer->getFeatures( QgsFeatureRequest( id ) ).nextFeature( *pfeature ) )
+  {
+    delete pfeature;
+    return false;
+  }
+  //make a copy of pfeature into feature parameter
+  feature = QgsFeature( *pfeature );
+  //ownership of pfeature is transferred to cache
+  mFeatureCache.insert( id, pfeature );
   return true;
 }
 
@@ -79,7 +83,7 @@ void QgsFeaturePool::addFeature( QgsFeature& feature )
   {
     QgsFeatureIds selectedFeatureIds = mLayer->selectedFeaturesIds();
     selectedFeatureIds.insert( feature.id() );
-    mLayer->setSelectedFeatures( selectedFeatureIds );
+    mLayer->selectByIds( selectedFeatureIds );
   }
   mLayerMutex.unlock();
   mIndexMutex.lock();
@@ -90,7 +94,7 @@ void QgsFeaturePool::addFeature( QgsFeature& feature )
 void QgsFeaturePool::updateFeature( QgsFeature& feature )
 {
   QgsGeometryMap geometryMap;
-  geometryMap.insert( feature.id(), QgsGeometry( feature.geometry()->geometry()->clone() ) );
+  geometryMap.insert( feature.id(), QgsGeometry( feature.geometry().geometry()->clone() ) );
   QgsChangedAttributesMap changedAttributesMap;
   QgsAttributeMap attribMap;
   for ( int i = 0, n = feature.attributes().size(); i < n; ++i )

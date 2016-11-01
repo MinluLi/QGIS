@@ -24,7 +24,7 @@ QgsComposerMultiFrameCommand::QgsComposerMultiFrameCommand( QgsComposerMultiFram
 {
 }
 
-QgsComposerMultiFrameCommand::QgsComposerMultiFrameCommand(): QUndoCommand( "", 0 ), mMultiFrame( 0 ), mFirstRun( false )
+QgsComposerMultiFrameCommand::QgsComposerMultiFrameCommand(): QUndoCommand( QLatin1String( "" ), nullptr ), mMultiFrame( nullptr ), mFirstRun( false )
 {
 }
 
@@ -61,8 +61,8 @@ void QgsComposerMultiFrameCommand::saveState( QDomDocument& stateDoc )
   if ( mMultiFrame )
   {
     stateDoc.clear();
-    QDomElement documentElement = stateDoc.createElement( "ComposerMultiFrameState" );
-    mMultiFrame->writeXML( documentElement, stateDoc );
+    QDomElement documentElement = stateDoc.createElement( QStringLiteral( "ComposerMultiFrameState" ) );
+    mMultiFrame->writeXml( documentElement, stateDoc );
     stateDoc.appendChild( documentElement );
   }
 }
@@ -71,8 +71,8 @@ void QgsComposerMultiFrameCommand::restoreState( QDomDocument& stateDoc )
 {
   if ( mMultiFrame )
   {
-    mMultiFrame->readXML( stateDoc.documentElement().firstChild().toElement(), stateDoc );
-    QgsProject::instance()->dirty( true );
+    mMultiFrame->readXml( stateDoc.documentElement().firstChild().toElement(), stateDoc );
+    QgsProject::instance()->setDirty( true );
   }
 }
 

@@ -56,11 +56,11 @@ class QgsLayerTreeGroup : QgsLayerTreeNode
     QgsLayerTreeGroup* findGroup( const QString& name );
 
     //! Read group (tree) from XML element <layer-tree-group> and return the newly created group (or null on error)
-    static QgsLayerTreeGroup* readXML( QDomElement& element ) /Factory/;
+    static QgsLayerTreeGroup* readXml( QDomElement& element ) /Factory/;
     //! Write group (tree) as XML element <layer-tree-group> and add it to the given parent element
-    virtual void writeXML( QDomElement& parentElement );
+    virtual void writeXml( QDomElement& parentElement );
     //! Read children from XML and append them to the group.
-    void readChildrenFromXML( QDomElement& element );
+    void readChildrenFromXml( QDomElement& element );
 
     //! Return text representation of the tree. For debugging purposes only.
     virtual QString dump() const;
@@ -81,6 +81,18 @@ class QgsLayerTreeGroup : QgsLayerTreeNode
     //! of -1 will determine automatically (either first one currently checked or none)
     //! @note added in 2.12
     void setIsMutuallyExclusive( bool enabled, int initialChildIndex = -1 );
+
+  protected slots:
+    void layerDestroyed();
+    void nodeVisibilityChanged( QgsLayerTreeNode* node );
+
+  protected:
+    //! Set check state of this group from its children
+    void updateVisibilityFromChildren();
+    //! Set check state of children (when this group's check state changes) - if not mutually exclusive
+    void updateChildVisibility();
+    //! Set check state of children - if mutually exclusive
+    void updateChildVisibilityMutuallyExclusive();
 
   private:
     QgsLayerTreeGroup( const QgsLayerTreeGroup& other );

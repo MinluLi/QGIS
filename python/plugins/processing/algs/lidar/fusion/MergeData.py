@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -28,8 +30,8 @@ __revision__ = '$Format:%H$'
 import os
 from processing.core.parameters import ParameterFile
 from processing.core.outputs import OutputFile
-from FusionAlgorithm import FusionAlgorithm
-from FusionUtils import FusionUtils
+from .FusionAlgorithm import FusionAlgorithm
+from .FusionUtils import FusionUtils
 
 
 class MergeData(FusionAlgorithm):

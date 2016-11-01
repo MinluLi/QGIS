@@ -22,6 +22,7 @@
 #include <QFile>
 
 class QMimeData;
+class QgsPanelWidget;
 
 /** \ingroup gui
  * \class QgsColorSwatchDelegate
@@ -34,10 +35,14 @@ class GUI_EXPORT QgsColorSwatchDelegate : public QAbstractItemDelegate
     Q_OBJECT
 
   public:
-    QgsColorSwatchDelegate( QWidget *parent = 0 );
+    QgsColorSwatchDelegate( QWidget *parent = nullptr );
     void paint( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const override;
     QSize sizeHint( const QStyleOptionViewItem & option, const QModelIndex & index ) const override;
     bool editorEvent( QEvent * event, QAbstractItemModel * model, const QStyleOptionViewItem & option, const QModelIndex & index ) override;
+
+  private slots:
+
+    void colorChanged();
 
   private:
     QWidget* mParent;
@@ -67,7 +72,7 @@ class GUI_EXPORT QgsColorSchemeModel: public QAbstractItemModel
      * @param baseColor base color for color scheme
      * @param parent parent object
      */
-    explicit QgsColorSchemeModel( QgsColorScheme* scheme, const QString &context = QString(), const QColor &baseColor = QColor(), QObject* parent = 0 );
+    explicit QgsColorSchemeModel( QgsColorScheme* scheme, const QString &context = QString(), const QColor &baseColor = QColor(), QObject* parent = nullptr );
 
     ~QgsColorSchemeModel();
 
@@ -114,8 +119,9 @@ class GUI_EXPORT QgsColorSchemeModel: public QAbstractItemModel
     /** Add a color to the list
      * @param color color to add
      * @param label label for color
+     * @param allowDuplicate set to true to allow duplicate colors to be added (colors which are already present in the list)
      */
-    void addColor( const QColor &color, const QString &label = QString() );
+    void addColor( const QColor &color, const QString &label = QString(), bool allowDuplicate = false );
 
     /** Returns whether the color scheme model has been modified
      * @returns true if colors have been modified
@@ -155,7 +161,7 @@ class GUI_EXPORT QgsColorSchemeList: public QTreeView
      * @param context context string provided to color scheme
      * @param baseColor base color for color scheme
      */
-    QgsColorSchemeList( QWidget *parent = 0, QgsColorScheme* scheme = 0, const QString &context = QString(), const QColor &baseColor = QColor() );
+    QgsColorSchemeList( QWidget *parent = nullptr, QgsColorScheme* scheme = nullptr, const QString &context = QString(), const QColor &baseColor = QColor() );
 
     virtual ~QgsColorSchemeList();
 
@@ -182,12 +188,19 @@ class GUI_EXPORT QgsColorSchemeList: public QTreeView
      */
     bool isDirty() const;
 
+    /** Returns the scheme currently selected in the list.
+     * @note added in QGIS 3.0
+     * @see setScheme()
+     */
+    QgsColorScheme* scheme();
+
   public slots:
 
     /** Sets the color scheme to show in the list
      * @param scheme QgsColorScheme for colors to show in the list
      * @param context context string provided to color scheme
      * @param baseColor base color for color scheme
+     * @see scheme()
      */
     void setScheme( QgsColorScheme* scheme, const QString &context = QString(), const QColor &baseColor = QColor() );
 
@@ -198,8 +211,9 @@ class GUI_EXPORT QgsColorSchemeList: public QTreeView
     /** Adds a color to the list
      * @param color color to add
      * @param label optional label for color
+     * @param allowDuplicate set to true to allow duplicate colors to be added, ie colors which already exist in the list
      */
-    void addColor( const QColor &color, const QString &label = QString() );
+    void addColor( const QColor &color, const QString &label = QString(), bool allowDuplicate = false );
 
     /** Pastes colors from clipboard to the list
      * @see copyColors
@@ -210,6 +224,18 @@ class GUI_EXPORT QgsColorSchemeList: public QTreeView
      * @see pasteColors
      */
     void copyColors();
+
+    /** Displays a file picker dialog allowing users to import colors into the list from a file.
+     * @note added in QGIS 3.0
+     * @see showExportColorsDialog()
+     */
+    void showImportColorsDialog();
+
+    /** Displays a file picker dialog allowing users to export colors from the list into a file.
+     * @note added in QGIS 3.0
+     * @see showImportColorsDialog()
+     */
+    void showExportColorsDialog();
 
   signals:
 

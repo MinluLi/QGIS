@@ -25,6 +25,9 @@ __copyright__ = '(C) 2014, Radoslaw Guzinski'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
 
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.core.outputs import OutputRaster
@@ -33,8 +36,9 @@ from processing.core.parameters import ParameterMultipleInput
 from processing.core.parameters import ParameterSelection
 from processing.algs.gdal.GdalUtils import GdalUtils
 from processing.tools.system import tempFolder
+from processing.tools import dataobjects
 
-import os
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class buildvrt(GdalAlgorithm):
@@ -47,11 +51,14 @@ class buildvrt(GdalAlgorithm):
 
     RESOLUTION_OPTIONS = ['average', 'highest', 'lowest']
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'vrt.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Build Virtual Raster')
         self.group, self.i18n_group = self.trAlgorithm('[GDAL] Miscellaneous')
         self.addParameter(ParameterMultipleInput(self.INPUT,
-                                                 self.tr('Input layers'), ParameterMultipleInput.TYPE_RASTER))
+                                                 self.tr('Input layers'), dataobjects.TYPE_RASTER))
         self.addParameter(ParameterSelection(self.RESOLUTION,
                                              self.tr('Resolution'), self.RESOLUTION_OPTIONS, 0))
         self.addParameter(ParameterBoolean(self.SEPARATE,

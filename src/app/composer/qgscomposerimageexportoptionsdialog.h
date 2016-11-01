@@ -20,7 +20,6 @@
 
 #include <QDialog>
 #include "ui_qgscomposerimageexportoptions.h"
-#include "qgscomposertablev2.h"
 
 
 /** A dialog for customising the properties of an exported image file.
@@ -36,7 +35,7 @@ class QgsComposerImageExportOptionsDialog: public QDialog, private Ui::QgsCompos
      * @param parent parent widget
      * @param flags window flags
      */
-    QgsComposerImageExportOptionsDialog( QWidget* parent = 0, Qt::WindowFlags flags = 0 );
+    QgsComposerImageExportOptionsDialog( QWidget* parent = nullptr, Qt::WindowFlags flags = 0 );
 
     ~QgsComposerImageExportOptionsDialog();
 
@@ -56,7 +55,7 @@ class QgsComposerImageExportOptionsDialog: public QDialog, private Ui::QgsCompos
      * and also for determining the image's width to height ratio.
      * @param size image size
      */
-    void setImageSize( const QSizeF& size );
+    void setImageSize( QSizeF size );
 
     /** Returns the user-set image width in pixels.
      * @see imageHeight

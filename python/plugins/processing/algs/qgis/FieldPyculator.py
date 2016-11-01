@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya & NextGIS'
 __date__ = 'August 2012'
@@ -27,7 +28,7 @@ __revision__ = '$Format:%H$'
 
 import sys
 
-from PyQt4.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant
 from qgis.core import QgsFeature, QgsField
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
@@ -62,7 +63,7 @@ class FieldsPyculator(GeoAlgorithm):
                            self.tr('String')]
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterString(self.FIELD_NAME,
                                           self.tr('Result field name'), 'NewField'))
         self.addParameter(ParameterSelection(self.FIELD_TYPE,
@@ -88,11 +89,10 @@ class FieldsPyculator(GeoAlgorithm):
 
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT_LAYER))
-        provider = layer.dataProvider()
-        fields = provider.fields()
+        fields = layer.fields()
         fields.append(QgsField(fieldName, self.TYPES[fieldType], '',
-                      fieldLength, fieldPrecision))
-        writer = output.getVectorWriter(fields, provider.geometryType(),
+                               fieldLength, fieldPrecision))
+        writer = output.getVectorWriter(fields, layer.wkbType(),
                                         layer.crs())
         outFeat = QgsFeature()
         new_ns = {}
@@ -104,14 +104,14 @@ class FieldsPyculator(GeoAlgorithm):
                 exec(bytecode, new_ns)
             except:
                 raise GeoAlgorithmExecutionException(
-                    self.tr("FieldPyculator code execute error.Global code block can't be executed!\n%s\n%s" % (unicode(sys.exc_info()[0].__name__), unicode(sys.exc_info()[1]))))
+                    self.tr("FieldPyculator code execute error.Global code block can't be executed!\n%s\n%s") % (str(sys.exc_info()[0].__name__), str(sys.exc_info()[1])))
 
         # Replace all fields tags
-        fields = provider.fields()
+        fields = layer.fields()
         num = 0
         for field in fields:
-            field_name = unicode(field.name())
-            replval = '__attr[' + unicode(num) + ']'
+            field_name = str(field.name())
+            replval = '__attr[' + str(num) + ']'
             code = code.replace('<' + field_name + '>', replval)
             num += 1
 
@@ -127,14 +127,13 @@ class FieldsPyculator(GeoAlgorithm):
             bytecode = compile(code, '<string>', 'exec')
         except:
             raise GeoAlgorithmExecutionException(
-                self.tr("FieldPyculator code execute error.Field code block can't be executed!\n%s\n%s" % (unicode(sys.exc_info()[0].__name__), unicode(sys.exc_info()[1]))))
+                self.tr("FieldPyculator code execute error.Field code block can't be executed!\n%s\n%s") % (str(sys.exc_info()[0].__name__), str(sys.exc_info()[1])))
 
         # Run
         features = vector.features(layer)
-        nFeatures = len(features)
-        nElement = 1
-        for feat in features:
-            progress.setPercentage(int(100 * nElement / nFeatures))
+        total = 100.0 / len(features)
+        for current, feat in enumerate(features):
+            progress.setPercentage(int(current * total))
             attrs = feat.attributes()
             feat_id = feat.id()
 
@@ -162,10 +161,9 @@ class FieldsPyculator(GeoAlgorithm):
                 raise GeoAlgorithmExecutionException(
                     self.tr("FieldPyculator code execute error\n"
                             "Field code block does not return '%s1' variable! "
-                            "Please declare this variable in your code!" % self.RESULT_VAR_NAME))
+                            "Please declare this variable in your code!") % self.RESULT_VAR_NAME)
 
             # Write feature
-            nElement += 1
             outFeat.setGeometry(feat.geometry())
             attrs.append(new_ns[self.RESULT_VAR_NAME])
             outFeat.setAttributes(attrs)

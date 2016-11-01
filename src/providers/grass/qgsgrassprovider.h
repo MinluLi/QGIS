@@ -59,11 +59,11 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
   public:
     static int LAST_TYPE;
 
-    QgsGrassProvider( QString uri = QString() );
+    QgsGrassProvider( const QString &uri = QString() );
 
     virtual ~QgsGrassProvider();
 
-    virtual int capabilities() const override;
+    virtual QgsVectorDataProvider::Capabilities capabilities() const override;
 
     virtual QgsAbstractFeatureSource* featureSource() const override;
 
@@ -72,13 +72,13 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
       */
     virtual QString storageType() const override;
 
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) override;
+    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) const override;
 
     /**
      * Get the feature type as defined in WkbType (qgis.h).
      * @return int representing the feature type
      */
-    QGis::WkbType geometryType() const override;
+    QgsWkbTypes::Type wkbType() const override;
 
 
     /**
@@ -86,25 +86,17 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
      */
     long featureCount() const override;
 
+    virtual QgsRectangle extent() const override;
 
-    /** Return the extent for this data layer
-     */
-    virtual QgsRectangle extent() override;
-
-    /**
-     * Get the field information for the layer
-     */
-    const QgsFields & fields() const override;
+    QgsFields fields() const override;
 
     // ! Key (category) field index
     int keyField();
 
-    /** Restart reading features from previous select operation */
+    //! Restart reading features from previous select operation
     void rewind();
 
-    /** Returns the minimum value of an attributs
-     *  @param index the index of the attribute */
-    QVariant minimumValue( int index ) override;
+    QVariant minimumValue( int index ) const override;
 
     /** Returns the maximum value of an attributs
      *  @param index the index of the attribute */
@@ -116,14 +108,12 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
      */
     void update();
 
-    /** Load info (mNumberFeatures, mCidxFieldIndex, mCidxFieldNumCats)  from map */
+    //! Load info (mNumberFeatures, mCidxFieldIndex, mCidxFieldNumCats)  from map
     void loadMapInfo();
 
-    /** Returns true if this is a valid layer
-     */
-    bool isValid() override;
+    bool isValid() const override;
 
-    QgsCoordinateReferenceSystem crs() override;
+    QgsCoordinateReferenceSystem crs() const override;
 
     // ----------------------------------- New edit --------------------------------
     // Changes are written during editing.
@@ -133,7 +123,7 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
     virtual bool addAttributes( const QList<QgsField> &attributes ) override;
     virtual bool deleteAttributes( const QgsAttributeIds &attributes ) override;
     virtual bool changeAttributeValues( const QgsChangedAttributesMap & attr_map ) override  { Q_UNUSED( attr_map ); return true; }
-    virtual bool changeGeometryValues( QgsGeometryMap & geometry_map ) override { Q_UNUSED( geometry_map ); return true; }
+    virtual bool changeGeometryValues( const QgsGeometryMap &geometry_map ) override { Q_UNUSED( geometry_map ); return true; }
 
 
     //----------------------------------------------------------------------------
@@ -165,10 +155,10 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
     //void startEditing( QgsVectorLayerEditBuffer* buffer );
     void startEditing( QgsVectorLayer *vectorLayer );
 
-    /** Freeze vector. */
+    //! Freeze vector.
     void freeze();
 
-    /** Thaw vector. */
+    //! Thaw vector.
     void thaw();
 
     /** Close editing. Rebuild topology, GMAP.update = false
@@ -334,32 +324,32 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
 
     /* Following functions work only until first edit operation! (category index used) */
 
-    /** Get number of fields in category index */
+    //! Get number of fields in category index
     int cidxGetNumFields( void );
 
-    /** Get field number for index */
+    //! Get field number for index
     int cidxGetFieldNumber( int idx );
 
-    /** Get maximum category for field index */
+    //! Get maximum category for field index
     int cidxGetMaxCat( int idx );
 
-    /** Returns GRASS layer number */
+    //! Returns GRASS layer number
     int grassLayer();
 
     /** Returns GRASS layer number for given layer name or -1 if cannot
      *  get layer number
      */
-    static int grassLayer( QString );
+    static int grassLayer( const QString & );
 
     /** Returns GRASS layer type (GV_POINT, GV_LINES, GV_AREA) for
      *  given layer name or -1 if cannot get layer type
      */
-    static int grassLayerType( QString );
+    static int grassLayerType( const QString & );
 
-    /** Return a provider name */
+    //! Return a provider name
     QString name() const override;
 
-    /** Return description */
+    //! Return description
     QString description() const override;
 
     // Layer type (layerType)
@@ -384,7 +374,7 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
   public slots:
     void onFeatureAdded( QgsFeatureId fid );
     void onFeatureDeleted( QgsFeatureId fid );
-    void onGeometryChanged( QgsFeatureId fid, QgsGeometry &geom );
+    void onGeometryChanged( QgsFeatureId fid, const QgsGeometry& geom );
     void onAttributeValueChanged( QgsFeatureId fid, int idx, const QVariant &value );
     void onAttributeAdded( int idx );
     void onAttributeDeleted( int idx );
@@ -406,7 +396,7 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
     QgsGrassVectorMapLayer *openLayer() const;
 
   private:
-    struct Map_info * map();
+    struct Map_info * map() const;
     void setMapset();
     bool openLayer();
     // update topo symbol of new features
@@ -422,7 +412,7 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
     // grass feature type: GV_POINT, GV_LINE | GV_BOUNDARY, GV_AREA, ( GV_BOUNDARY, GV_CENTROID )
     int mGrassType;
     // WKBPoint, WKBLineString, ...
-    QGis::WkbType mQgisType;
+    QgsWkbTypes::Type mQgisType;
     QString mLayerName;
     QgsGrassVectorMapLayer *mLayer;
     // The version of the map for which the instance was last time updated
@@ -442,22 +432,22 @@ class GRASS_LIB_EXPORT QgsGrassProvider : public QgsVectorDataProvider
      */
     static char *attribute( int layerId, int cat, int column );
 
-    /** Check if provider is outdated and update if necessary */
-    void ensureUpdated();
+    //! Check if provider is outdated and update if necessary
+    void ensureUpdated() const;
 
-    /** Check if layer is topology layer TOPO_POINT, TOPO_NODE, TOPO_LINE */
+    //! Check if layer is topology layer TOPO_POINT, TOPO_NODE, TOPO_LINE
     bool isTopoType() const;
 
     static bool isTopoType( int layerType );
 
     void setTopoFields();
 
-    void setPoints( struct line_pnts *points, const QgsAbstractGeometryV2 * geometry );
+    void setPoints( struct line_pnts *points, const QgsAbstractGeometry * geometry );
 
     // Get other edited layer, returns 0 if layer does not exist
     QgsGrassVectorMapLayer * otherEditLayer( int layerField );
 
-    /** Fields used for topo layers */
+    //! Fields used for topo layers
     QgsFields mTopoFields;
 
     //QgsFields mEditFields;

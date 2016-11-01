@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -27,9 +28,10 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4 import uic
-from PyQt4.QtCore import QSettings
-from PyQt4.QtGui import QIcon, QFileDialog
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import QSettings, pyqtSignal
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QFileDialog
 from processing.tools import dataobjects
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
@@ -38,6 +40,8 @@ WIDGET, BASE = uic.loadUiType(
 
 
 class InputLayerSelectorPanel(BASE, WIDGET):
+
+    valueChanged = pyqtSignal()
 
     def __init__(self, options, param):
         super(InputLayerSelectorPanel, self).__init__(None)
@@ -53,27 +57,34 @@ class InputLayerSelectorPanel(BASE, WIDGET):
             self.cmbText.addItem(name, value)
 
         self.btnSelect.clicked.connect(self.showSelectionDialog)
+        self.cmbText.currentIndexChanged.connect(self.valueChanged.emit)
 
     def showSelectionDialog(self):
         settings = QSettings()
-        text = unicode(self.cmbText.currentText())
+        text = str(self.cmbText.currentText())
         if os.path.isdir(text):
             path = text
         elif os.path.isdir(os.path.dirname(text)):
             path = os.path.dirname(text)
         elif settings.contains('/Processing/LastInputPath'):
-            path = unicode(settings.value('/Processing/LastInputPath'))
+            path = str(settings.value('/Processing/LastInputPath'))
         else:
             path = ''
 
-        filename = QFileDialog.getOpenFileName(self, self.tr('Select file'),
-                                               path, self.tr('All files (*.*);;') + self.param.getFileFilter())
+        filename, selected_filter = QFileDialog.getOpenFileName(self, self.tr('Select file'),
+                                                                path, self.tr('All files (*.*);;') + self.param.getFileFilter())
         if filename:
             settings.setValue('/Processing/LastInputPath',
-                              os.path.dirname(unicode(filename)))
+                              os.path.dirname(str(filename)))
             filename = dataobjects.getRasterSublayer(filename, self.param)
             self.cmbText.addItem(filename, filename)
             self.cmbText.setCurrentIndex(self.cmbText.count() - 1)
+
+    def update(self, options):
+        self.cmbText.clear()
+        for (name, value) in options:
+            self.cmbText.addItem(name, value)
+        self.valueChanged.emit()
 
     def getValue(self):
         return self.cmbText.itemData(self.cmbText.currentIndex())

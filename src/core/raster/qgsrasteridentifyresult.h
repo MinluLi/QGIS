@@ -19,9 +19,8 @@
 #define QGSRASTERIDENTIFYRESULT_H
 
 #include "qgis.h"
-#include "qgslogger.h"
-#include "qgsrasterdataprovider.h"
 #include "qgsraster.h"
+#include "qgserror.h"
 
 /** \ingroup core
  * Raster identify results container.
@@ -40,14 +39,14 @@ class CORE_EXPORT QgsRasterIdentifyResult
     /** \brief Constructor. Creates invalid result with error.
      *  @param theError the error
      */
-    QgsRasterIdentifyResult( QgsError theError );
+    QgsRasterIdentifyResult( const QgsError& theError );
 
     virtual ~QgsRasterIdentifyResult();
 
-    /** \brief Returns true if valid */
+    //! \brief Returns true if valid
     bool isValid() const { return mValid; }
 
-    /** \brief Get results format */
+    //! \brief Get results format
     QgsRaster::IdentifyFormat format() const { return mFormat; }
 
     /** \brief Get results. Results are different for each format:
@@ -57,34 +56,34 @@ class CORE_EXPORT QgsRasterIdentifyResult
      */
     QMap<int, QVariant> results() const { return mResults; }
 
-    /** Set map of optional parameters */
+    //! Set map of optional parameters
     void setParams( const QMap<QString, QVariant> & theParams ) { mParams = theParams; }
 
-    /** Get map of optional parameters */
+    //! Get map of optional parameters
     QMap<QString, QVariant> params() const { return mParams; }
 
-    /** \brief Get error */
+    //! \brief Get error
     QgsError error() const { return mError; }
 
-    /** \brief Set error */
+    //! \brief Set error
     void setError( const QgsError & theError ) { mError = theError;}
 
   private:
-    /** \brief Is valid */
+    //! \brief Is valid
     bool mValid;
 
-    /** \brief Results format */
+    //! \brief Results format
     QgsRaster::IdentifyFormat mFormat;
 
-    /** \brief Results */
+    //! \brief Results
     // TODO: better hierarchy (sublayer multiple feature sets)?
     // TODO?: results are not consistent for different formats (per band x per sublayer)
     QMap<int, QVariant> mResults;
 
-    /** \brief Additional params (e.g. request url used by WMS) */
+    //! \brief Additional params (e.g. request url used by WMS)
     QMap<QString, QVariant> mParams;
 
-    /** \brief Error */
+    //! \brief Error
     QgsError mError;
 };
 

@@ -19,22 +19,24 @@
 #ifndef QGSLABELSEARCHTREE_H
 #define QGSLABELSEARCHTREE_H
 
-#include "qgspoint.h"
-#include "qgsmaprenderer.h"
 #include <QList>
 #include <QVector>
 #include <pointset.h>
 #include <labelposition.h>
-#include "qgsrectangle.h"
+#include "qgspallabeling.h"
+#include "rtree.hpp"
 
-/** A class to query the labeling structure at a given point (small wraper around pal RTree class)*/
+class QgsPoint;
+
+/** \ingroup core
+ * A class to query the labeling structure at a given point (small wraper around pal RTree class)*/
 class CORE_EXPORT QgsLabelSearchTree
 {
   public:
     QgsLabelSearchTree();
     ~QgsLabelSearchTree();
 
-    /** Removes and deletes all the entries*/
+    //! Removes and deletes all the entries
     void clear();
 
     /** Returns label position(s) at a given point. QgsLabelSearchTree keeps ownership, don't delete the LabelPositions
@@ -53,12 +55,15 @@ class CORE_EXPORT QgsLabelSearchTree
      * @return true in case of success
      * @note not available in python bindings
      */
-    bool insertLabel( pal::LabelPosition* labelPos, int featureId, const QString& layerName, const QString& labeltext, const QFont& labelfont, bool diagram = false, bool pinned = false );
+    bool insertLabel( pal::LabelPosition* labelPos, int featureId, const QString& layerName, const QString& labeltext, const QFont& labelfont, bool diagram = false, bool pinned = false, const QString& providerId = QString() );
 
   private:
     // set as mutable because RTree template is not const-correct
     mutable pal::RTree<QgsLabelPosition*, double, 2, double> mSpatialIndex;
     QList< QgsLabelPosition* > mOwnedPositions;
+
+    QgsLabelSearchTree( const QgsLabelSearchTree& rh );
+    QgsLabelSearchTree& operator=( const QgsLabelSearchTree& rh );
 };
 
 #endif // QGSLABELTREE_H

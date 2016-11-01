@@ -2,20 +2,13 @@ ADD_DEFINITIONS(-DQT_PLUGIN)
 ADD_DEFINITIONS(-DQT_NO_DEBUG)
 ADD_DEFINITIONS(-DQT_SHARED)
 
-IF (QT5_BUILD)
-  FIND_PACKAGE(Qt5UiPlugin REQUIRED)
-  FIND_PACKAGE(Qt5Designer REQUIRED)
-ENDIF (QT5_BUILD)
+FIND_PACKAGE(Qt5UiPlugin REQUIRED)
+FIND_PACKAGE(Qt5Designer REQUIRED)
 
 SET(QT_USE_QTDESIGNER ON)
 
 
-IF (NOT MSVC)
-  ADD_DEFINITIONS("-UCUSTOMWIDGETS_EXPORT")
-  IF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
-  ENDIF()
-ENDIF (NOT MSVC)
+REMOVE_DEFINITIONS("-DCUSTOMWIDGETS_EXPORT=${DLLIMPORT}")
 ADD_DEFINITIONS("\"-DCUSTOMWIDGETS_EXPORT=${DLLEXPORT}\"")
 
 ########################################################
@@ -25,14 +18,16 @@ SET (QGIS_CUSTOMWIDGETS_SRCS
   qgiscustomwidgets.cpp
   qgscollapsiblegroupboxplugin.cpp
   qgscolorbuttonplugin.cpp
-  qgscolorbuttonv2plugin.cpp
   qgsdatetimeeditplugin.cpp
   qgsdatadefinedbuttonplugin.cpp
+  qgsdockwidgetplugin.cpp
   qgsdoublespinboxplugin.cpp
   qgsexpressionbuilderwidgetplugin.cpp
   qgsextentgroupboxplugin.cpp
+  qgsexternalresourcewidgetplugin.cpp
   qgsfieldcomboboxplugin.cpp
   qgsfieldexpressionwidgetplugin.cpp
+  qgsfilewidgetplugin.cpp
   qgsfilterlineeditplugin.cpp
   qgsmaplayercomboboxplugin.cpp
   qgsprojectionselectionwidgetplugin.cpp
@@ -47,14 +42,16 @@ SET (QGIS_CUSTOMWIDGETS_MOC_HDRS
   qgiscustomwidgets.h
   qgscollapsiblegroupboxplugin.h
   qgscolorbuttonplugin.h
-  qgscolorbuttonv2plugin.h
   qgsdatetimeeditplugin.h
   qgsdatadefinedbuttonplugin.h
+  qgsdockwidgetplugin.h
   qgsdoublespinboxplugin.h
   qgsexpressionbuilderwidgetplugin.h
   qgsextentgroupboxplugin.h
+  qgsexternalresourcewidgetplugin.h
   qgsfieldcomboboxplugin.h
   qgsfieldexpressionwidgetplugin.h
+  qgsfilewidgetplugin.h
   qgsfilterlineeditplugin.h
   qgsmaplayercomboboxplugin.h
   qgsprojectionselectionwidgetplugin.h
@@ -75,14 +72,16 @@ SET(QGIS_CUSTOMWIDGETS_HDRS
   qgiscustomwidgets.h
   qgscollapsiblegroupboxplugin.h
   qgscolorbuttonplugin.h
-  qgscolorbuttonv2plugin.h
   qgsdatetimeeditplugin.h
   qgsdatadefinedbuttonplugin.h
+  qgsdockwidgetplugin.h
   qgsdoublespinboxplugin.h
   qgsexpressionbuilderwidgetplugin.h
   qgsextentgroupboxplugin.h
+  qgsexternalresourcewidgetplugin.h
   qgsfieldcomboboxplugin.h
   qgsfieldexpressionwidgetplugin.h
+  qgsfilewidgetplugin.h
   qgsfilterlineeditplugin.h
   qgsmaplayercomboboxplugin.h
   qgsprojectionselectionwidgetplugin.h
@@ -115,13 +114,13 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${QT_QTDESIGNER_INCLUDE_DIR} # For Qt4
 )
 
-QT4_WRAP_CPP(QGIS_CUSTOMWIDGETS_MOC_SRCS ${QGIS_CUSTOMWIDGETS_MOC_HDRS})
+QT5_WRAP_CPP(QGIS_CUSTOMWIDGETS_MOC_SRCS ${QGIS_CUSTOMWIDGETS_MOC_HDRS})
 
 #############################################################
 # qgis_customwidgets library
 
 SET(IMAGE_RCCS ../../images/images.qrc)
-QT4_ADD_RESOURCES(IMAGE_RCC_SRCS ${IMAGE_RCCS})
+QT5_ADD_RESOURCES(IMAGE_RCC_SRCS ${IMAGE_RCCS})
 
 ADD_LIBRARY(qgis_customwidgets SHARED ${QGIS_CUSTOMWIDGETS_SRCS} ${QGIS_CUSTOMWIDGETS_MOC_SRCS} ${QGIS_CUSTOMWIDGETS_HDRS} ${IMAGE_RCC_SRCS})
 

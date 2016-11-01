@@ -26,6 +26,7 @@
 #include "qgstextannotationitem.h"
 #include "qgssvgannotationdialog.h"
 #include "qgssvgannotationitem.h"
+#include "qgsproject.h"
 #include <QDialog>
 #include <QMouseEvent>
 
@@ -44,14 +45,14 @@ QgsMapToolAnnotation::~QgsMapToolAnnotation()
 QgsAnnotationItem* QgsMapToolAnnotation::createItem( QMouseEvent *e )
 {
   Q_UNUSED( e );
-  return 0;
+  return nullptr;
 }
 
 QDialog* QgsMapToolAnnotation::createItemEditor( QgsAnnotationItem *item )
 {
   if ( !item )
   {
-    return 0;
+    return nullptr;
   }
 
   QgsTextAnnotationItem* tItem = dynamic_cast<QgsTextAnnotationItem*>( item );
@@ -78,7 +79,7 @@ QDialog* QgsMapToolAnnotation::createItemEditor( QgsAnnotationItem *item )
     return new QgsSvgAnnotationDialog( sItem );
   }
 
-  return 0;
+  return nullptr;
 }
 
 void QgsMapToolAnnotation::canvasReleaseEvent( QgsMapMouseEvent* e )
@@ -141,6 +142,7 @@ void QgsMapToolAnnotation::keyPressEvent( QKeyEvent* e )
         mCanvas->scene()->removeItem( sItem );
         delete sItem;
         mCanvas->setCursor( neutralCursor );
+        QgsProject::instance()->setDirty( true ); // TODO QGIS3: Rework the whole annotation code to be MVC compliant, see PR #2506
 
         // Override default shortcut management in MapCanvas
         e->ignore();
@@ -158,10 +160,11 @@ void QgsMapToolAnnotation::canvasMoveEvent( QgsMapMouseEvent* e )
     {
       sItem->setMapPosition( toMapCoordinates( e->pos() ) );
       sItem->update();
+      QgsProject::instance()->setDirty( true );
     }
     else if ( mCurrentMoveAction == QgsAnnotationItem::MoveFramePosition )
     {
-      if ( sItem->mapPositionFixed() )
+      if ( sItem->hasFixedMapPosition() )
       {
         sItem->setOffsetFromReferencePoint( sItem->offsetFromReferencePoint() + ( e->posF() - mLastMousePosition ) );
       }
@@ -171,6 +174,7 @@ void QgsMapToolAnnotation::canvasMoveEvent( QgsMapMouseEvent* e )
         sItem->setMapPosition( toMapCoordinates( newCanvasPos.toPoint() ) );
       }
       sItem->update();
+      QgsProject::instance()->setDirty( true );
     }
     else if ( mCurrentMoveAction != QgsAnnotationItem::NoAction )
     {
@@ -210,16 +214,21 @@ void QgsMapToolAnnotation::canvasMoveEvent( QgsMapMouseEvent* e )
       double tmp;
       if ( xmax < xmin )
       {
-        tmp = xmax; xmax = xmin; xmin = tmp;
+        tmp = xmax;
+        xmax = xmin;
+        xmin = tmp;
       }
       if ( ymax < ymin )
       {
-        tmp = ymax; ymax = ymin; ymin = tmp;
+        tmp = ymax;
+        ymax = ymin;
+        ymin = tmp;
       }
 
       sItem->setOffsetFromReferencePoint( QPointF( xmin, ymin ) );
       sItem->setFrameSize( QSizeF( xmax - xmin, ymax - ymin ) );
       sItem->update();
+      QgsProject::instance()->setDirty( true );
     }
   }
   else if ( sItem )
@@ -243,16 +252,17 @@ void QgsMapToolAnnotation::canvasDoubleClickEvent( QgsMapMouseEvent* e )
   QDialog* itemEditor = createItemEditor( item );
   if ( itemEditor )
   {
-    itemEditor->exec();
+    if ( itemEditor->exec() )
+      QgsProject::instance()->setDirty( true );
     delete itemEditor;
   }
 }
 
-QgsAnnotationItem* QgsMapToolAnnotation::itemAtPos( const QPointF& pos )
+QgsAnnotationItem* QgsMapToolAnnotation::itemAtPos( QPointF pos )
 {
   if ( !mCanvas )
   {
-    return 0;
+    return nullptr;
   }
 
   QList<QGraphicsItem *> graphicItems = mCanvas->items( pos.toPoint() );
@@ -265,14 +275,14 @@ QgsAnnotationItem* QgsMapToolAnnotation::itemAtPos( const QPointF& pos )
       return annotationItem;
     }
   }
-  return 0;
+  return nullptr;
 }
 
 QgsAnnotationItem* QgsMapToolAnnotation::selectedItem()
 {
   if ( !mCanvas || !mCanvas->scene() )
   {
-    return 0;
+    return nullptr;
   }
   QList<QGraphicsItem *> gItemList = mCanvas->scene()->selectedItems();
   QList<QGraphicsItem *>::iterator it = gItemList.begin();
@@ -284,7 +294,7 @@ QgsAnnotationItem* QgsMapToolAnnotation::selectedItem()
       return aItem;
     }
   }
-  return 0;
+  return nullptr;
 }
 
 QList<QgsAnnotationItem*> QgsMapToolAnnotation::annotationItems()

@@ -32,12 +32,15 @@ class GUI_EXPORT QgsCredentialDialog : public QDialog, public QgsCredentials, pr
 {
     Q_OBJECT
   public:
-    QgsCredentialDialog( QWidget *parent = 0, const Qt::WindowFlags& fl = QgisGui::ModalDialogFlags );
+    QgsCredentialDialog( QWidget *parent = nullptr, Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
     ~QgsCredentialDialog();
 
   signals:
+
+    //! @note not available in Python bindings
     void credentialsRequested( const QString&, QString *, QString *, const QString&, bool * );
 
+    //! @note not available in Python bindings
     void credentialsRequestedMasterPassword( QString *, bool, bool * );
 
   private slots:

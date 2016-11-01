@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'November 2014'
@@ -40,9 +41,7 @@ from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterBoolean
 from processing.core.outputs import OutputDirectory
 
-from processing.tools import raster
-from processing.tools import dataobjects
-from processing.tools import vector
+from processing.tools import raster, vector, dataobjects
 
 
 class HypsometricCurves(GeoAlgorithm):
@@ -60,7 +59,7 @@ class HypsometricCurves(GeoAlgorithm):
         self.addParameter(ParameterRaster(self.INPUT_DEM,
                                           self.tr('DEM to analyze')))
         self.addParameter(ParameterVector(self.BOUNDARY_LAYER,
-                                          self.tr('Boundary layer'), ParameterVector.VECTOR_TYPE_POLYGON))
+                                          self.tr('Boundary layer'), dataobjects.TYPE_VECTOR_POLYGON))
         self.addParameter(ParameterNumber(self.STEP,
                                           self.tr('Step'), 0.0, 999999999.999999, 100.0))
         self.addParameter(ParameterBoolean(self.USE_PERCENTAGE,
@@ -100,10 +99,9 @@ class HypsometricCurves(GeoAlgorithm):
         memRasterDriver = gdal.GetDriverByName('MEM')
 
         features = vector.features(layer)
-        count = len(features)
-        total = 100.0 / float(count)
+        total = 100.0 / len(features)
 
-        for count, f in enumerate(features):
+        for current, f in enumerate(features):
             geom = f.geometry()
             intersectedGeom = rasterGeom.intersection(geom)
 
@@ -171,7 +169,7 @@ class HypsometricCurves(GeoAlgorithm):
 
             memVDS = None
             rasterizedDS = None
-            progress.setPercentage(int(count * total))
+            progress.setPercentage(int(current * total))
 
         rasterDS = None
 
@@ -195,11 +193,11 @@ class HypsometricCurves(GeoAlgorithm):
             tmpValue += step
 
         if percentage:
-            multiplier = 100.0 / float(len(d.flat))
+            multiplier = 100.0 / len(d.flat)
         else:
             multiplier = pX * pY
 
-        for k, v in out.iteritems():
+        for k, v in list(out.items()):
             out[k] = v * multiplier
 
         prev = None

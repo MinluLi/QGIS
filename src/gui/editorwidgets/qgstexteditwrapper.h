@@ -22,7 +22,7 @@
 #include <QPlainTextEdit>
 #include <QTextEdit>
 
-/**
+/** \ingroup gui
  * Wraps a text widget. Users will be able to modify text with this widget type.
  *
  * Options:
@@ -37,20 +37,24 @@ class GUI_EXPORT QgsTextEditWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsTextEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = 0, QWidget* parent = 0 );
+    explicit QgsTextEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = nullptr, QWidget* parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value() override;
+    QVariant value() const override;
+    void showIndeterminateState() override;
 
   protected:
     QWidget*createWidget( QWidget* parent ) override;
     void initWidget( QWidget* editor ) override;
-    bool valid() override;
+    bool valid() const override;
 
   public slots:
     void setValue( const QVariant& value ) override;
     void setEnabled( bool enabled ) override;
+
+  private slots:
+    void textChanged( const QString& text );
 
   private:
     QTextEdit* mTextEdit;
@@ -58,6 +62,9 @@ class GUI_EXPORT QgsTextEditWrapper : public QgsEditorWidgetWrapper
     QLineEdit* mLineEdit;
     QPalette mReadOnlyPalette;
     QPalette mWritablePalette;
+    QString mPlaceholderText;
+
+    void setWidgetValue( const QVariant& value );
 };
 
 #endif // QGSTEXTEDITWRAPPER_H

@@ -84,11 +84,11 @@ class GUI_EXPORT QgsAuthSslImportDialog : public QDialog, private Ui::QgsAuthSsl
      * Construct dialog for importing certificates
      * @param parent
      */
-    QgsAuthSslImportDialog( QWidget *parent = 0 );
+    QgsAuthSslImportDialog( QWidget *parent = nullptr );
     ~QgsAuthSslImportDialog();
 
   public slots:
-    /** Overridden slot of base dialog */
+    //! Overridden slot of base dialog
     void accept() override;
 
   private slots:

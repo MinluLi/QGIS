@@ -37,8 +37,8 @@ class GRASS_LIB_EXPORT QgsGrassFeatureSource : public QgsAbstractFeatureSource
     enum Selection
     {
 
-      NotSelected = 0, /*!< not selected */
-      Selected = 1, /*!< line/area selected */
+      NotSelected = 0, //!< Not selected
+      Selected = 1, //!< Line/area selected
       Used = 2 /*!< the line was already used to create feature read in this cycle.
                 * The codes Used must be reset to Selected if getFirstFeature() or select() is called.
                 * Distinction between Selected and Used is used if attribute table exists, in which case
@@ -54,7 +54,7 @@ class GRASS_LIB_EXPORT QgsGrassFeatureSource : public QgsAbstractFeatureSource
     int mLayerType;     // layer type POINT, LINE, ...
     int mGrassType;     // grass feature type: GV_POINT, GV_LINE | GV_BOUNDARY, GV_AREA,
 
-    QGis::WkbType mQgisType; // WKBPoint, WKBLineString, ...
+    QgsWkbTypes::Type mQgisType; // WKBPoint, WKBLineString, ...
 
     QgsFields mFields;
     QTextCodec* mEncoding;
@@ -110,7 +110,7 @@ class GRASS_LIB_EXPORT QgsGrassFeatureIterator : public QObject, public QgsAbstr
     //void lock();
     //void unlock();
 
-    /** Reset selection */
+    //! Reset selection
     void resetSelection( bool value );
 
     void setSelectionRect( const QgsRectangle& rect, bool useIntersect );
@@ -130,10 +130,10 @@ class GRASS_LIB_EXPORT QgsGrassFeatureIterator : public QObject, public QgsAbstr
      */
     void setFeatureAttributes( int cat, QgsFeature *feature, const QgsAttributeList & attlist, QgsGrassVectorMap::TopoSymbol symbol );
 
-    /** Canceled -> close when possible */
+    //! Canceled -> close when possible
     bool mCanceled;
 
-    /** Selection array */
+    //! Selection array
     QBitArray mSelection; // !UPDATE!
 
     // Edit mode is using mNextLid + mNextCidx

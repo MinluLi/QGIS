@@ -27,13 +27,13 @@
 #include "evisgenericeventbrowsergui.h"
 
 #include "qgsapplication.h"
-#include "qgsmaprenderer.h"
+#include "qgsfeatureiterator.h"
 #include "qgsmaptopixel.h"
 #include "qgsmapcanvas.h"
 #include "qgsgeometry.h"
 #include "qgslogger.h"
 #include "qgspoint.h"
-#include "qgsfield.h"
+#include "qgsfields.h"
 #include "qgsrectangle.h"
 
 #include <QMessageBox>
@@ -56,13 +56,13 @@ eVisGenericEventBrowserGui::eVisGenericEventBrowserGui( QWidget* parent, QgisInt
   setupUi( this );
 
   QSettings settings;
-  restoreGeometry( settings.value( "/eVis/browser-geometry" ).toByteArray() );
+  restoreGeometry( settings.value( QStringLiteral( "/eVis/browser-geometry" ) ).toByteArray() );
 
   mCurrentFeatureIndex = 0;
   mInterface = interface;
-  mDataProvider = 0;
-  mVectorLayer = 0;
-  mCanvas = 0;
+  mDataProvider = nullptr;
+  mVectorLayer = nullptr;
+  mCanvas = nullptr;
 
   mIgnoreEvent = false;
 
@@ -89,9 +89,9 @@ eVisGenericEventBrowserGui::eVisGenericEventBrowserGui( QWidget* parent, QgsMapC
   setupUi( this );
 
   mCurrentFeatureIndex = 0;
-  mInterface = 0;
-  mDataProvider = 0;
-  mVectorLayer = 0;
+  mInterface = nullptr;
+  mDataProvider = nullptr;
+  mVectorLayer = nullptr;
   mCanvas = canvas;
 
   mIgnoreEvent = false;
@@ -114,17 +114,17 @@ eVisGenericEventBrowserGui::eVisGenericEventBrowserGui( QWidget* parent, QgsMapC
 eVisGenericEventBrowserGui::~eVisGenericEventBrowserGui()
 {
   QSettings settings;
-  settings.setValue( "/eVis/browser-geometry", saveGeometry() );
+  settings.setValue( QStringLiteral( "/eVis/browser-geometry" ), saveGeometry() );
 
   //Clean up, disconnect the highlighting routine and refesh the canvase to clear highlighting symbol
-  if ( 0 != mCanvas )
+  if ( mCanvas )
   {
     disconnect( mCanvas, SIGNAL( renderComplete( QPainter * ) ), this, SLOT( renderSymbol( QPainter * ) ) );
     mCanvas->refresh();
   }
 
   //On close, clear selected feature
-  if ( 0 != mVectorLayer )
+  if ( mVectorLayer )
   {
     mVectorLayer->removeSelection();
   }
@@ -141,8 +141,8 @@ bool eVisGenericEventBrowserGui::initBrowser()
 
   connect( treeEventData, SIGNAL( itemDoubleClicked( QTreeWidgetItem *, int ) ), this, SLOT( launchExternalApplication( QTreeWidgetItem *, int ) ) );
 
-  mHighlightSymbol.load( ":/evis/eVisHighlightSymbol.png" );
-  mPointerSymbol.load( ":/evis/eVisPointerSymbol.png" );
+  mHighlightSymbol.load( QStringLiteral( ":/evis/eVisHighlightSymbol.png" ) );
+  mPointerSymbol.load( QStringLiteral( ":/evis/eVisPointerSymbol.png" ) );
   mCompassOffset = 0.0;
 
   //Flag to let us know if the browser fully loaded
@@ -195,11 +195,11 @@ bool eVisGenericEventBrowserGui::initBrowser()
   chkboxSaveUseOnlyFilenameData->setChecked( false );
 
   //Set up Configure External Application buttons
-  pbtnAddFileType->setIcon( QIcon( QPixmap( myThemePath + "/mActionNewAttribute.png" ) ) );
-  pbtnDeleteFileType->setIcon( QIcon( QPixmap( myThemePath + "/mActionDeleteAttribute.png" ) ) );
+  pbtnAddFileType->setIcon( QIcon( QPixmap( myThemePath + "/mActionNewAttribute.svg" ) ) );
+  pbtnDeleteFileType->setIcon( QIcon( QPixmap( myThemePath + "/mActionDeleteAttribute.svg" ) ) );
 
   //Check to for interface, not null when launched from plugin toolbar, otherwise expect map canvas
-  if ( 0 != mInterface )
+  if ( mInterface )
   {
     //check for active layer
     if ( mInterface->activeLayer() )
@@ -223,7 +223,7 @@ bool eVisGenericEventBrowserGui::initBrowser()
     }
   }
   //check for map canvas, if map canvas is null, throw error
-  else if ( 0 != mCanvas )
+  else if ( mCanvas )
   {
     //check for active layer
     if ( mCanvas->currentLayer() )
@@ -282,11 +282,11 @@ bool eVisGenericEventBrowserGui::initBrowser()
     return false;
   }
 
-  const QgsFields& myFields = mDataProvider->fields();
+  QgsFields myFields = mDataProvider->fields();
   mIgnoreEvent = true; //Ignore indexChanged event when adding items to combo boxes
   for ( int x = 0; x < myFields.count(); x++ )
   {
-    QString name = myFields[x].name();
+    QString name = myFields.at( x ).name();
     cboxEventImagePathField->addItem( name );
     cboxCompassBearingField->addItem( name );
     cboxCompassOffsetField->addItem( name );
@@ -320,15 +320,15 @@ bool eVisGenericEventBrowserGui::initBrowser()
 
   //Load file associations into Configure External Applications tab gui items
   QSettings myQSettings;
-  myQSettings.beginWriteArray( "/eVis/filetypeassociations" );
+  myQSettings.beginWriteArray( QStringLiteral( "/eVis/filetypeassociations" ) );
   int myTotalAssociations = myQSettings.childGroups().count();
   int myIterator = 0;
   while ( myIterator < myTotalAssociations )
   {
     myQSettings.setArrayIndex( myIterator );
     tableFileTypeAssociations->insertRow( tableFileTypeAssociations->rowCount() );
-    tableFileTypeAssociations->setItem( myIterator, 0, new QTableWidgetItem( myQSettings.value( "extension", "" ).toString() ) );
-    tableFileTypeAssociations->setItem( myIterator, 1, new QTableWidgetItem( myQSettings.value( "application", "" ).toString() ) );
+    tableFileTypeAssociations->setItem( myIterator, 0, new QTableWidgetItem( myQSettings.value( QStringLiteral( "extension" ), "" ).toString() ) );
+    tableFileTypeAssociations->setItem( myIterator, 1, new QTableWidgetItem( myQSettings.value( QStringLiteral( "application" ), "" ).toString() ) );
     myIterator++;
   }
   myQSettings.endArray();
@@ -428,50 +428,50 @@ void eVisGenericEventBrowserGui::accept()
 
   if ( chkboxSaveEventImagePathData->isChecked() )
   {
-    myQSettings.setValue( "/eVis/eventimagepathfield", cboxEventImagePathField->currentText() );
-    myQSettings.setValue( "/eVis/eventimagepathrelative", chkboxEventImagePathRelative->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/eventimagepathfield" ), cboxEventImagePathField->currentText() );
+    myQSettings.setValue( QStringLiteral( "/eVis/eventimagepathrelative" ), chkboxEventImagePathRelative->isChecked() );
   }
 
   if ( chkboxSaveCompassBearingData->isChecked() )
   {
-    myQSettings.setValue( "/eVis/compassbearingfield", cboxCompassBearingField->currentText() );
-    myQSettings.setValue( "/eVis/displaycompassbearing", chkboxDisplayCompassBearing->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/compassbearingfield" ), cboxCompassBearingField->currentText() );
+    myQSettings.setValue( QStringLiteral( "/eVis/displaycompassbearing" ), chkboxDisplayCompassBearing->isChecked() );
   }
 
   if ( chkboxSaveCompassOffsetData->isChecked() )
   {
-    myQSettings.setValue( "/eVis/manualcompassoffset", rbtnManualCompassOffset->isChecked() );
-    myQSettings.setValue( "/eVis/compassoffset", dsboxCompassOffset->value() );
-    myQSettings.setValue( "/eVis/attributecompassoffset", rbtnAttributeCompassOffset->isChecked() );
-    myQSettings.setValue( "/eVis/compassoffsetfield", cboxCompassOffsetField->currentText() );
+    myQSettings.setValue( QStringLiteral( "/eVis/manualcompassoffset" ), rbtnManualCompassOffset->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/compassoffset" ), dsboxCompassOffset->value() );
+    myQSettings.setValue( QStringLiteral( "/eVis/attributecompassoffset" ), rbtnAttributeCompassOffset->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/compassoffsetfield" ), cboxCompassOffsetField->currentText() );
   }
 
   if ( chkboxSaveBasePathData->isChecked() )
   {
-    myQSettings.setValue( "/eVis/basepath", leBasePath->text() );
+    myQSettings.setValue( QStringLiteral( "/eVis/basepath" ), leBasePath->text() );
   }
 
   if ( chkboxSaveUseOnlyFilenameData->isChecked() )
   {
-    myQSettings.setValue( "/eVis/useonlyfilename", chkboxUseOnlyFilename->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/useonlyfilename" ), chkboxUseOnlyFilename->isChecked() );
   }
 
   if ( chkboxSaveApplyPathRulesToDocs->isChecked() )
   {
-    myQSettings.setValue( "/eVis/applypathrulestodocs", chkboxApplyPathRulesToDocs->isChecked() );
+    myQSettings.setValue( QStringLiteral( "/eVis/applypathrulestodocs" ), chkboxApplyPathRulesToDocs->isChecked() );
   }
 
-  myQSettings.remove( "/eVis/filetypeassociations" );
-  myQSettings.beginWriteArray( "/eVis/filetypeassociations" );
+  myQSettings.remove( QStringLiteral( "/eVis/filetypeassociations" ) );
+  myQSettings.beginWriteArray( QStringLiteral( "/eVis/filetypeassociations" ) );
   int myIterator = 0;
   int myIndex = 0;
   while ( myIterator < tableFileTypeAssociations->rowCount() )
   {
     myQSettings.setArrayIndex( myIndex );
-    if ( 0 != tableFileTypeAssociations->item( myIterator, 0 ) && 0 != tableFileTypeAssociations->item( myIterator, 1 ) )
+    if ( tableFileTypeAssociations->item( myIterator, 0 ) && tableFileTypeAssociations->item( myIterator, 1 ) )
     {
-      myQSettings.setValue( "extension", tableFileTypeAssociations->item( myIterator, 0 )->text() );
-      myQSettings.setValue( "application", tableFileTypeAssociations->item( myIterator, 1 )->text() );
+      myQSettings.setValue( QStringLiteral( "extension" ), tableFileTypeAssociations->item( myIterator, 0 )->text() );
+      myQSettings.setValue( QStringLiteral( "application" ), tableFileTypeAssociations->item( myIterator, 1 )->text() );
       myIndex++;
     }
     myIterator++;
@@ -522,7 +522,7 @@ void eVisGenericEventBrowserGui::displayImage()
   //This if statement is a bit of a hack, have to track down where the 0 is comming from on initalization
   if ( "0" != mEventImagePath && 0 == displayArea->currentIndex() )
   {
-    if ( mEventImagePath.startsWith( "http://", Qt::CaseInsensitive ) )
+    if ( mEventImagePath.startsWith( QLatin1String( "http://" ), Qt::CaseInsensitive ) )
     {
       imageDisplayArea->displayUrlImage( mEventImagePath );
     }
@@ -533,17 +533,17 @@ void eVisGenericEventBrowserGui::displayImage()
 
     //clear any selection that may be present
     mVectorLayer->removeSelection();
-    if ( mFeatureIds.size() > 0 )
+    if ( !mFeatureIds.isEmpty() )
     {
       //select the current feature in the layer
       mVectorLayer->select( mFeatureIds.at( mCurrentFeatureIndex ) );
       //get a copy of the feature
       QgsFeature* myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-      if ( 0 == myFeature )
+      if ( !myFeature )
         return;
 
-      QgsPoint myPoint = myFeature->constGeometry()->asPoint();
+      QgsPoint myPoint = myFeature->geometry().asPoint();
       myPoint = mCanvas->mapSettings().layerToMapCoordinates( mVectorLayer, myPoint );
       //keep the extent the same just center the map canvas in the display so our feature is in the middle
       QgsRectangle myRect( myPoint.x() - ( mCanvas->extent().width() / 2 ), myPoint.y() - ( mCanvas->extent().height() / 2 ), myPoint.x() + ( mCanvas->extent().width() / 2 ), myPoint.y() + ( mCanvas->extent().height() / 2 ) );
@@ -570,7 +570,7 @@ QgsFeature* eVisGenericEventBrowserGui::featureAtId( QgsFeatureId id )
   {
     if ( !mVectorLayer->getFeatures( QgsFeatureRequest().setFilterFid( id ) ).nextFeature( mFeature ) )
     {
-      return 0;
+      return nullptr;
     }
   }
 
@@ -588,19 +588,19 @@ void eVisGenericEventBrowserGui::loadRecord()
   QgsFeature* myFeature;
   myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-  if ( 0 == myFeature )
+  if ( !myFeature )
     return;
 
   QString myCompassBearingField = cboxCompassBearingField->currentText();
   QString myCompassOffsetField = cboxCompassOffsetField->currentText();
   QString myEventImagePathField = cboxEventImagePathField->currentText();
-  const QgsFields& myFields = mDataProvider->fields();
+  QgsFields myFields = mDataProvider->fields();
   QgsAttributes myAttrs = myFeature->attributes();
   //loop through the attributes and display their contents
   for ( int i = 0; i < myAttrs.count(); ++i )
   {
     QStringList myValues;
-    QString fieldName = myFields[i].name();
+    QString fieldName = myFields.at( i ).name();
     myValues << fieldName << myAttrs.at( i ).toString();
     QTreeWidgetItem* myItem = new QTreeWidgetItem( myValues );
     if ( fieldName == myEventImagePathField )
@@ -665,7 +665,7 @@ void eVisGenericEventBrowserGui::restoreDefaultOptions()
   rbtnManualCompassOffset->setChecked( true );
   dsboxCompassOffset->setValue( 0.0 );
 
-  leBasePath->setText( "" );
+  leBasePath->setText( QLatin1String( "" ) );
   chkboxUseOnlyFilename->setChecked( false );
 
   chkboxSaveEventImagePathData->setChecked( false );
@@ -701,14 +701,14 @@ void eVisGenericEventBrowserGui::setBasePathToDataSource()
 #ifdef Q_OS_WIN
   mySourceUri.replace( "\\\\", "\\" );
 #else
-  if ( mySourceUri.startsWith( "http://", Qt::CaseInsensitive ) )
+  if ( mySourceUri.startsWith( QLatin1String( "http://" ), Qt::CaseInsensitive ) )
   {
-    mySourceUri.replace( "//", "/" );
-    mySourceUri.replace( "http:/", "http://", Qt::CaseInsensitive );
+    mySourceUri.replace( QLatin1String( "//" ), QLatin1String( "/" ) );
+    mySourceUri.replace( QLatin1String( "http:/" ), QLatin1String( "http://" ), Qt::CaseInsensitive );
   }
   else
   {
-    mySourceUri.replace( "//", "/" );
+    mySourceUri.replace( QLatin1String( "//" ), QLatin1String( "/" ) );
   }
 #endif
 
@@ -836,10 +836,10 @@ void eVisGenericEventBrowserGui::on_cboxEventImagePathField_currentIndexChanged(
   {
     mConfiguration.setEventImagePathField( cboxEventImagePathField->currentText() );
 
-    const QgsFields& myFields = mDataProvider->fields();
+    QgsFields myFields = mDataProvider->fields();
     QgsFeature* myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-    if ( 0 == myFeature )
+    if ( !myFeature )
       return;
 
     QgsAttributes myAttrs = myFeature->attributes();
@@ -864,16 +864,16 @@ void eVisGenericEventBrowserGui::on_cboxCompassBearingField_currentIndexChanged(
   {
     mConfiguration.setCompassBearingField( cboxCompassBearingField->currentText() );
 
-    const QgsFields& myFields = mDataProvider->fields();
+    QgsFields myFields = mDataProvider->fields();
     QgsFeature* myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-    if ( 0 == myFeature )
+    if ( !myFeature )
       return;
 
     QgsAttributes myAttrs = myFeature->attributes();
     for ( int i = 0; i < myAttrs.count(); ++i )
     {
-      if ( myFields[i].name() == cboxCompassBearingField->currentText() )
+      if ( myFields.at( i ).name() == cboxCompassBearingField->currentText() )
       {
         mCompassBearing = myAttrs.at( i ).toDouble();
       }
@@ -892,16 +892,16 @@ void eVisGenericEventBrowserGui::on_cboxCompassOffsetField_currentIndexChanged( 
   {
     mConfiguration.setCompassOffsetField( cboxCompassOffsetField->currentText() );
 
-    const QgsFields& myFields = mDataProvider->fields();
+    QgsFields myFields = mDataProvider->fields();
     QgsFeature* myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-    if ( 0 == myFeature )
+    if ( !myFeature )
       return;
 
     QgsAttributes myAttrs = myFeature->attributes();
     for ( int i = 0; i < myAttrs.count(); ++i )
     {
-      if ( myFields[i].name() == cboxCompassOffsetField->currentText() )
+      if ( myFields.at( i ).name() == cboxCompassOffsetField->currentText() )
       {
         mCompassOffset = myAttrs.at( i ).toDouble();
       }
@@ -1049,7 +1049,7 @@ void eVisGenericEventBrowserGui::on_pbtnResetApplyPathRulesToDocs_clicked()
 
 void eVisGenericEventBrowserGui::on_pbtnResetBasePathData_clicked()
 {
-  leBasePath->setText( "" );
+  leBasePath->setText( QLatin1String( "" ) );
   if ( chkboxEventImagePathRelative->isChecked() )
   {
     setBasePathToDataSource();
@@ -1102,7 +1102,7 @@ void eVisGenericEventBrowserGui::on_tableFileTypeAssociations_cellDoubleClicked(
 {
   if ( 1 == theColumn )
   {
-    QString myApplication = QFileDialog::getOpenFileName( this, tr( "Select Application" ), "", tr( "All ( * )" ) );
+    QString myApplication = QFileDialog::getOpenFileName( this, tr( "Select Application" ), QDir::homePath(), tr( "All ( * )" ) );
     if ( "" != myApplication )
     {
       tableFileTypeAssociations->setItem( theRow, theColumn, new QTableWidgetItem( myApplication ) );
@@ -1118,15 +1118,15 @@ void eVisGenericEventBrowserGui::on_tableFileTypeAssociations_cellDoubleClicked(
 void eVisGenericEventBrowserGui::renderSymbol( QPainter* thePainter )
 {
 
-  if ( mFeatureIds.size() > 0 && mVectorLayer != 0 )
+  if ( !mFeatureIds.isEmpty() && mVectorLayer )
   {
     //Get a pointer to the current feature
     QgsFeature* myFeature = featureAtId( mFeatureIds.at( mCurrentFeatureIndex ) );
 
-    if ( 0 == myFeature )
+    if ( !myFeature )
       return;
 
-    QgsPoint myPoint = myFeature->constGeometry()->asPoint();
+    QgsPoint myPoint = myFeature->geometry().asPoint();
     myPoint = mCanvas->mapSettings().layerToMapCoordinates( mVectorLayer, myPoint );
 
     mCanvas->getCoordinateTransform()->transform( &myPoint );

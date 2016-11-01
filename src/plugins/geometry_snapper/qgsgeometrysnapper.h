@@ -24,7 +24,7 @@
 
 class QgsMapSettings;
 class QgsVectorLayer;
-class QgsAbstractGeometryV2;
+class QgsAbstractGeometry;
 
 class QgsGeometrySnapper : public QObject
 {
@@ -35,12 +35,16 @@ class QgsGeometrySnapper : public QObject
     QFuture<void> processFeatures();
     const QStringList& getErrors() const { return mErrors; }
 
+  signals:
+    void progressRangeChanged( int min, int max );
+    void progressStep();
+
   private:
     struct ProcessFeatureWrapper
     {
       QgsGeometrySnapper* instance;
       explicit ProcessFeatureWrapper( QgsGeometrySnapper* _instance ) : instance( _instance ) {}
-      void operator()( const QgsFeatureId& id ) { instance->processFeature( id ); }
+      void operator()( QgsFeatureId id ) { instance->processFeature( id ); }
     };
 
     enum PointFlag { SnappedToRefNode, SnappedToRefSegment, Unsnapped };
@@ -57,9 +61,9 @@ class QgsGeometrySnapper : public QObject
     QMutex mAdjustLayerMutex;
     QMutex mReferenceLayerMutex;
 
-    void processFeature( const QgsFeatureId& id );
-    bool getFeature( QgsVectorLayer* layer, QMutex& mutex, const QgsFeatureId &id, QgsFeature& feature );
-    int polyLineSize( const QgsAbstractGeometryV2* geom, int iPart, int iRing ) const;
+    void processFeature( QgsFeatureId id );
+    bool getFeature( QgsVectorLayer* layer, QMutex& mutex, QgsFeatureId id, QgsFeature& feature );
+    int polyLineSize( const QgsAbstractGeometry* geom, int iPart, int iRing ) const;
 };
 
 #endif // QGS_GEOMETRY_SNAPPER_H

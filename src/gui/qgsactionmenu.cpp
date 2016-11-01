@@ -15,11 +15,14 @@
 
 #include "qgsactionmenu.h"
 #include "qgsvectorlayer.h"
+#include "qgsmaplayeractionregistry.h"
+#include "qgsactionmanager.h"
+#include "qgsfeatureiterator.h"
 
 QgsActionMenu::QgsActionMenu( QgsVectorLayer* layer, const QgsFeature* feature, QWidget*  parent )
     : QMenu( parent )
     , mLayer( layer )
-    , mActions( 0 )
+    , mActions( nullptr )
     , mFeature( feature )
     , mFeatureId( feature->id() )
     , mOwnsFeature( false )
@@ -30,8 +33,8 @@ QgsActionMenu::QgsActionMenu( QgsVectorLayer* layer, const QgsFeature* feature, 
 QgsActionMenu::QgsActionMenu( QgsVectorLayer* layer, const QgsFeatureId fid, QWidget*  parent )
     : QMenu( parent )
     , mLayer( layer )
-    , mActions( 0 )
-    , mFeature( 0 )
+    , mActions( nullptr )
+    , mFeature( nullptr )
     , mFeatureId( fid )
     , mOwnsFeature( false )
 {
@@ -115,7 +118,7 @@ void QgsActionMenu::reloadActions()
   clear();
 
   delete mActions;
-  mActions = new QgsAttributeAction( *mLayer->actions() );
+  mActions = new QgsActionManager( *mLayer->actions() );
 
   for ( int idx = 0; idx < mActions->size(); ++idx )
   {
@@ -141,7 +144,7 @@ void QgsActionMenu::reloadActions()
 
   QList<QgsMapLayerAction*> mapLayerActions = QgsMapLayerActionRegistry::instance()->mapLayerActions( mLayer, QgsMapLayerAction::SingleFeature );
 
-  if ( mapLayerActions.size() > 0 )
+  if ( !mapLayerActions.isEmpty() )
   {
     //add a separator between user defined and standard actions
     addSeparator();

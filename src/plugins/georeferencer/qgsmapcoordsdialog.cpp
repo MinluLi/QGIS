@@ -16,21 +16,20 @@
 #include <QPushButton>
 
 #include "qgsmapcanvas.h"
-#include "qgssnappingutils.h"
 
 #include "qgsgeorefvalidators.h"
 #include "qgsmapcoordsdialog.h"
 
 QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas* qgisCanvas, const QgsPoint &pixelCoords, QWidget* parent )
     : QDialog( parent, Qt::Dialog )
-    , mPrevMapTool( NULL )
+    , mPrevMapTool( nullptr )
     , mQgisCanvas( qgisCanvas )
     , mPixelCoords( pixelCoords )
 {
   setupUi( this );
 
   QSettings s;
-  restoreGeometry( s.value( "/Plugin-GeoReferencer/MapCoordsWindow/geometry" ).toByteArray() );
+  restoreGeometry( s.value( QStringLiteral( "/Plugin-GeoReferencer/MapCoordsWindow/geometry" ) ).toByteArray() );
 
   setAttribute( Qt::WA_DeleteOnClose );
 
@@ -45,8 +44,6 @@ QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas* qgisCanvas, const QgsPoint
 
   mToolEmitPoint = new QgsGeorefMapToolEmitPoint( qgisCanvas );
   mToolEmitPoint->setButton( mPointFromCanvasPushButton );
-
-  mSnapToBackgroundLayerBox->setChecked( s.value( "/Plugin-GeoReferencer/snapToBackgroundLayers", QVariant( false ) ).toBool() );
 
   connect( mPointFromCanvasPushButton, SIGNAL( clicked( bool ) ), this, SLOT( setToolEmitPoint( bool ) ) );
 
@@ -64,7 +61,7 @@ QgsMapCoordsDialog::~QgsMapCoordsDialog()
   delete mToolEmitPoint;
 
   QSettings settings;
-  settings.setValue( "/Plugin-GeoReferencer/MapCoordsWindow/geometry", saveGeometry() );
+  settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/MapCoordsWindow/geometry" ), saveGeometry() );
 }
 
 void QgsMapCoordsDialog::updateOK()
@@ -91,8 +88,6 @@ void QgsMapCoordsDialog::on_buttonBox_accepted()
     y = dmsToDD( leYCoord->text() );
 
   emit pointAdded( mPixelCoords, QgsPoint( x, y ) );
-  QSettings s;
-  s.setValue( "/Plugin-GeoReferencer/snapToBackgroundLayers", mSnapToBackgroundLayerBox->isChecked() );
   close();
 }
 
@@ -102,12 +97,6 @@ void QgsMapCoordsDialog::maybeSetXY( const QgsPoint & xy, Qt::MouseButton button
   if ( Qt::LeftButton == button )
   {
     QgsPoint mapCoordPoint = xy;
-    if ( mQgisCanvas && mSnapToBackgroundLayerBox->isChecked() )
-    {
-      QgsPointLocator::Match m = mQgisCanvas->snappingUtils()->snapToMap( xy );
-      if ( m.isValid() )
-        mapCoordPoint = m.point();
-    }
 
     leXCoord->clear();
     leYCoord->clear();
@@ -131,7 +120,7 @@ void QgsMapCoordsDialog::setToolEmitPoint( bool isEnable )
   {
     parentWidget()->showMinimized();
 
-    assert( parentWidget()->parentWidget() != 0 );
+    Q_ASSERT( parentWidget()->parentWidget() );
     parentWidget()->parentWidget()->activateWindow();
     parentWidget()->parentWidget()->raise();
 

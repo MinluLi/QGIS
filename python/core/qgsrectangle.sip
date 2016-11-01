@@ -1,6 +1,6 @@
 
-/** \class QgsRectangle
- * \brief A rectangle specified with double values.
+/** \ingroup core
+ * A rectangle specified with double values.
  *
  * QgsRectangle is used to store a rectangle when double values are required.
  * Examples are storing a layer extent or the current view extent of a map
@@ -74,7 +74,7 @@ class QgsRectangle
     //! return true when rectangle contains a point
     bool contains( const QgsPoint &p ) const;
     //! expand the rectangle so that covers both the original rectangle and the given rectangle
-    void combineExtentWith( QgsRectangle *rect );
+    void combineExtentWith( const QgsRectangle& rect );
     //! expand the rectangle so that covers both the original rectangle and the given point
     void combineExtentWith( double x, double y );
     //! test if rectangle is empty.
@@ -97,18 +97,19 @@ class QgsRectangle
     //! returns rectangle as a polygon
     QString asPolygon() const;
     /** Comparison operator
-      @return True if rectangles are equal
-    */
+     * @return True if rectangles are equal
+     */
     bool operator==( const QgsRectangle &r1 ) const;
     /** Comparison operator
-    @return False if rectangles are equal
+     * @return False if rectangles are equal
      */
     bool operator!=( const QgsRectangle &r1 ) const;
     /** Updates rectangle to include passed argument */
     void unionRect( const QgsRectangle& rect );
 
     /** Returns true if the rectangle has finite boundaries. Will
-        return false if any of the rectangle boundaries are NaN or Inf. */
+     * return false if any of the rectangle boundaries are NaN or Inf.
+     */
     bool isFinite() const;
 
     //! swap x/y

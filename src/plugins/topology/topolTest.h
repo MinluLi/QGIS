@@ -41,15 +41,15 @@ class TopologyRule
     bool useSecondLayer;
     bool useTolerance;
     bool useSpatialIndex;
-    QList<QGis::GeometryType> layer1SupportedTypes;
-    QList<QGis::GeometryType> layer2SupportedTypes;
+    QList<QgsWkbTypes::GeometryType> layer1SupportedTypes;
+    QList<QgsWkbTypes::GeometryType> layer2SupportedTypes;
 
-    bool layer1AcceptsType( QGis::GeometryType type )
+    bool layer1AcceptsType( QgsWkbTypes::GeometryType type )
     {
       return layer1SupportedTypes.contains( type );
     }
 
-    bool layer2AcceptsType( QGis::GeometryType type )
+    bool layer2AcceptsType( QgsWkbTypes::GeometryType type )
     {
       return layer2SupportedTypes.contains( type );
     }
@@ -59,12 +59,12 @@ class TopologyRule
      * Constructor
      * initializes the test to use both layers and not to use the tolerance
      */
-    explicit TopologyRule( testFunction f0 = 0,
+    explicit TopologyRule( testFunction f0 = nullptr,
                            bool useSecondLayer0 = true,
                            bool useTolerance0 = false,
                            bool useSpatialIndex0 = false,
-                           const QList<QGis::GeometryType>& layer1SupportedTypes0 = QList<QGis::GeometryType>(),
-                           const QList<QGis::GeometryType>& layer2SupportedTypes0 = QList<QGis::GeometryType>()
+                           const QList<QgsWkbTypes::GeometryType>& layer1SupportedTypes0 = QList<QgsWkbTypes::GeometryType>(),
+                           const QList<QgsWkbTypes::GeometryType>& layer2SupportedTypes0 = QList<QgsWkbTypes::GeometryType>()
                          )
         : f( f0 )
         , useSecondLayer( useSecondLayer0 )
@@ -146,11 +146,11 @@ class topolTest: public QObject
 #endif
 
     /**
-    * Checks for short segments
-    * @param tolerance tolerance - not used
-    * @param layer1 pointer to the first layer
-    * @param layer2 pointer to the second layer
-    */
+     * Checks for short segments
+     * @param tolerance tolerance - not used
+     * @param layer1 pointer to the first layer
+     * @param layer2 pointer to the second layer
+     */
     ErrorList checkSegmentLength( double tolerance, QgsVectorLayer* layer1, QgsVectorLayer* layer2, bool isExtent );
     /**
      * Checks for dangling lines

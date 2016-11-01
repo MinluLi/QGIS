@@ -1,21 +1,38 @@
+/***************************************************************************
+    qgsrulebasedlabelingwidget.cpp
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2015 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 #include "qgsrulebasedlabelingwidget.h"
 
 #include "qgsapplication.h"
 #include "qgsexpressionbuilderdialog.h"
+#include "qgsfeatureiterator.h"
 #include "qgslabelinggui.h"
+#include "qgsmapcanvas.h"
 #include "qgsrulebasedlabeling.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerlabeling.h"
+#include "qgslogger.h"
 
 #include <QClipboard>
 #include <QMessageBox>
 
 QgsRuleBasedLabelingWidget::QgsRuleBasedLabelingWidget( QgsVectorLayer* layer, QgsMapCanvas* canvas, QWidget* parent )
-    : QWidget( parent )
+    : QgsPanelWidget( parent )
     , mLayer( layer )
     , mCanvas( canvas )
-    , mRootRule( 0 )
-    , mModel( 0 )
+    , mRootRule( nullptr )
+    , mModel( nullptr )
 {
   setupUi( this );
 
@@ -43,18 +60,22 @@ QgsRuleBasedLabelingWidget::QgsRuleBasedLabelingWidget( QgsVectorLayer* layer, Q
   connect( mPasteAction, SIGNAL( triggered( bool ) ), this, SLOT( paste() ) );
   connect( mDeleteAction, SIGNAL( triggered( bool ) ), this, SLOT( removeRule() ) );
 
-  if ( mLayer->labeling() && mLayer->labeling()->type() == "rule-based" )
+  if ( mLayer->labeling() && mLayer->labeling()->type() == QLatin1String( "rule-based" ) )
   {
     const QgsRuleBasedLabeling* rl = static_cast<const QgsRuleBasedLabeling*>( mLayer->labeling() );
     mRootRule = rl->rootRule()->clone();
   }
   else
   {
-    mRootRule = new QgsRuleBasedLabeling::Rule( 0 );
+    mRootRule = new QgsRuleBasedLabeling::Rule( nullptr );
   }
 
   mModel = new QgsRuleBasedLabelingModel( mRootRule );
   viewRules->setModel( mModel );
+
+  connect( mModel, SIGNAL( dataChanged( QModelIndex, QModelIndex ) ), this, SIGNAL( widgetChanged() ) );
+  connect( mModel, SIGNAL( rowsInserted( QModelIndex, int, int ) ), this, SIGNAL( widgetChanged() ) );
+  connect( mModel, SIGNAL( rowsRemoved( QModelIndex, int, int ) ), this, SIGNAL( widgetChanged() ) );
 }
 
 QgsRuleBasedLabelingWidget::~QgsRuleBasedLabelingWidget()
@@ -65,37 +86,50 @@ QgsRuleBasedLabelingWidget::~QgsRuleBasedLabelingWidget()
 void QgsRuleBasedLabelingWidget::writeSettingsToLayer()
 {
   // also clear old-style labeling config
-  mLayer->removeCustomProperty( "labeling" );
+  mLayer->removeCustomProperty( QStringLiteral( "labeling" ) );
 
   mLayer->setLabeling( new QgsRuleBasedLabeling( mRootRule->clone() ) );
 }
 
 void QgsRuleBasedLabelingWidget::addRule()
 {
+
   QgsRuleBasedLabeling::Rule* newrule = new QgsRuleBasedLabeling::Rule( new QgsPalLayerSettings );
 
-  QgsLabelingRulePropsDialog dlg( newrule, mLayer, this, mCanvas );
-  if ( dlg.exec() )
+  QgsRuleBasedLabeling::Rule* current = currentRule();
+  if ( current )
   {
-    QgsRuleBasedLabeling::Rule* current = currentRule();
-    if ( current )
-    {
-      // add after this rule
-      QModelIndex currentIndex = viewRules->selectionModel()->currentIndex();
-      mModel->insertRule( currentIndex.parent(), currentIndex.row() + 1, newrule );
-    }
-    else
-    {
-      // append to root rule
-      int rows = mModel->rowCount();
-      mModel->insertRule( QModelIndex(), rows, newrule );
-    }
+    // add after this rule
+    QModelIndex currentIndex = viewRules->selectionModel()->currentIndex();
+    mModel->insertRule( currentIndex.parent(), currentIndex.row() + 1, newrule );
+    QModelIndex newindex = mModel->index( currentIndex.row() + 1, 0, currentIndex.parent() );
+    viewRules->selectionModel()->setCurrentIndex( newindex, QItemSelectionModel::ClearAndSelect );
   }
   else
   {
-    delete newrule;
+    // append to root rule
+    int rows = mModel->rowCount();
+    mModel->insertRule( QModelIndex(), rows, newrule );
+    QModelIndex newindex = mModel->index( rows, 0 );
+    viewRules->selectionModel()->setCurrentIndex( newindex, QItemSelectionModel::ClearAndSelect );
   }
+  editRule();
 }
+
+void QgsRuleBasedLabelingWidget::ruleWidgetPanelAccepted( QgsPanelWidget* panel )
+{
+  QgsLabelingRulePropsWidget* widget = qobject_cast<QgsLabelingRulePropsWidget*>( panel );
+  widget->apply();
+
+  QModelIndex index = viewRules->selectionModel()->currentIndex();
+  mModel->updateRule( index.parent(), index.row() );
+}
+
+void QgsRuleBasedLabelingWidget::liveUpdateRuleFromPanel()
+{
+  ruleWidgetPanelAccepted( qobject_cast<QgsPanelWidget*>( sender() ) );
+}
+
 
 void QgsRuleBasedLabelingWidget::editRule()
 {
@@ -106,23 +140,21 @@ void QgsRuleBasedLabelingWidget::editRule( const QModelIndex& index )
 {
   if ( !index.isValid() )
     return;
+
   QgsRuleBasedLabeling::Rule* rule = mModel->ruleForIndex( index );
 
-  QgsLabelingRulePropsDialog dlg( rule, mLayer, this, mCanvas );
-  if ( dlg.exec() )
-  {
-    // model should know about the change and emit dataChanged signal for the view
-    mModel->updateRule( index.parent(), index.row() );
-  }
+  QgsLabelingRulePropsWidget* widget = new QgsLabelingRulePropsWidget( rule, mLayer, this, mCanvas );
+  widget->setPanelTitle( tr( "Edit rule" ) );
+  connect( widget, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( ruleWidgetPanelAccepted( QgsPanelWidget* ) ) );
+  connect( widget, SIGNAL( widgetChanged() ), this, SLOT( liveUpdateRuleFromPanel() ) );
+  openPanel( widget );
 }
 
 void QgsRuleBasedLabelingWidget::removeRule()
 {
   QItemSelection sel = viewRules->selectionModel()->selection();
-  QgsDebugMsg( QString( "REMOVE RULES!!! ranges: %1" ).arg( sel.count() ) );
   Q_FOREACH ( const QItemSelectionRange& range, sel )
   {
-    QgsDebugMsg( QString( "RANGE: r %1 - %2" ).arg( range.top() ).arg( range.bottom() ) );
     if ( range.isValid() )
       mModel->removeRows( range.top(), range.bottom() - range.top() + 1, range.parent() );
   }
@@ -133,7 +165,6 @@ void QgsRuleBasedLabelingWidget::removeRule()
 void QgsRuleBasedLabelingWidget::copy()
 {
   QModelIndexList indexlist = viewRules->selectionModel()->selectedRows();
-  QgsDebugMsg( QString( "%1" ).arg( indexlist.count() ) );
 
   if ( indexlist.isEmpty() )
     return;
@@ -159,7 +190,7 @@ QgsRuleBasedLabeling::Rule* QgsRuleBasedLabelingWidget::currentRule()
   QItemSelectionModel* sel = viewRules->selectionModel();
   QModelIndex idx = sel->currentIndex();
   if ( !idx.isValid() )
-    return NULL;
+    return nullptr;
   return mModel->ruleForIndex( idx );
 }
 
@@ -170,7 +201,7 @@ static QString _formatScale( int denom )
 {
   if ( denom != 0 )
   {
-    QString txt = QString( "1:%L1" ).arg( denom );
+    QString txt = QStringLiteral( "1:%L1" ).arg( denom );
     return txt;
   }
   else
@@ -211,7 +242,8 @@ QVariant QgsRuleBasedLabelingModel::data( const QModelIndex& index, int role ) c
   {
     switch ( index.column() )
     {
-      case 0: return rule->description();
+      case 0:
+        return rule->description();
       case 1:
         if ( rule->isElse() )
         {
@@ -221,15 +253,19 @@ QVariant QgsRuleBasedLabelingModel::data( const QModelIndex& index, int role ) c
         {
           return rule->filterExpression().isEmpty() ? tr( "(no filter)" ) : rule->filterExpression();
         }
-      case 2: return rule->dependsOnScale() ? _formatScale( rule->scaleMaxDenom() ) : QVariant();
-      case 3: return rule->dependsOnScale() ? _formatScale( rule->scaleMinDenom() ) : QVariant();
-      case 4: return rule->settings() ? rule->settings()->fieldName : QVariant();
-      default: return QVariant();
+      case 2:
+        return rule->dependsOnScale() ? _formatScale( rule->scaleMaxDenom() ) : QVariant();
+      case 3:
+        return rule->dependsOnScale() ? _formatScale( rule->scaleMinDenom() ) : QVariant();
+      case 4:
+        return rule->settings() ? rule->settings()->fieldName : QVariant();
+      default:
+        return QVariant();
     }
   }
   else if ( role == Qt::DecorationRole && index.column() == 0 && rule->settings() )
   {
-    // TODO return QgsSymbolLayerV2Utils::symbolPreviewIcon( rule->symbol(), QSize( 16, 16 ) );
+    // TODO return QgsSymbolLayerUtils::symbolPreviewIcon( rule->symbol(), QSize( 16, 16 ) );
     return QVariant();
   }
   else if ( role == Qt::TextAlignmentRole )
@@ -250,12 +286,18 @@ QVariant QgsRuleBasedLabelingModel::data( const QModelIndex& index, int role ) c
   {
     switch ( index.column() )
     {
-      case 0: return rule->description();
-      case 1: return rule->filterExpression();
-      case 2: return rule->scaleMaxDenom();
-      case 3: return rule->scaleMinDenom();
-      case 4: return rule->settings() ? rule->settings()->fieldName : QVariant();
-      default: return QVariant();
+      case 0:
+        return rule->description();
+      case 1:
+        return rule->filterExpression();
+      case 2:
+        return rule->scaleMaxDenom();
+      case 3:
+        return rule->scaleMinDenom();
+      case 4:
+        return rule->settings() ? rule->settings()->fieldName : QVariant();
+      default:
+        return QVariant();
     }
   }
   else if ( role == Qt::CheckStateRole )
@@ -272,7 +314,8 @@ QVariant QgsRuleBasedLabelingModel::headerData( int section, Qt::Orientation ori
 {
   if ( orientation == Qt::Horizontal && role == Qt::DisplayRole && section >= 0 && section < 5 )
   {
-    QStringList lst; lst << tr( "Label" ) << tr( "Rule" ) << tr( "Min. scale" ) << tr( "Max. scale" ) << tr( "Text" ); // << tr( "Count" ) << tr( "Duplicate count" );
+    QStringList lst;
+    lst << tr( "Label" ) << tr( "Rule" ) << tr( "Min. scale" ) << tr( "Max. scale" ) << tr( "Text" ); // << tr( "Count" ) << tr( "Duplicate count" );
     return lst[section];
   }
 
@@ -374,7 +417,7 @@ Qt::DropActions QgsRuleBasedLabelingModel::supportedDropActions() const
 QStringList QgsRuleBasedLabelingModel::mimeTypes() const
 {
   QStringList types;
-  types << "application/vnd.text.list";
+  types << QStringLiteral( "application/vnd.text.list" );
   return types;
 }
 
@@ -382,15 +425,15 @@ QStringList QgsRuleBasedLabelingModel::mimeTypes() const
 void _renderer2labelingRules( QDomElement& ruleElem )
 {
   // labeling rules recognize only "description"
-  if ( ruleElem.hasAttribute( "label" ) )
-    ruleElem.setAttribute( "description", ruleElem.attribute( "label" ) );
+  if ( ruleElem.hasAttribute( QStringLiteral( "label" ) ) )
+    ruleElem.setAttribute( QStringLiteral( "description" ), ruleElem.attribute( QStringLiteral( "label" ) ) );
 
   // run recursively
-  QDomElement childRuleElem = ruleElem.firstChildElement( "rule" );
+  QDomElement childRuleElem = ruleElem.firstChildElement( QStringLiteral( "rule" ) );
   while ( !childRuleElem.isNull() )
   {
     _renderer2labelingRules( childRuleElem );
-    childRuleElem = childRuleElem.nextSiblingElement( "rule" );
+    childRuleElem = childRuleElem.nextSiblingElement( QStringLiteral( "rule" ) );
   }
 }
 
@@ -412,8 +455,8 @@ QMimeData*QgsRuleBasedLabelingModel::mimeData( const QModelIndexList& indexes ) 
     QgsRuleBasedLabeling::Rule* rule = ruleForIndex( index )->clone();
     QDomDocument doc;
 
-    QDomElement rootElem = doc.createElement( "rule_mime" );
-    rootElem.setAttribute( "type", "labeling" ); // for determining whether rules are from renderer or labeling
+    QDomElement rootElem = doc.createElement( QStringLiteral( "rule_mime" ) );
+    rootElem.setAttribute( QStringLiteral( "type" ), QStringLiteral( "labeling" ) ); // for determining whether rules are from renderer or labeling
     QDomElement rulesElem = rule->save( doc );
     rootElem.appendChild( rulesElem );
     doc.appendChild( rootElem );
@@ -423,7 +466,7 @@ QMimeData*QgsRuleBasedLabelingModel::mimeData( const QModelIndexList& indexes ) 
     stream << doc.toString( -1 );
   }
 
-  mimeData->setData( "application/vnd.text.list", encodedData );
+  mimeData->setData( QStringLiteral( "application/vnd.text.list" ), encodedData );
   return mimeData;
 }
 
@@ -434,13 +477,13 @@ bool QgsRuleBasedLabelingModel::dropMimeData( const QMimeData* data, Qt::DropAct
   if ( action == Qt::IgnoreAction )
     return true;
 
-  if ( !data->hasFormat( "application/vnd.text.list" ) )
+  if ( !data->hasFormat( QStringLiteral( "application/vnd.text.list" ) ) )
     return false;
 
   if ( parent.column() > 0 )
     return false;
 
-  QByteArray encodedData = data->data( "application/vnd.text.list" );
+  QByteArray encodedData = data->data( QStringLiteral( "application/vnd.text.list" ) );
   QDataStream stream( &encodedData, QIODevice::ReadOnly );
   int rows = 0;
 
@@ -459,10 +502,10 @@ bool QgsRuleBasedLabelingModel::dropMimeData( const QMimeData* data, Qt::DropAct
     if ( !doc.setContent( text ) )
       continue;
     QDomElement rootElem = doc.documentElement();
-    if ( rootElem.tagName() != "rule_mime" )
+    if ( rootElem.tagName() != QLatin1String( "rule_mime" ) )
       continue;
-    QDomElement ruleElem = rootElem.firstChildElement( "rule" );
-    if ( rootElem.attribute( "type" ) == "renderer" )
+    QDomElement ruleElem = rootElem.firstChildElement( QStringLiteral( "rule" ) );
+    if ( rootElem.attribute( QStringLiteral( "type" ) ) == QLatin1String( "renderer" ) )
       _renderer2labelingRules( ruleElem ); // do some modifications so that we load the rules more nicely
     QgsRuleBasedLabeling::Rule* rule = QgsRuleBasedLabeling::Rule::create( ruleElem );
 
@@ -524,16 +567,15 @@ void QgsRuleBasedLabelingModel::updateRule( const QModelIndex& parent, int row )
 
 /////////
 
-QgsLabelingRulePropsDialog::QgsLabelingRulePropsDialog( QgsRuleBasedLabeling::Rule* rule, QgsVectorLayer* layer, QWidget* parent, QgsMapCanvas* mapCanvas )
-    : QDialog( parent ), mRule( rule ), mLayer( layer ), mLabelingGui( 0 ), mSettings( 0 ), mMapCanvas( mapCanvas )
+QgsLabelingRulePropsWidget::QgsLabelingRulePropsWidget( QgsRuleBasedLabeling::Rule* rule, QgsVectorLayer* layer, QWidget* parent, QgsMapCanvas* mapCanvas )
+    : QgsPanelWidget( parent )
+    , mRule( rule )
+    , mLayer( layer )
+    , mLabelingGui( nullptr )
+    , mSettings( nullptr )
+    , mMapCanvas( mapCanvas )
 {
   setupUi( this );
-#ifdef Q_OS_MAC
-  setWindowModality( Qt::WindowModal );
-#endif
-
-  connect( buttonBox, SIGNAL( accepted() ), this, SLOT( accept() ) );
-  connect( buttonBox, SIGNAL( rejected() ), this, SLOT( reject() ) );
 
   editFilter->setText( mRule->filterExpression() );
   editFilter->setToolTip( mRule->filterExpression() );
@@ -562,30 +604,37 @@ QgsLabelingRulePropsDialog::QgsLabelingRulePropsDialog( QgsRuleBasedLabeling::Ru
     mSettings = new QgsPalLayerSettings;
   }
 
-  mLabelingGui = new QgsLabelingGui( mLayer, mMapCanvas, mSettings, this );
+  mLabelingGui = new QgsLabelingGui( nullptr, mMapCanvas, mSettings, this );
   mLabelingGui->layout()->setContentsMargins( 0, 0, 0, 0 );
   QVBoxLayout* l = new QVBoxLayout;
   l->addWidget( mLabelingGui );
   groupSettings->setLayout( l );
 
   mLabelingGui->setLabelMode( QgsLabelingGui::Labels );
-  mLabelingGui->init();
+  mLabelingGui->setLayer( mLayer );
 
   connect( btnExpressionBuilder, SIGNAL( clicked() ), this, SLOT( buildExpression() ) );
   connect( btnTestFilter, SIGNAL( clicked() ), this, SLOT( testFilter() ) );
-
-  QSettings settings;
-  restoreGeometry( settings.value( "/Windows/QgsLabelingRulePropsDialog/geometry" ).toByteArray() );
+  connect( editFilter, SIGNAL( textEdited( QString ) ), this, SIGNAL( widgetChanged() ) );
+  connect( editDescription, SIGNAL( textChanged( QString ) ), this, SIGNAL( widgetChanged() ) );
+  connect( groupScale, SIGNAL( toggled( bool ) ), this, SIGNAL( widgetChanged() ) );
+  connect( mScaleRangeWidget, SIGNAL( rangeChanged( double, double ) ), this, SIGNAL( widgetChanged() ) );
+  connect( groupSettings, SIGNAL( toggled( bool ) ), this, SIGNAL( widgetChanged() ) );
+  connect( mLabelingGui, SIGNAL( widgetChanged() ), this, SIGNAL( widgetChanged() ) );
 }
 
-QgsLabelingRulePropsDialog::~QgsLabelingRulePropsDialog()
+QgsLabelingRulePropsWidget::~QgsLabelingRulePropsWidget()
 {
   delete mSettings;
-  QSettings settings;
-  settings.setValue( "/Windows/QgsLabelingRulePropsDialog/geometry", saveGeometry() );
 }
 
-void QgsLabelingRulePropsDialog::testFilter()
+void QgsLabelingRulePropsWidget::setDockMode( bool dockMode )
+{
+  QgsPanelWidget::setDockMode( dockMode );
+  mLabelingGui->setDockMode( dockMode );
+}
+
+void QgsLabelingRulePropsWidget::testFilter()
 {
   QgsExpression filter( editFilter->text() );
   if ( filter.hasParserError() )
@@ -597,7 +646,7 @@ void QgsLabelingRulePropsDialog::testFilter()
   QgsExpressionContext context;
   context << QgsExpressionContextUtils::globalScope()
   << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::atlasScope( 0 );
+  << QgsExpressionContextUtils::atlasScope( nullptr );
   if ( mMapCanvas )
   {
     context << QgsExpressionContextUtils::mapSettingsScope( mMapCanvas->mapSettings() )
@@ -637,12 +686,12 @@ void QgsLabelingRulePropsDialog::testFilter()
   QMessageBox::information( this, tr( "Filter" ), tr( "Filter returned %n feature(s)", "number of filtered features", count ) );
 }
 
-void QgsLabelingRulePropsDialog::buildExpression()
+void QgsLabelingRulePropsWidget::buildExpression()
 {
   QgsExpressionContext context;
   context << QgsExpressionContextUtils::globalScope()
   << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::atlasScope( 0 );
+  << QgsExpressionContextUtils::atlasScope( nullptr );
   if ( mMapCanvas )
   {
     context << QgsExpressionContextUtils::mapSettingsScope( mMapCanvas->mapSettings() )
@@ -654,20 +703,18 @@ void QgsLabelingRulePropsDialog::buildExpression()
   }
   context << QgsExpressionContextUtils::layerScope( mLayer );
 
-  QgsExpressionBuilderDialog dlg( mLayer, editFilter->text(), this, "generic", context );
+  QgsExpressionBuilderDialog dlg( mLayer, editFilter->text(), this, QStringLiteral( "generic" ), context );
 
   if ( dlg.exec() )
     editFilter->setText( dlg.expressionText() );
 }
 
-void QgsLabelingRulePropsDialog::accept()
+void QgsLabelingRulePropsWidget::apply()
 {
   mRule->setFilterExpression( editFilter->text() );
   mRule->setDescription( editDescription->text() );
   // caution: rule uses scale denom, scale widget uses true scales
   mRule->setScaleMinDenom( groupScale->isChecked() ? mScaleRangeWidget->minimumScaleDenom() : 0 );
   mRule->setScaleMaxDenom( groupScale->isChecked() ? mScaleRangeWidget->maximumScaleDenom() : 0 );
-  mRule->setSettings( groupSettings->isChecked() ? new QgsPalLayerSettings( mLabelingGui->layerSettings() ) : 0 );
-
-  QDialog::accept();
+  mRule->setSettings( groupSettings->isChecked() ? new QgsPalLayerSettings( mLabelingGui->layerSettings() ) : nullptr );
 }

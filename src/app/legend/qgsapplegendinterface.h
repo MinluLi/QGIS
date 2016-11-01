@@ -30,17 +30,17 @@ class QgsMapLayer;
  * QgsLegendInterface
  * Abstract base class to make QgsLegend available to plugins.
  */
-Q_NOWARN_DEPRECATED_PUSH
+
 class QgsAppLegendInterface : public QgsLegendInterface
 {
     Q_OBJECT
 
   public:
 
-    /** Constructor */
+    //! Constructor
     explicit QgsAppLegendInterface( QgsLayerTreeView * layerTreeView );
 
-    /** Destructor */
+    //! Destructor
     ~QgsAppLegendInterface();
 
     //! Return a string list of groups
@@ -81,7 +81,7 @@ class QgsAppLegendInterface : public QgsLegendInterface
   public slots:
 
     //! Add a new group
-    int addGroup( const QString& name, bool expand = true, QTreeWidgetItem* parent = 0 ) override;
+    int addGroup( const QString& name, bool expand = true, QTreeWidgetItem* parent = nullptr ) override;
 
     //! Add a new group at a specified index
     int addGroup( const QString& name, bool expand, int groupIndex ) override;
@@ -118,6 +118,5 @@ class QgsAppLegendInterface : public QgsLegendInterface
     int groupNodeToIndex( QgsLayerTreeGroup* group );
     void setExpanded( QgsLayerTreeNode *node, bool expand );
 };
-Q_NOWARN_DEPRECATED_POP
 
 #endif //QGSLEGENDAPPIFACE_H

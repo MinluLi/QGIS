@@ -21,6 +21,7 @@
 #include "qgsserver.h"
 
 #include <fcgi_stdio.h>
+#include <stdlib.h>
 
 int fcgi_accept()
 {
@@ -36,13 +37,14 @@ int fcgi_accept()
 
 int main( int argc, char * argv[] )
 {
-  QgsServer server;
-  server.init( argc, argv );
+  QgsApplication app( argc, argv, getenv( "DISPLAY" ), QString(), QStringLiteral( "server" ) );
+  QgsServer server( false );
   // Starts FCGI loop
   while ( fcgi_accept() >= 0 )
   {
-    server.handleRequest( );
+    server.handleRequest();
   }
+  app.exitQgis();
   return 0;
 }
 

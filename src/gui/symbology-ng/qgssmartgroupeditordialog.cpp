@@ -15,7 +15,7 @@
 
 #include "qgssmartgroupeditordialog.h"
 
-#include "qgsstylev2.h"
+#include "qgsstyle.h"
 #include "qgsapplication.h"
 
 #include <QVariant>
@@ -49,7 +49,7 @@ void QgsSmartGroupCondition::destruct()
 
 QString QgsSmartGroupCondition::constraint()
 {
-  return mCondCombo->itemData( mCondCombo->currentIndex() ).toString();
+  return mCondCombo->currentData().toString();
 }
 
 QString QgsSmartGroupCondition::parameter()
@@ -76,8 +76,9 @@ void QgsSmartGroupCondition::hideRemoveButton( bool hide )
 // ------------------------ //
 // Editor Dialog Functions  //
 // ------------------------ //
-QgsSmartGroupEditorDialog::QgsSmartGroupEditorDialog( QgsStyleV2* style, QWidget* parent )
-    : QDialog( parent ), mStyle( style )
+QgsSmartGroupEditorDialog::QgsSmartGroupEditorDialog( QgsStyle* style, QWidget* parent )
+    : QDialog( parent )
+    , mStyle( style )
 {
   setupUi( this );
 
@@ -106,7 +107,7 @@ void QgsSmartGroupEditorDialog::addCondition()
   // enable the remove buttons when 2nd condition is added
   if ( mConditionMap.count() == 1 )
   {
-    Q_FOREACH ( QgsSmartGroupCondition *condition, mConditionMap.values() )
+    Q_FOREACH ( QgsSmartGroupCondition *condition, mConditionMap )
     {
       condition->hideRemoveButton( false );
     }
@@ -115,7 +116,7 @@ void QgsSmartGroupEditorDialog::addCondition()
   mLayout->addWidget( cond, mCondCount, 0, 1, 1 );
 
   connect( cond, SIGNAL( removed( int ) ), this, SLOT( removeCondition( int ) ) );
-  if ( mConditionMap.count() == 0 )
+  if ( mConditionMap.isEmpty() )
   {
     cond->hideRemoveButton( true );
   }
@@ -128,7 +129,7 @@ void QgsSmartGroupEditorDialog::removeCondition( int id )
   // hide the remove button of the last condition when 2nd last is removed
   if ( mConditionMap.count() == 2 )
   {
-    Q_FOREACH ( QgsSmartGroupCondition* condition, mConditionMap.values() )
+    Q_FOREACH ( QgsSmartGroupCondition* condition, mConditionMap )
     {
       condition->hideRemoveButton( true );
     }
@@ -142,7 +143,7 @@ QgsSmartConditionMap QgsSmartGroupEditorDialog::conditionMap()
 {
   QgsSmartConditionMap conditions;
 
-  Q_FOREACH ( QgsSmartGroupCondition* condition, mConditionMap.values() )
+  Q_FOREACH ( QgsSmartGroupCondition* condition, mConditionMap )
   {
     conditions.insert( condition->constraint(), condition->parameter() );
   }
@@ -152,13 +153,13 @@ QgsSmartConditionMap QgsSmartGroupEditorDialog::conditionMap()
 
 QString QgsSmartGroupEditorDialog::conditionOperator()
 {
-  return mAndOrCombo->itemData( mAndOrCombo->currentIndex() ).toString();
+  return mAndOrCombo->currentData().toString();
 }
 
-void QgsSmartGroupEditorDialog::setConditionMap( QgsSmartConditionMap map )
+void QgsSmartGroupEditorDialog::setConditionMap( const QgsSmartConditionMap& map )
 {
   QStringList constraints;
-  constraints << "tag" << "group" << "name" << "!tag" << "!group" << "!name";
+  constraints << QStringLiteral( "tag" ) << QStringLiteral( "group" ) << QStringLiteral( "name" ) << QStringLiteral( "!tag" ) << QStringLiteral( "!group" ) << QStringLiteral( "!name" );
 
   // clear any defaults
   Q_FOREACH ( int id, mConditionMap.keys() )

@@ -17,19 +17,21 @@
 #define QGSEXPRESSIONBUILDERDIALOG_H
 
 #include <QDialog>
-#include "qgsdistancearea.h"
 #include "ui_qgsexpressionbuilderdialogbase.h"
 
-/** A generic dialog for building expression strings
+/** \ingroup gui
+ * A generic dialog for building expression strings
   * @remarks This class also shows an example on how to use QgsExpressionBuilderWidget
   */
 class GUI_EXPORT QgsExpressionBuilderDialog : public QDialog, private Ui::QgsExpressionBuilderDialogBase
 {
+    Q_OBJECT
+
   public:
-    QgsExpressionBuilderDialog( QgsVectorLayer* layer, const QString& startText = QString(), QWidget* parent = NULL, const QString& key = "generic",
+    QgsExpressionBuilderDialog( QgsVectorLayer* layer, const QString& startText = QString(), QWidget* parent = nullptr, const QString& key = "generic",
                                 const QgsExpressionContext& context = QgsExpressionContext() );
 
-    /** The builder widget that is used by the dialog */
+    //! The builder widget that is used by the dialog
     QgsExpressionBuilderWidget* expressionBuilder();
 
     void setExpressionText( const QString& text );
@@ -51,7 +53,7 @@ class GUI_EXPORT QgsExpressionBuilderDialog : public QDialog, private Ui::QgsExp
      */
     void setExpressionContext( const QgsExpressionContext& context );
 
-    /** Sets geometry calculator used in distance/area calculations. */
+    //! Sets geometry calculator used in distance/area calculations.
     void setGeomCalculator( const QgsDistanceArea & da );
 
   protected:

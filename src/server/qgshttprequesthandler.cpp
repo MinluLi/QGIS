@@ -17,9 +17,12 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "qgis.h"
 #include "qgshttprequesthandler.h"
+#if QT_VERSION < 0x050000
 #include "qgsftptransaction.h"
 #include "qgshttptransaction.h"
+#endif
 #include "qgsmessagelog.h"
 #include "qgsmapserviceexception.h"
 #include <QBuffer>
@@ -33,21 +36,22 @@
 #include <fcgi_stdio.h>
 
 
-QgsHttpRequestHandler::QgsHttpRequestHandler( const bool captureOutput /*= FALSE*/ )
-    : QgsRequestHandler( )
+QgsHttpRequestHandler::QgsHttpRequestHandler( const bool captureOutput )
+    : QgsRequestHandler()
 {
-  mException = 0;
-  mHeadersSent = FALSE;
+  mException = nullptr;
+  mHeadersSent = false;
   mCaptureOutput = captureOutput;
 }
 
 QgsHttpRequestHandler::~QgsHttpRequestHandler()
 {
+  delete mException;
 }
 
 void QgsHttpRequestHandler::setHttpResponse( QByteArray *ba, const QString &format )
 {
-  QgsMessageLog::logMessage( "Checking byte array is ok to set..." );
+  QgsMessageLog::logMessage( QStringLiteral( "Checking byte array is ok to set..." ) );
   if ( !ba )
   {
     return;
@@ -57,14 +61,14 @@ void QgsHttpRequestHandler::setHttpResponse( QByteArray *ba, const QString &form
   {
     return;
   }
-  QgsMessageLog::logMessage( "Byte array looks good, setting response..." );
+  QgsMessageLog::logMessage( QStringLiteral( "Byte array looks good, setting response..." ) );
   appendBody( *ba );
   mInfoFormat = format;
 }
 
 bool QgsHttpRequestHandler::responseReady() const
 {
-  return mHeaders.count() || mBody.size();
+  return !mHeaders.isEmpty() || !mBody.isEmpty();
 }
 
 bool QgsHttpRequestHandler::exceptionRaised() const
@@ -76,17 +80,17 @@ void QgsHttpRequestHandler::setDefaultHeaders()
 {
   //format
   QString format = mInfoFormat;
-  if ( mInfoFormat.startsWith( "text/" ) )
+  if ( mInfoFormat.startsWith( QLatin1String( "text/" ) ) || mInfoFormat.startsWith( QLatin1String( "application/vnd.ogc.gml" ) ) )
   {
     format.append( "; charset=utf-8" );
   }
-  setHeader( "Content-Type", format );
+  setHeader( QStringLiteral( "Content-Type" ), format );
 
   //length
   int contentLength = mBody.size();
   if ( contentLength > 0 ) // size is not known when streaming
   {
-    setHeader( "Content-Length", QString::number( contentLength ) );
+    setHeader( QStringLiteral( "Content-Length" ), QString::number( contentLength ) );
   }
 }
 
@@ -96,7 +100,7 @@ void QgsHttpRequestHandler::setHeader( const QString &name, const QString &value
 }
 
 
-void QgsHttpRequestHandler::clearHeaders( )
+void QgsHttpRequestHandler::clearHeaders()
 {
   mHeaders.clear();
 }
@@ -111,7 +115,7 @@ void QgsHttpRequestHandler::appendBody( const QByteArray &body )
   mBody.append( body );
 }
 
-void QgsHttpRequestHandler::clearBody( )
+void QgsHttpRequestHandler::clearBody()
 {
   mBody.clear();
 }
@@ -164,7 +168,7 @@ void QgsHttpRequestHandler::sendHeaders()
   }
   addToResponseHeader( "\n" );
   mHeaders.clear();
-  mHeadersSent = TRUE;
+  mHeadersSent = true;
 }
 
 void QgsHttpRequestHandler::sendBody()
@@ -178,7 +182,7 @@ void QgsHttpRequestHandler::sendBody()
     // Cannot use addToResponse because it uses printf
     size_t result = fwrite(( void* )mBody.data(), mBody.size(), 1, FCGI_stdout );
 #ifdef QGISDEBUG
-    QgsMessageLog::logMessage( QString( "Sent %1 blocks of %2 bytes" ).arg( result ).arg( mBody.size() ) );
+    QgsMessageLog::logMessage( QStringLiteral( "Sent %1 blocks of %2 bytes" ).arg( result ).arg( mBody.size() ) );
 #else
     Q_UNUSED( result );
 #endif
@@ -186,7 +190,7 @@ void QgsHttpRequestHandler::sendBody()
 }
 
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
-void QgsHttpRequestHandler::setPluginFilters( QgsServerFiltersMap pluginFilters )
+void QgsHttpRequestHandler::setPluginFilters( const QgsServerFiltersMap& pluginFilters )
 {
   mPluginFilters = pluginFilters;
 }
@@ -194,10 +198,10 @@ void QgsHttpRequestHandler::setPluginFilters( QgsServerFiltersMap pluginFilters 
 
 void QgsHttpRequestHandler::sendResponse()
 {
-  QgsMessageLog::logMessage( QString( "Sending HTTP response" ) );
+  QgsMessageLog::logMessage( QStringLiteral( "Sending HTTP response" ) );
   if ( ! responseReady() )
   {
-    QgsMessageLog::logMessage( QString( "Trying to send out an invalid response" ) );
+    QgsMessageLog::logMessage( QStringLiteral( "Trying to send out an invalid response" ) );
     return;
   }
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
@@ -227,21 +231,21 @@ QPair<QByteArray, QByteArray> QgsHttpRequestHandler::getResponse()
 
 QString QgsHttpRequestHandler::formatToMimeType( const QString& format ) const
 {
-  if ( format.compare( "png", Qt::CaseInsensitive ) == 0 )
+  if ( format.compare( QLatin1String( "png" ), Qt::CaseInsensitive ) == 0 )
   {
-    return "image/png";
+    return QStringLiteral( "image/png" );
   }
-  else if ( format.compare( "jpg", Qt::CaseInsensitive ) == 0 )
+  else if ( format.compare( QLatin1String( "jpg" ), Qt::CaseInsensitive ) == 0 )
   {
-    return "image/jpeg";
+    return QStringLiteral( "image/jpeg" );
   }
-  else if ( format.compare( "svg", Qt::CaseInsensitive ) == 0 )
+  else if ( format.compare( QLatin1String( "svg" ), Qt::CaseInsensitive ) == 0 )
   {
-    return "image/svg+xml";
+    return QStringLiteral( "image/svg+xml" );
   }
-  else if ( format.compare( "pdf", Qt::CaseInsensitive ) == 0 )
+  else if ( format.compare( QLatin1String( "pdf" ), Qt::CaseInsensitive ) == 0 )
   {
-    return "application/pdf";
+    return QStringLiteral( "application/pdf" );
   }
   return format;
 }
@@ -249,17 +253,17 @@ QString QgsHttpRequestHandler::formatToMimeType( const QString& format ) const
 void QgsHttpRequestHandler::setGetMapResponse( const QString& service, QImage* img, int imageQuality = -1 )
 {
   Q_UNUSED( service );
-  QgsMessageLog::logMessage( "setting getmap response..." );
+  QgsMessageLog::logMessage( QStringLiteral( "setting getmap response..." ) );
   if ( img )
   {
-    bool png16Bit = ( mFormatString.compare( "image/png; mode=16bit", Qt::CaseInsensitive ) == 0 );
-    bool png8Bit = ( mFormatString.compare( "image/png; mode=8bit", Qt::CaseInsensitive ) == 0 );
-    bool png1Bit = ( mFormatString.compare( "image/png; mode=1bit", Qt::CaseInsensitive ) == 0 );
-    bool isBase64 = mFormatString.endsWith( ";base64", Qt::CaseInsensitive );
-    if ( mFormat != "PNG" && mFormat != "JPG" && !png16Bit && !png8Bit && !png1Bit )
+    bool png16Bit = ( mFormatString.compare( QLatin1String( "image/png; mode=16bit" ), Qt::CaseInsensitive ) == 0 );
+    bool png8Bit = ( mFormatString.compare( QLatin1String( "image/png; mode=8bit" ), Qt::CaseInsensitive ) == 0 );
+    bool png1Bit = ( mFormatString.compare( QLatin1String( "image/png; mode=1bit" ), Qt::CaseInsensitive ) == 0 );
+    bool isBase64 = mFormatString.endsWith( QLatin1String( ";base64" ), Qt::CaseInsensitive );
+    if ( mFormat != QLatin1String( "PNG" ) && mFormat != QLatin1String( "JPG" ) && !png16Bit && !png8Bit && !png1Bit )
     {
-      QgsMessageLog::logMessage( "service exception - incorrect image format requested..." );
-      setServiceException( QgsMapServiceException( "InvalidFormat", "Output format '" + mFormatString + "' is not supported in the GetMap request" ) );
+      QgsMessageLog::logMessage( QStringLiteral( "service exception - incorrect image format requested..." ) );
+      setServiceException( QgsMapServiceException( QStringLiteral( "InvalidFormat" ), "Output format '" + mFormatString + "' is not supported in the GetMap request" ) );
       return;
     }
 
@@ -270,7 +274,7 @@ void QgsHttpRequestHandler::setGetMapResponse( const QString& service, QImage* i
 
     // Do not use imageQuality for PNG images
     // For now, QImage expects quality to be a range 0-9 for PNG
-    if ( mFormat == "PNG" )
+    if ( mFormat == QLatin1String( "PNG" ) )
     {
       imageQuality = -1;
     }
@@ -310,13 +314,13 @@ void QgsHttpRequestHandler::setGetMapResponse( const QString& service, QImage* i
 void QgsHttpRequestHandler::setGetCapabilitiesResponse( const QDomDocument& doc )
 {
   QByteArray ba = doc.toByteArray();
-  setHttpResponse( &ba, "text/xml" );
+  setHttpResponse( &ba, QStringLiteral( "text/xml" ) );
 }
 
 void QgsHttpRequestHandler::setXmlResponse( const QDomDocument& doc )
 {
   QByteArray ba = doc.toByteArray();
-  setHttpResponse( &ba, "text/xml" );
+  setHttpResponse( &ba, QStringLiteral( "text/xml" ) );
 }
 
 void QgsHttpRequestHandler::setXmlResponse( const QDomDocument& doc, const QString& mimeType )
@@ -330,21 +334,21 @@ void QgsHttpRequestHandler::setGetFeatureInfoResponse( const QDomDocument& infoD
   QByteArray ba;
   QgsMessageLog::logMessage( "Info format is:" + infoFormat );
 
-  if ( infoFormat == "text/xml" || infoFormat.startsWith( "application/vnd.ogc.gml" ) )
+  if ( infoFormat == QLatin1String( "text/xml" ) || infoFormat.startsWith( QLatin1String( "application/vnd.ogc.gml" ) ) )
   {
     ba = infoDoc.toByteArray();
   }
-  else if ( infoFormat == "text/plain" || infoFormat == "text/html" )
+  else if ( infoFormat == QLatin1String( "text/plain" ) || infoFormat == QLatin1String( "text/html" ) )
   {
     //create string
     QString featureInfoString;
 
-    if ( infoFormat == "text/plain" )
+    if ( infoFormat == QLatin1String( "text/plain" ) )
     {
       featureInfoString.append( "GetFeatureInfo results\n" );
       featureInfoString.append( "\n" );
     }
-    else if ( infoFormat == "text/html" )
+    else if ( infoFormat == QLatin1String( "text/html" ) )
     {
       featureInfoString.append( "<HEAD>\n" );
       featureInfoString.append( "<TITLE> GetFeatureInfo results </TITLE>\n" );
@@ -353,42 +357,42 @@ void QgsHttpRequestHandler::setGetFeatureInfoResponse( const QDomDocument& infoD
       featureInfoString.append( "<BODY>\n" );
     }
 
-    QDomNodeList layerList = infoDoc.elementsByTagName( "Layer" );
+    QDomNodeList layerList = infoDoc.elementsByTagName( QStringLiteral( "Layer" ) );
 
     //layer loop
     for ( int i = 0; i < layerList.size(); ++i )
     {
       QDomElement layerElem = layerList.at( i ).toElement();
-      if ( infoFormat == "text/plain" )
+      if ( infoFormat == QLatin1String( "text/plain" ) )
       {
-        featureInfoString.append( "Layer '" + layerElem.attribute( "name" ) + "'\n" );
+        featureInfoString.append( "Layer '" + layerElem.attribute( QStringLiteral( "name" ) ) + "'\n" );
       }
-      else if ( infoFormat == "text/html" )
+      else if ( infoFormat == QLatin1String( "text/html" ) )
       {
         featureInfoString.append( "<TABLE border=1 width=100%>\n" );
-        featureInfoString.append( "<TR><TH width=25%>Layer</TH><TD>" + layerElem.attribute( "name" ) + "</TD></TR>\n" );
+        featureInfoString.append( "<TR><TH width=25%>Layer</TH><TD>" + layerElem.attribute( QStringLiteral( "name" ) ) + "</TD></TR>\n" );
         featureInfoString.append( "</BR>" );
       }
 
       //feature loop (for vector layers)
-      QDomNodeList featureNodeList = layerElem.elementsByTagName( "Feature" );
+      QDomNodeList featureNodeList = layerElem.elementsByTagName( QStringLiteral( "Feature" ) );
       QDomElement currentFeatureElement;
 
       if ( featureNodeList.size() < 1 ) //raster layer?
       {
-        QDomNodeList attributeNodeList = layerElem.elementsByTagName( "Attribute" );
+        QDomNodeList attributeNodeList = layerElem.elementsByTagName( QStringLiteral( "Attribute" ) );
         for ( int j = 0; j < attributeNodeList.size(); ++j )
         {
           QDomElement attributeElement = attributeNodeList.at( j ).toElement();
-          if ( infoFormat == "text/plain" )
+          if ( infoFormat == QLatin1String( "text/plain" ) )
           {
-            featureInfoString.append( attributeElement.attribute( "name" ) + " = '" +
-                                      attributeElement.attribute( "value" ) + "'\n" );
+            featureInfoString.append( attributeElement.attribute( QStringLiteral( "name" ) ) + " = '" +
+                                      attributeElement.attribute( QStringLiteral( "value" ) ) + "'\n" );
           }
-          else if ( infoFormat == "text/html" )
+          else if ( infoFormat == QLatin1String( "text/html" ) )
           {
-            featureInfoString.append( "<TR><TH>" + attributeElement.attribute( "name" ) + "</TH><TD>" +
-                                      attributeElement.attribute( "value" ) + "</TD></TR>\n" );
+            featureInfoString.append( "<TR><TH>" + attributeElement.attribute( QStringLiteral( "name" ) ) + "</TH><TD>" +
+                                      attributeElement.attribute( QStringLiteral( "value" ) ) + "</TD></TR>\n" );
           }
         }
       }
@@ -397,48 +401,48 @@ void QgsHttpRequestHandler::setGetFeatureInfoResponse( const QDomDocument& infoD
         for ( int j = 0; j < featureNodeList.size(); ++j )
         {
           QDomElement featureElement = featureNodeList.at( j ).toElement();
-          if ( infoFormat == "text/plain" )
+          if ( infoFormat == QLatin1String( "text/plain" ) )
           {
-            featureInfoString.append( "Feature " + featureElement.attribute( "id" ) + "\n" );
+            featureInfoString.append( "Feature " + featureElement.attribute( QStringLiteral( "id" ) ) + "\n" );
           }
-          else if ( infoFormat == "text/html" )
+          else if ( infoFormat == QLatin1String( "text/html" ) )
           {
             featureInfoString.append( "<TABLE border=1 width=100%>\n" );
-            featureInfoString.append( "<TR><TH>Feature</TH><TD>" + featureElement.attribute( "id" ) + "</TD></TR>\n" );
+            featureInfoString.append( "<TR><TH>Feature</TH><TD>" + featureElement.attribute( QStringLiteral( "id" ) ) + "</TD></TR>\n" );
           }
           //attribute loop
-          QDomNodeList attributeNodeList = featureElement.elementsByTagName( "Attribute" );
+          QDomNodeList attributeNodeList = featureElement.elementsByTagName( QStringLiteral( "Attribute" ) );
           for ( int k = 0; k < attributeNodeList.size(); ++k )
           {
             QDomElement attributeElement = attributeNodeList.at( k ).toElement();
-            if ( infoFormat == "text/plain" )
+            if ( infoFormat == QLatin1String( "text/plain" ) )
             {
-              featureInfoString.append( attributeElement.attribute( "name" ) + " = '" +
-                                        attributeElement.attribute( "value" ) + "'\n" );
+              featureInfoString.append( attributeElement.attribute( QStringLiteral( "name" ) ) + " = '" +
+                                        attributeElement.attribute( QStringLiteral( "value" ) ) + "'\n" );
             }
-            else if ( infoFormat == "text/html" )
+            else if ( infoFormat == QLatin1String( "text/html" ) )
             {
-              featureInfoString.append( "<TR><TH>" + attributeElement.attribute( "name" ) + "</TH><TD>" + attributeElement.attribute( "value" ) + "</TD></TR>\n" );
+              featureInfoString.append( "<TR><TH>" + attributeElement.attribute( QStringLiteral( "name" ) ) + "</TH><TD>" + attributeElement.attribute( QStringLiteral( "value" ) ) + "</TD></TR>\n" );
             }
           }
 
-          if ( infoFormat == "text/html" )
+          if ( infoFormat == QLatin1String( "text/html" ) )
           {
             featureInfoString.append( "</TABLE>\n</BR>\n" );
           }
         }
       }
-      if ( infoFormat == "text/plain" )
+      if ( infoFormat == QLatin1String( "text/plain" ) )
       {
         featureInfoString.append( "\n" );
       }
-      else if ( infoFormat == "text/html" )
+      else if ( infoFormat == QLatin1String( "text/html" ) )
       {
         featureInfoString.append( "</TABLE>\n<BR></BR>\n" );
 
       }
     }
-    if ( infoFormat == "text/html" )
+    if ( infoFormat == QLatin1String( "text/html" ) )
     {
       featureInfoString.append( "</BODY>\n" );
     }
@@ -446,24 +450,26 @@ void QgsHttpRequestHandler::setGetFeatureInfoResponse( const QDomDocument& infoD
   }
   else //unsupported format, set exception
   {
-    setServiceException( QgsMapServiceException( "InvalidFormat", "Feature info format '" + mFormat + "' is not supported. Possibilities are 'text/plain', 'text/html' or 'text/xml'." ) );
+    setServiceException( QgsMapServiceException( QStringLiteral( "InvalidFormat" ), "Feature info format '" + infoFormat + "' is not supported. Possibilities are 'text/plain', 'text/html' or 'text/xml'." ) );
     return;
   }
 
   setHttpResponse( &ba, infoFormat );
 }
 
-void QgsHttpRequestHandler::setServiceException( QgsMapServiceException ex )
+void QgsHttpRequestHandler::setServiceException( const QgsMapServiceException& ex )
 {
-  mException = &ex;
+  // Safety measure to avoid potential leaks if called repeatedly
+  delete mException;
+  mException = new QgsMapServiceException( ex );
   //create Exception DOM document
   QDomDocument exceptionDoc;
-  QDomElement serviceExceptionReportElem = exceptionDoc.createElement( "ServiceExceptionReport" );
-  serviceExceptionReportElem.setAttribute( "version", "1.3.0" );
-  serviceExceptionReportElem.setAttribute( "xmlns", "http://www.opengis.net/ogc" );
+  QDomElement serviceExceptionReportElem = exceptionDoc.createElement( QStringLiteral( "ServiceExceptionReport" ) );
+  serviceExceptionReportElem.setAttribute( QStringLiteral( "version" ), QStringLiteral( "1.3.0" ) );
+  serviceExceptionReportElem.setAttribute( QStringLiteral( "xmlns" ), QStringLiteral( "http://www.opengis.net/ogc" ) );
   exceptionDoc.appendChild( serviceExceptionReportElem );
-  QDomElement serviceExceptionElem = exceptionDoc.createElement( "ServiceException" );
-  serviceExceptionElem.setAttribute( "code", ex.code() );
+  QDomElement serviceExceptionElem = exceptionDoc.createElement( QStringLiteral( "ServiceException" ) );
+  serviceExceptionElem.setAttribute( QStringLiteral( "code" ), ex.code() );
   QDomText messageText = exceptionDoc.createTextNode( ex.message() );
   serviceExceptionElem.appendChild( messageText );
   serviceExceptionReportElem.appendChild( serviceExceptionElem );
@@ -473,12 +479,12 @@ void QgsHttpRequestHandler::setServiceException( QgsMapServiceException ex )
   // TODO: check for headersSent()
   clearHeaders();
   clearBody();
-  setHttpResponse( &ba, "text/xml" );
+  setHttpResponse( &ba, QStringLiteral( "text/xml" ) );
 }
 
 void QgsHttpRequestHandler::setGetPrintResponse( QByteArray* ba )
 {
-  if ( mFormatString.endsWith( ";base64", Qt::CaseInsensitive ) )
+  if ( mFormatString.endsWith( QLatin1String( ";base64" ), Qt::CaseInsensitive ) )
   {
     *ba = ba->toBase64();
   }
@@ -499,12 +505,13 @@ bool QgsHttpRequestHandler::startGetFeatureResponse( QByteArray* ba, const QStri
   }
 
   QString format;
-  if ( infoFormat == "GeoJSON" )
-    format = "text/plain";
+  if ( infoFormat == QLatin1String( "GeoJSON" ) )
+    format = QStringLiteral( "text/plain" );
   else
-    format = "text/xml";
+    format = QStringLiteral( "text/xml" );
 
   setInfoFormat( format );
+  sendHeaders();
   appendBody( *ba );
   // Streaming
   sendResponse();
@@ -540,7 +547,7 @@ void QgsHttpRequestHandler::endGetFeatureResponse( QByteArray* ba )
 
 void QgsHttpRequestHandler::setGetCoverageResponse( QByteArray* ba )
 {
-  setHttpResponse( ba, "image/tiff" );
+  setHttpResponse( ba, QStringLiteral( "image/tiff" ) );
 }
 
 void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request, QMap<QString, QString>& parameters )
@@ -551,7 +558,7 @@ void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request,
   //insert key and value into the map (parameters are separated by &)
   Q_FOREACH ( const QString& element, request.split( "&" ) )
   {
-    int sepidx = element.indexOf( "=", 0, Qt::CaseSensitive );
+    int sepidx = element.indexOf( QLatin1String( "=" ), 0, Qt::CaseSensitive );
     if ( sepidx == -1 )
     {
       continue;
@@ -561,15 +568,16 @@ void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request,
     key = QUrl::fromPercentEncoding( key.toUtf8() ); //replace encoded special characters and utf-8 encodings
 
     QString value = element.mid( sepidx + 1 );
-    value.replace( "+", " " );
+    value.replace( QLatin1String( "+" ), QLatin1String( " " ) );
     value = QUrl::fromPercentEncoding( value.toUtf8() ); //replace encoded special characters and utf-8 encodings
 
-    if ( key.compare( "SLD_BODY", Qt::CaseInsensitive ) == 0 )
+    if ( key.compare( QLatin1String( "SLD_BODY" ), Qt::CaseInsensitive ) == 0 )
     {
-      key = "SLD";
+      key = QStringLiteral( "SLD" );
     }
-    else if ( key.compare( "SLD", Qt::CaseInsensitive ) == 0 )
+    else if ( key.compare( QLatin1String( "SLD" ), Qt::CaseInsensitive ) == 0 )
     {
+#if QT_VERSION < 0x050000
       QByteArray fileContents;
       if ( value.startsWith( "http", Qt::CaseInsensitive ) )
       {
@@ -581,18 +589,24 @@ void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request,
       }
       else if ( value.startsWith( "ftp", Qt::CaseInsensitive ) )
       {
+        Q_NOWARN_DEPRECATED_PUSH;
         QgsFtpTransaction ftp;
         if ( !ftp.get( value, fileContents ) )
         {
           continue;
         }
         value = QUrl::fromPercentEncoding( fileContents );
+        Q_NOWARN_DEPRECATED_POP;
       }
       else
       {
         continue; //only http and ftp supported at the moment
       }
       value = QUrl::fromPercentEncoding( fileContents );
+#else
+      QgsMessageLog::logMessage( QStringLiteral( "http and ftp methods not supported with Qt5." ) );
+      continue;
+#endif
 
     }
     parameters.insert( key.toUpper(), value );
@@ -600,36 +614,36 @@ void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request,
   }
 
   //feature info format?
-  QString infoFormat = parameters.value( "INFO_FORMAT" );
+  QString infoFormat = parameters.value( QStringLiteral( "INFO_FORMAT" ) );
   if ( !infoFormat.isEmpty() )
   {
     mFormat = infoFormat;
   }
   else //capabilities format or GetMap format
   {
-    mFormatString = parameters.value( "FORMAT" );
+    mFormatString = parameters.value( QStringLiteral( "FORMAT" ) );
     QString formatString = mFormatString;
     if ( !formatString.isEmpty() )
     {
-      QgsMessageLog::logMessage( QString( "formatString is: %1" ).arg( formatString ) );
+      QgsMessageLog::logMessage( QStringLiteral( "formatString is: %1" ).arg( formatString ) );
 
       //remove the image/ in front of the format
-      if ( formatString.contains( "image/png", Qt::CaseInsensitive ) || formatString.compare( "png", Qt::CaseInsensitive ) == 0 )
+      if ( formatString.contains( QLatin1String( "image/png" ), Qt::CaseInsensitive ) || formatString.compare( QLatin1String( "png" ), Qt::CaseInsensitive ) == 0 )
       {
-        formatString = "PNG";
+        formatString = QStringLiteral( "PNG" );
       }
-      else if ( formatString.contains( "image/jpeg", Qt::CaseInsensitive ) || formatString.contains( "image/jpg", Qt::CaseInsensitive )
-                || formatString.compare( "jpg", Qt::CaseInsensitive ) == 0 )
+      else if ( formatString.contains( QLatin1String( "image/jpeg" ), Qt::CaseInsensitive ) || formatString.contains( QLatin1String( "image/jpg" ), Qt::CaseInsensitive )
+                || formatString.compare( QLatin1String( "jpg" ), Qt::CaseInsensitive ) == 0 )
       {
-        formatString = "JPG";
+        formatString = QStringLiteral( "JPG" );
       }
-      else if ( formatString.compare( "svg", Qt::CaseInsensitive ) == 0 )
+      else if ( formatString.compare( QLatin1String( "svg" ), Qt::CaseInsensitive ) == 0 )
       {
-        formatString = "SVG";
+        formatString = QStringLiteral( "SVG" );
       }
-      else if ( formatString.contains( "pdf", Qt::CaseInsensitive ) )
+      else if ( formatString.contains( QLatin1String( "pdf" ), Qt::CaseInsensitive ) )
       {
-        formatString = "PDF";
+        formatString = QStringLiteral( "PDF" );
       }
 
       mFormat = formatString;
@@ -640,10 +654,10 @@ void QgsHttpRequestHandler::requestStringToParameterMap( const QString& request,
 
 QString QgsHttpRequestHandler::readPostBody() const
 {
-  QgsMessageLog::logMessage( "QgsHttpRequestHandler::readPostBody" );
-  char* lengthString = 0;
+  QgsMessageLog::logMessage( QStringLiteral( "QgsHttpRequestHandler::readPostBody" ) );
+  char* lengthString = nullptr;
   int length = 0;
-  char* input = 0;
+  char* input = nullptr;
   QString inputString;
   QString lengthQString;
 
@@ -656,7 +670,7 @@ QString QgsHttpRequestHandler::readPostBody() const
     QgsMessageLog::logMessage( "length is: " + lengthQString );
     if ( conversionSuccess )
     {
-      input = ( char* )malloc( length + 1 );
+      input = new char[length + 1];
       memset( input, 0, length + 1 );
       for ( int i = 0; i < length; ++i )
       {
@@ -669,13 +683,13 @@ QString QgsHttpRequestHandler::readPostBody() const
       }
       else
       {
-        QgsMessageLog::logMessage( "input is NULL " );
+        QgsMessageLog::logMessage( QStringLiteral( "input is NULL " ) );
       }
-      free( input );
+      delete [] input;
     }
     else
     {
-      QgsMessageLog::logMessage( "could not convert CONTENT_LENGTH to int" );
+      QgsMessageLog::logMessage( QStringLiteral( "could not convert CONTENT_LENGTH to int" ) );
     }
   }
   // Used by the tests
@@ -786,7 +800,7 @@ void QgsHttpRequestHandler::imageColors( QHash<QRgb, int>& colors, const QImage&
   int width = image.width();
   int height = image.height();
 
-  const QRgb* currentScanLine = 0;
+  const QRgb* currentScanLine = nullptr;
   QHash<QRgb, int>::iterator colorIt;
   for ( int i = 0; i < height; ++i )
   {
@@ -896,7 +910,10 @@ bool QgsHttpRequestHandler::minMaxRange( const QgsColorBox& colorBox, int& redRa
   int bMax = INT_MIN;
   int aMax = INT_MIN;
 
-  int currentRed = 0; int currentGreen = 0; int currentBlue = 0; int currentAlpha = 0;
+  int currentRed = 0;
+  int currentGreen = 0;
+  int currentBlue = 0;
+  int currentAlpha = 0;
 
   QgsColorBox::const_iterator colorBoxIt = colorBox.constBegin();
   for ( ; colorBoxIt != colorBox.constEnd(); ++colorBoxIt )
@@ -949,22 +966,22 @@ bool QgsHttpRequestHandler::minMaxRange( const QgsColorBox& colorBox, int& redRa
   return true;
 }
 
-bool QgsHttpRequestHandler::redCompare( const QPair<QRgb, int>& c1, const QPair<QRgb, int>& c2 )
+bool QgsHttpRequestHandler::redCompare( QPair<QRgb, int> c1, QPair<QRgb, int> c2 )
 {
   return qRed( c1.first ) < qRed( c2.first );
 }
 
-bool QgsHttpRequestHandler::greenCompare( const QPair<QRgb, int>& c1, const QPair<QRgb, int>& c2 )
+bool QgsHttpRequestHandler::greenCompare( QPair<QRgb, int> c1, QPair<QRgb, int> c2 )
 {
   return qGreen( c1.first ) < qGreen( c2.first );
 }
 
-bool QgsHttpRequestHandler::blueCompare( const QPair<QRgb, int>& c1, const QPair<QRgb, int>& c2 )
+bool QgsHttpRequestHandler::blueCompare( QPair<QRgb, int> c1, QPair<QRgb, int> c2 )
 {
   return qBlue( c1.first ) < qBlue( c2.first );
 }
 
-bool QgsHttpRequestHandler::alphaCompare( const QPair<QRgb, int>& c1, const QPair<QRgb, int>& c2 )
+bool QgsHttpRequestHandler::alphaCompare( QPair<QRgb, int> c1, QPair<QRgb, int> c2 )
 {
   return qAlpha( c1.first ) < qAlpha( c2.first );
 }

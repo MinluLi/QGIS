@@ -17,6 +17,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Arnaud Morvan'
 __date__ = 'January 2015'
@@ -27,9 +28,9 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4 import uic
-from PyQt4.QtGui import QCheckBox
-from qgis.core import QGis, QgsVectorLayer
+from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QCheckBox
+from qgis.core import Qgis, QgsVectorLayer, QgsWkbTypes, QgsWkbTypes
 
 from processing.core.parameters import ParameterGeometryPredicate
 
@@ -41,20 +42,20 @@ WIDGET, BASE = uic.loadUiType(
 class GeometryPredicateSelectionPanel(BASE, WIDGET):
 
     unusablePredicates = {
-        QGis.Point: {
-            QGis.Point: ('touches', 'crosses'),
-            QGis.Line: ('equals', 'contains', 'overlaps'),
-            QGis.Polygon: ('equals', 'contains', 'overlaps')
+        QgsWkbTypes.PointGeometry: {
+            QgsWkbTypes.PointGeometry: ('touches', 'crosses'),
+            QgsWkbTypes.LineGeometry: ('equals', 'contains', 'overlaps'),
+            QgsWkbTypes.PolygonGeometry: ('equals', 'contains', 'overlaps')
         },
-        QGis.Line: {
-            QGis.Point: ('equals', 'within', 'overlaps'),
-            QGis.Line: [],
-            QGis.Polygon: ('equals', 'contains', 'overlaps')
+        QgsWkbTypes.LineGeometry: {
+            QgsWkbTypes.PointGeometry: ('equals', 'within', 'overlaps'),
+            QgsWkbTypes.LineGeometry: [],
+            QgsWkbTypes.PolygonGeometry: ('equals', 'contains', 'overlaps')
         },
-        QGis.Polygon: {
-            QGis.Point: ('equals', 'within', 'overlaps'),
-            QGis.Line: ('equals', 'within', 'overlaps'),
-            QGis.Polygon: ('crosses')
+        QgsWkbTypes.PolygonGeometry: {
+            QgsWkbTypes.PointGeometry: ('equals', 'within', 'overlaps'),
+            QgsWkbTypes.LineGeometry: ('equals', 'within', 'overlaps'),
+            QgsWkbTypes.PolygonGeometry: ('crosses')
         }
     }
 
@@ -82,7 +83,7 @@ class GeometryPredicateSelectionPanel(BASE, WIDGET):
 
     def updatePredicates(self):
         if (isinstance(self.leftLayer, QgsVectorLayer)
-           and isinstance(self.rightLayer, QgsVectorLayer)):
+                and isinstance(self.rightLayer, QgsVectorLayer)):
             leftType = self.leftLayer.geometryType()
             rightType = self.rightLayer.geometryType()
             unusablePredicates = self.unusablePredicates[leftType][rightType]
@@ -99,7 +100,7 @@ class GeometryPredicateSelectionPanel(BASE, WIDGET):
             widget = self.getWidget(predicate)
             self.gridLayout.removeWidget(widget)
             widgets.append(widget)
-        for i in xrange(0, len(widgets)):
+        for i in range(0, len(widgets)):
             widget = widgets[i]
             self.gridLayout.addWidget(widget, i % rows, i / rows)
 
@@ -115,7 +116,8 @@ class GeometryPredicateSelectionPanel(BASE, WIDGET):
         return values
 
     def setValue(self, values):
-        for predicate in ParameterGeometryPredicate.predicates:
-            widget = self.getWidget(predicate)
-            widget.setChecked(predicate in values)
+        if values:
+            for predicate in ParameterGeometryPredicate.predicates:
+                widget = self.getWidget(predicate)
+                widget.setChecked(predicate in values)
         return True

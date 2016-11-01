@@ -1,6 +1,9 @@
 
 /** Raster file writer */
 
+/** \ingroup core
+ * The raster file writer which allows you to save a raster to a new file.
+ */
 class QgsRasterFileWriter
 {
 %TypeHeaderCode
@@ -25,7 +28,6 @@ class QgsRasterFileWriter
     };
 
     QgsRasterFileWriter( const QString& outputUrl );
-    ~QgsRasterFileWriter();
 
     /** Write raster file
         @param pipe raster pipe
@@ -34,7 +36,7 @@ class QgsRasterFileWriter
         @param outputExtent extent to output
         @param crs crs to reproject to
         @param p dialog to show progress in */
-    WriterError writeRaster( const QgsRasterPipe* pipe, int nCols, int nRows, QgsRectangle outputExtent,
+    WriterError writeRaster( const QgsRasterPipe* pipe, int nCols, int nRows, const QgsRectangle& outputExtent,
                              const QgsCoordinateReferenceSystem& crs, QProgressDialog* p = 0 );
 
     void setOutputFormat( const QString& format );
@@ -54,6 +56,7 @@ class QgsRasterFileWriter
 
     QList< int > pyramidsList() const;
     void setPyramidsList( const QList< int > & list );
+
 
     QString pyramidsResampling() const;
     void setPyramidsResampling( const QString & str );

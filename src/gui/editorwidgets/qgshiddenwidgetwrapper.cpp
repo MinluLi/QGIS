@@ -18,12 +18,12 @@
 #include <QWidget>
 
 QgsHiddenWidgetWrapper::QgsHiddenWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+    : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
 {
 }
 
 
-QVariant QgsHiddenWidgetWrapper::value()
+QVariant QgsHiddenWidgetWrapper::value() const
 {
   return mValue;
 }
@@ -40,7 +40,7 @@ void QgsHiddenWidgetWrapper::initWidget( QWidget* editor )
   editor->setVisible( false );
 }
 
-bool QgsHiddenWidgetWrapper::valid()
+bool QgsHiddenWidgetWrapper::valid() const
 {
   return true;
 }

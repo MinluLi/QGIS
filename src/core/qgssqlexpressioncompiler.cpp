@@ -15,7 +15,7 @@
 
 #include "qgssqlexpressioncompiler.h"
 
-QgsSqlExpressionCompiler::QgsSqlExpressionCompiler( const QgsFields& fields, const Flags& flags )
+QgsSqlExpressionCompiler::QgsSqlExpressionCompiler( const QgsFields& fields, Flags flags )
     : mResult( None )
     , mFields( fields )
     , mFlags( flags )
@@ -38,15 +38,17 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compile( const QgsExp
 QString QgsSqlExpressionCompiler::quotedIdentifier( const QString& identifier )
 {
   QString quoted = identifier;
-  quoted.replace( '"', "\"\"" );
+  quoted.replace( '"', QLatin1String( "\"\"" ) );
   quoted = quoted.prepend( '\"' ).append( '\"' );
   return quoted;
 }
 
-QString QgsSqlExpressionCompiler::quotedValue( const QVariant& value )
+QString QgsSqlExpressionCompiler::quotedValue( const QVariant& value, bool& ok )
 {
+  ok = true;
+
   if ( value.isNull() )
-    return "NULL";
+    return QStringLiteral( "NULL" );
 
   switch ( value.type() )
   {
@@ -61,9 +63,9 @@ QString QgsSqlExpressionCompiler::quotedValue( const QVariant& value )
     default:
     case QVariant::String:
       QString v = value.toString();
-      v.replace( '\'', "''" );
+      v.replace( '\'', QLatin1String( "''" ) );
       if ( v.contains( '\\' ) )
-        return v.replace( '\\', "\\\\" ).prepend( "E'" ).append( '\'' );
+        return v.replace( '\\', QLatin1String( "\\\\" ) ).prepend( "E'" ).append( '\'' );
       else
         return v.prepend( '\'' ).append( '\'' );
   }
@@ -79,10 +81,31 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
       switch ( n->op() )
       {
         case QgsExpression::uoNot:
-          break;
+        {
+          QString right;
+          if ( compileNode( n->operand(), right ) == Complete )
+          {
+            result = "( NOT " + right + ')';
+            return Complete;
+          }
+
+          return Fail;
+        }
 
         case QgsExpression::uoMinus:
-          break;
+        {
+          if ( mFlags.testFlag( NoUnaryMinus ) )
+            return Fail;
+
+          QString right;
+          if ( compileNode( n->operand(), right ) == Complete )
+          {
+            result = "( - (" + right + "))";
+            return Complete;
+          }
+
+          return Fail;
+        }
       }
 
       break;
@@ -105,48 +128,48 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
             partialCompilation = true;
           }
 
-          op = "=";
+          op = QStringLiteral( "=" );
           break;
 
         case QgsExpression::boGE:
-          op = ">=";
+          op = QStringLiteral( ">=" );
           break;
 
         case QgsExpression::boGT:
-          op = ">";
+          op = QStringLiteral( ">" );
           break;
 
         case QgsExpression::boLE:
-          op = "<=";
+          op = QStringLiteral( "<=" );
           break;
 
         case QgsExpression::boLT:
-          op = "<";
+          op = QStringLiteral( "<" );
           break;
 
         case QgsExpression::boIs:
-          op = "IS";
+          op = QStringLiteral( "IS" );
           break;
 
         case QgsExpression::boIsNot:
-          op = "IS NOT";
+          op = QStringLiteral( "IS NOT" );
           failOnPartialNode = mFlags.testFlag( CaseInsensitiveStringMatch );
           break;
 
         case QgsExpression::boLike:
-          op = "LIKE";
+          op = QStringLiteral( "LIKE" );
           partialCompilation = mFlags.testFlag( LikeIsCaseInsensitive );
           break;
 
         case QgsExpression::boILike:
           if ( mFlags.testFlag( LikeIsCaseInsensitive ) )
-            op = "LIKE";
+            op = QStringLiteral( "LIKE" );
           else
-            op = "ILIKE";
+            op = QStringLiteral( "ILIKE" );
           break;
 
         case QgsExpression::boNotLike:
-          op = "NOT LIKE";
+          op = QStringLiteral( "NOT LIKE" );
           partialCompilation = mFlags.testFlag( LikeIsCaseInsensitive );
           failOnPartialNode = mFlags.testFlag( CaseInsensitiveStringMatch );
           break;
@@ -154,56 +177,68 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
         case QgsExpression::boNotILike:
           failOnPartialNode = mFlags.testFlag( CaseInsensitiveStringMatch );
           if ( mFlags.testFlag( LikeIsCaseInsensitive ) )
-            op = "NOT LIKE";
+            op = QStringLiteral( "NOT LIKE" );
           else
-            op = "NOT ILIKE";
+            op = QStringLiteral( "NOT ILIKE" );
           break;
 
         case QgsExpression::boOr:
-          op = "OR";
+          if ( mFlags.testFlag( NoNullInBooleanLogic ) )
+          {
+            if ( nodeIsNullLiteral( n->opLeft() ) || nodeIsNullLiteral( n->opRight() ) )
+              return Fail;
+          }
+
+          op = QStringLiteral( "OR" );
           break;
 
         case QgsExpression::boAnd:
-          op = "AND";
+          if ( mFlags.testFlag( NoNullInBooleanLogic ) )
+          {
+            if ( nodeIsNullLiteral( n->opLeft() ) || nodeIsNullLiteral( n->opRight() ) )
+              return Fail;
+          }
+
+          op = QStringLiteral( "AND" );
           break;
 
         case QgsExpression::boNE:
           failOnPartialNode = mFlags.testFlag( CaseInsensitiveStringMatch );
-          op = "<>";
+          op = QStringLiteral( "<>" );
           break;
 
         case QgsExpression::boMul:
-          op = "*";
+          op = QStringLiteral( "*" );
           break;
 
         case QgsExpression::boPlus:
-          op = "+";
+          op = QStringLiteral( "+" );
           break;
 
         case QgsExpression::boMinus:
-          op = "-";
+          op = QStringLiteral( "-" );
           break;
 
         case QgsExpression::boDiv:
           return Fail;  // handle cast to real
 
         case QgsExpression::boMod:
-          op = "%";
+          op = QStringLiteral( "%" );
           break;
 
         case QgsExpression::boConcat:
-          op = "||";
+          op = QStringLiteral( "||" );
           break;
 
         case QgsExpression::boIntDiv:
           return Fail;  // handle cast to int
 
         case QgsExpression::boPow:
-          op = "^";
+          op = QStringLiteral( "^" );
           break;
 
         case QgsExpression::boRegexp:
-          op = "~";
+          op = QStringLiteral( "~" );
           break;
       }
 
@@ -231,17 +266,18 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
     case QgsExpression::ntLiteral:
     {
       const QgsExpression::NodeLiteral* n = static_cast<const QgsExpression::NodeLiteral*>( node );
+      bool ok = false;
       if ( mFlags.testFlag( CaseInsensitiveStringMatch ) && n->value().type() == QVariant::String )
       {
         // provider uses case insensitive matching, so if literal was a string then we only have a Partial compilation and need to
         // double check results using QGIS' expression engine
-        result = quotedValue( n->value() );
-        return Partial;
+        result = quotedValue( n->value(), ok );
+        return ok ? Partial : Fail;
       }
       else
       {
-        result = quotedValue( n->value() );
-        return Complete;
+        result = quotedValue( n->value(), ok );
+        return ok ? Complete : Fail;
       }
     }
 
@@ -283,7 +319,7 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
       if ( rn != Complete && rn != Partial )
         return rn;
 
-      result = QString( "%1 %2IN(%3)" ).arg( nd, n->isNotIn() ? "NOT " : "", list.join( "," ) );
+      result = QStringLiteral( "%1 %2IN(%3)" ).arg( nd, n->isNotIn() ? "NOT " : "", list.join( QStringLiteral( "," ) ) );
       return ( inResult == Partial || rn == Partial ) ? Partial : Complete;
     }
 
@@ -293,4 +329,13 @@ QgsSqlExpressionCompiler::Result QgsSqlExpressionCompiler::compileNode( const Qg
   }
 
   return Fail;
+}
+
+bool QgsSqlExpressionCompiler::nodeIsNullLiteral( const QgsExpression::Node* node ) const
+{
+  if ( node->nodeType() != QgsExpression::ntLiteral )
+    return false;
+
+  const QgsExpression::NodeLiteral* nLit = static_cast<const QgsExpression::NodeLiteral*>( node );
+  return nLit->value().isNull();
 }

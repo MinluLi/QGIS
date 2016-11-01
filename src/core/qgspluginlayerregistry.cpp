@@ -37,13 +37,13 @@ QString QgsPluginLayerType::name()
 
 QgsPluginLayer* QgsPluginLayerType::createLayer()
 {
-  return NULL;
+  return nullptr;
 }
 
 QgsPluginLayer* QgsPluginLayerType::createLayer( const QString& uri )
 {
   Q_UNUSED( uri );
-  return NULL;
+  return nullptr;
 }
 
 bool QgsPluginLayerType::showLayerProperties( QgsPluginLayer *layer )
@@ -54,11 +54,11 @@ bool QgsPluginLayerType::showLayerProperties( QgsPluginLayer *layer )
 
 //=============================================================================
 
-/** Static calls to enforce singleton behaviour */
-QgsPluginLayerRegistry* QgsPluginLayerRegistry::_instance = NULL;
+//! Static calls to enforce singleton behaviour
+QgsPluginLayerRegistry* QgsPluginLayerRegistry::_instance = nullptr;
 QgsPluginLayerRegistry* QgsPluginLayerRegistry::instance()
 {
-  if ( _instance == NULL )
+  if ( !_instance )
   {
     _instance = new QgsPluginLayerRegistry();
   }
@@ -75,8 +75,11 @@ QgsPluginLayerRegistry::~QgsPluginLayerRegistry()
   if ( !mPluginLayerTypes.isEmpty() )
   {
     QgsDebugMsg( "QgsPluginLayerRegistry::~QgsPluginLayerRegistry(): creator list not empty" );
-    Q_FOREACH ( const QString& typeName, mPluginLayerTypes.keys() )
-      removePluginLayerType( typeName );
+    PluginLayerTypes::const_iterator it = mPluginLayerTypes.constBegin();
+    for ( ; it != mPluginLayerTypes.constEnd(); ++it )
+    {
+      removePluginLayerType( it.key() );
+    }
   }
 }
 
@@ -87,8 +90,9 @@ QStringList QgsPluginLayerRegistry::pluginLayerTypes()
 
 bool QgsPluginLayerRegistry::addPluginLayerType( QgsPluginLayerType* type )
 {
-  if ( type == NULL )
+  if ( !type )
     return false;
+
   if ( mPluginLayerTypes.contains( type->name() ) )
     return false;
 
@@ -123,7 +127,7 @@ bool QgsPluginLayerRegistry::removePluginLayerType( const QString& typeName )
 
 QgsPluginLayerType* QgsPluginLayerRegistry::pluginLayerType( const QString& typeName )
 {
-  return mPluginLayerTypes.value( typeName, NULL );
+  return mPluginLayerTypes.value( typeName, nullptr );
 }
 
 
@@ -133,7 +137,7 @@ QgsPluginLayer* QgsPluginLayerRegistry::createLayer( const QString& typeName, co
   if ( !type )
   {
     QgsDebugMsg( "Unknown plugin layer type: " + typeName );
-    return NULL;
+    return nullptr;
   }
 
   if ( !uri.isEmpty() )

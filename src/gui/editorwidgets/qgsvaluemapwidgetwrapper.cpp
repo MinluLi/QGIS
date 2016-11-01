@@ -14,22 +14,36 @@
  ***************************************************************************/
 
 #include "qgsvaluemapwidgetwrapper.h"
+#include "qgsvaluemapconfigdlg.h"
+
+#include <QSettings>
 
 QgsValueMapWidgetWrapper::QgsValueMapWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
     : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
-    , mComboBox( NULL )
+    , mComboBox( nullptr )
 {
 }
 
 
-QVariant QgsValueMapWidgetWrapper::value()
+QVariant QgsValueMapWidgetWrapper::value() const
 {
   QVariant v;
 
   if ( mComboBox )
-    v = mComboBox->itemData( mComboBox->currentIndex() );
+    v = mComboBox->currentData();
+
+  if ( v == QStringLiteral( VALUEMAP_NULL_TEXT ) )
+    v = QVariant( field().type() );
 
   return v;
+}
+
+void QgsValueMapWidgetWrapper::showIndeterminateState()
+{
+  if ( mComboBox )
+  {
+    whileBlocking( mComboBox )->setCurrentIndex( -1 );
+  }
 }
 
 QWidget* QgsValueMapWidgetWrapper::createWidget( QWidget* parent )
@@ -55,13 +69,19 @@ void QgsValueMapWidgetWrapper::initWidget( QWidget* editor )
   }
 }
 
-bool QgsValueMapWidgetWrapper::valid()
+bool QgsValueMapWidgetWrapper::valid() const
 {
   return mComboBox;
 }
 
 void QgsValueMapWidgetWrapper::setValue( const QVariant& value )
 {
+  QString v;
+  if ( value.isNull() )
+    v = QStringLiteral( VALUEMAP_NULL_TEXT );
+  else
+    v = value.toString();
+
   if ( mComboBox )
-    mComboBox->setCurrentIndex( mComboBox->findData( value ) );
+    mComboBox->setCurrentIndex( mComboBox->findData( v ) );
 }

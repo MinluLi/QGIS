@@ -16,6 +16,10 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'December 2014'
@@ -27,13 +31,22 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from SagaAlgorithm212 import SagaAlgorithm212
+from .SagaAlgorithm212 import SagaAlgorithm212
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
-from processing.core.parameters import ParameterRaster, ParameterVector, ParameterTable, ParameterMultipleInput, ParameterBoolean, ParameterFixedTable, ParameterExtent, ParameterNumber, ParameterSelection
-from processing.core.outputs import OutputRaster, OutputVector, OutputTable
-import SagaUtils
+from processing.core.parameters import ParameterRaster
+from processing.core.parameters import ParameterVector
+from processing.core.parameters import ParameterTable
+from processing.core.parameters import ParameterMultipleInput
+from processing.core.parameters import ParameterBoolean
+from processing.core.parameters import ParameterFixedTable
+from processing.core.parameters import ParameterExtent
+from processing.core.parameters import ParameterNumber
+from processing.core.parameters import ParameterSelection
+from processing.core.outputs import OutputRaster
+from processing.core.outputs import OutputVector
+from . import SagaUtils
 from processing.tools import dataobjects
 from processing.tools.system import getTempFilename
 
@@ -93,7 +106,7 @@ class SagaAlgorithm213(SagaAlgorithm212):
                 layers = param.value.split(';')
                 if layers is None or len(layers) == 0:
                     continue
-                if param.datatype == ParameterMultipleInput.TYPE_RASTER:
+                if param.datatype == dataobjects.TYPE_RASTER:
                     for i, layerfile in enumerate(layers):
                         if layerfile.endswith('sdat'):
                             layerfile = param.value[:-4] + "sgrd"
@@ -103,7 +116,10 @@ class SagaAlgorithm213(SagaAlgorithm212):
                             if exportCommand is not None:
                                 commands.append(exportCommand)
                         param.value = ";".join(layers)
-                elif param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+                elif param.datatype in [dataobjects.TYPE_VECTOR_ANY,
+                                        dataobjects.TYPE_VECTOR_LINE,
+                                        dataobjects.TYPE_VECTOR_POLYGON,
+                                        dataobjects.TYPE_VECTOR_POINT]:
                     for layerfile in layers:
                         layer = dataobjects.getObjectFromUri(layerfile, False)
                         if layer:
@@ -121,16 +137,16 @@ class SagaAlgorithm213(SagaAlgorithm212):
             if param.value is None:
                 continue
             if isinstance(param, (ParameterRaster, ParameterVector,
-                          ParameterTable)):
+                                  ParameterTable)):
                 value = param.value
-                if value in self.exportedLayers.keys():
+                if value in list(self.exportedLayers.keys()):
                     command += ' -' + param.name + ' "' \
                         + self.exportedLayers[value] + '"'
                 else:
                     command += ' -' + param.name + ' "' + value + '"'
             elif isinstance(param, ParameterMultipleInput):
                 s = param.value
-                for layer in self.exportedLayers.keys():
+                for layer in list(self.exportedLayers.keys()):
                     s = s.replace(layer, self.exportedLayers[layer])
                 command += ' -' + param.name + ' "' + s + '"'
             elif isinstance(param, ParameterBoolean):
@@ -157,11 +173,11 @@ class SagaAlgorithm213(SagaAlgorithm212):
                 values = param.value.split(',')
                 for i in range(4):
                     command += ' -' + self.extentParamNames[i] + ' ' \
-                        + unicode(float(values[i]) + offset[i])
+                        + str(float(values[i]) + offset[i])
             elif isinstance(param, (ParameterNumber, ParameterSelection)):
-                command += ' -' + param.name + ' ' + unicode(param.value)
+                command += ' -' + param.name + ' ' + str(param.value)
             else:
-                command += ' -' + param.name + ' "' + unicode(param.value) + '"'
+                command += ' -' + param.name + ' "' + str(param.value) + '"'
 
         for out in self.outputs:
             command += ' -' + out.name + ' "' + out.getCompatibleFileName(self) + '"'

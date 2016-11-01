@@ -1,10 +1,46 @@
+# -*- coding: utf-8 -*-
+
+"""
+***************************************************************************
+    __init__.py
+    ---------------------
+    Date                 : May 2014
+    Copyright            : (C) 2014 by Nathan Woodrow
+    Email                : woodrow dot nathan at gmail dot com
+***************************************************************************
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************
+"""
+from builtins import str
+from builtins import object
+
+__author__ = 'Nathan Woodrow'
+__date__ = 'May 2014'
+__copyright__ = '(C) 2014, Nathan Woodrow'
+# This will get replaced with a git SHA1 when you do a git archive
+__revision__ = '$Format:%H$'
+
+from qgis.PyQt.QtCore import QCoreApplication, NULL
+
 import inspect
 import string
 from qgis._core import *
-from PyQt.QtCore import QCoreApplication
+
+# Boolean evaluation of QgsGeometry
 
 
-def register_function(function, arg_count, group, usesgeometry=False, **kwargs):
+def _geometryNonZero(self):
+    return not self.isEmpty()
+QgsGeometry.__nonzero__ = _geometryNonZero
+QgsGeometry.__bool__ = _geometryNonZero
+
+
+def register_function(function, arg_count, group, usesgeometry=False, referenced_columns=[QgsFeatureRequest.AllAttributes], **kwargs):
     """
     Register a Python function to be used as a expression function.
 
@@ -33,12 +69,17 @@ def register_function(function, arg_count, group, usesgeometry=False, **kwargs):
     """
     class QgsExpressionFunction(QgsExpression.Function):
 
-        def __init__(self, func, name, args, group, helptext='', usesgeometry=False, expandargs=False):
-            QgsExpression.Function.__init__(self, name, args, group, helptext, usesgeometry)
+        def __init__(self, func, name, args, group, helptext='', usesGeometry=True, referencedColumns=QgsFeatureRequest.AllAttributes, expandargs=False):
+            QgsExpression.Function.__init__(self, name, args, group, helptext)
             self.function = func
             self.expandargs = expandargs
+            self.uses_geometry = usesGeometry
+            self.referenced_columns = referencedColumns
 
-        def func(self, values, feature, parent):
+        def func(self, values, context, parent):
+            feature = None
+            if context:
+                feature = context.feature()
             try:
                 if self.expandargs:
                     values.append(feature)
@@ -49,6 +90,12 @@ def register_function(function, arg_count, group, usesgeometry=False, **kwargs):
             except Exception as ex:
                 parent.setEvalErrorString(str(ex))
                 return None
+
+        def usesGeometry(self, node):
+            return self.uses_geometry
+
+        def referencedColumns(self, node):
+            return self.referenced_columns
 
     helptemplate = string.Template("""<h3>$name function</h3><br>$doc""")
     name = kwargs.get('name', function.__name__)
@@ -74,7 +121,7 @@ def register_function(function, arg_count, group, usesgeometry=False, **kwargs):
 
     function.__name__ = name
     helptext = helptemplate.safe_substitute(name=name, doc=helptext)
-    f = QgsExpressionFunction(function, name, arg_count, group, helptext, usesgeometry, expandargs)
+    f = QgsExpressionFunction(function, name, arg_count, group, helptext, usesgeometry, referenced_columns, expandargs)
 
     # This doesn't really make any sense here but does when used from a decorator context
     # so it can stay.
@@ -107,45 +154,6 @@ def qgsfunction(args='auto', group='custom', **kwargs):
         return register_function(func, args, group, **kwargs)
     return wrapper
 
-try:
-    # Add a __nonzero__ method onto QPyNullVariant so we can check for null values easier.
-    #   >>> value = QPyNullVariant("int")
-    #   >>> if value:
-    #   >>>	  print "Not a null value"
-    from types import MethodType
-    from PyQt4.QtCore import QPyNullVariant
-
-    def __nonzero__(self):
-        return False
-
-    def __repr__(self):
-        return 'NULL'
-
-    def __eq__(self, other):
-        return isinstance(other, QPyNullVariant) or other is None
-
-    def __ne__(self, other):
-        return not isinstance(other, QPyNullVariant) and other is not None
-
-    def __hash__(self):
-        return 2178309
-
-    QPyNullVariant.__nonzero__ = MethodType(__nonzero__, None, QPyNullVariant)
-    QPyNullVariant.__repr__ = MethodType(__repr__, None, QPyNullVariant)
-    QPyNullVariant.__eq__ = MethodType(__eq__, None, QPyNullVariant)
-    QPyNullVariant.__ne__ = MethodType(__ne__, None, QPyNullVariant)
-    QPyNullVariant.__hash__ = MethodType(__hash__, None, QPyNullVariant)
-
-    NULL = QPyNullVariant(int)
-
-except ImportError:
-    try:
-        # TODO: Fixme, this creates an invalid variant, not a NULL one
-        from PyQt5.QtCore import QVariant
-        NULL = QVariant()
-    except ImportError:
-        pass
-
 
 class QgsEditError(Exception):
 
@@ -158,7 +166,7 @@ class QgsEditError(Exception):
 # Define a `with edit(layer)` statement
 
 
-class edit:
+class edit(object):
 
     def __init__(self, layer):
         self.layer = layer

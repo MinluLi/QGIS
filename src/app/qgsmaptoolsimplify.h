@@ -33,10 +33,15 @@ class APP_EXPORT QgsSimplifyDialog : public QDialog, private Ui::SimplifyLineDia
 
   public:
 
-    QgsSimplifyDialog( QgsMapToolSimplify* tool, QWidget* parent = NULL );
+    QgsSimplifyDialog( QgsMapToolSimplify* tool, QWidget* parent = nullptr );
 
     void updateStatusText();
     void enableOkButton( bool enabled );
+
+  protected:
+
+    //! Also cancels pending simplification
+    virtual void closeEvent( QCloseEvent* e ) override;
 
   private:
     QgsMapToolSimplify* mTool;
@@ -44,7 +49,7 @@ class APP_EXPORT QgsSimplifyDialog : public QDialog, private Ui::SimplifyLineDia
 };
 
 
-/** Map tool to simplify line/polygon features */
+//! Map tool to simplify line/polygon features
 class APP_EXPORT QgsMapToolSimplify: public QgsMapToolEdit
 {
     Q_OBJECT
@@ -66,35 +71,35 @@ class APP_EXPORT QgsMapToolSimplify: public QgsMapToolEdit
     QString statusText() const;
 
   public slots:
-    /** Slot to change display when slidebar is moved */
+    //! Slot to change display when slidebar is moved
     void setTolerance( double tolerance );
 
     void setToleranceUnits( int units );
 
-    /** Slot to store feture after simplification */
+    //! Slot to store feture after simplification
     void storeSimplified();
 
     void clearSelection();
 
   private:
 
-    void selectOneFeature( const QPoint& canvasPoint );
+    void selectOneFeature( QPoint canvasPoint );
     void selectFeaturesInRect();
 
     void updateSimplificationPreview();
 
-    int vertexCount( const QgsGeometry *g ) const;
+    int vertexCount( const QgsGeometry& g ) const;
 
     // data
-    /** Dialog with slider to set correct tolerance value */
+    //! Dialog with slider to set correct tolerance value
     QgsSimplifyDialog* mSimplifyDialog;
 
-    /** Rubber bands to draw current state of simplification */
+    //! Rubber bands to draw current state of simplification
     QList<QgsRubberBand*> mRubberBands;
-    /** Features with which we are working */
+    //! Features with which we are working
     QList<QgsFeature> mSelectedFeatures;
 
-    /** Real value of tolerance */
+    //! Real value of tolerance
     double mTolerance;
 
     QgsTolerance::UnitType mToleranceUnits;

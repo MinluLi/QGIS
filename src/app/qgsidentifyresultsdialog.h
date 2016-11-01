@@ -19,14 +19,11 @@
 #define QGSIDENTIFYRESULTSDIALOG_H
 
 #include "ui_qgsidentifyresultsbase.h"
-#include "qgsattributeaction.h"
 #include "qgscontexthelp.h"
 #include "qgsfeature.h"
-#include "qgsfeaturestore.h"
-#include "qgsfield.h"
-#include "qgsmaptoolidentify.h"
+#include "qgsfields.h"
 #include "qgscoordinatereferencesystem.h"
-#include "qgsmaplayeractionregistry.h"
+#include "qgsmaptoolidentify.h"
 #include "qgswebview.h"
 
 #include <QWidget>
@@ -37,11 +34,14 @@ class QTreeWidgetItem;
 class QAction;
 class QMenu;
 
+class QgsFeatureStore;
 class QgsVectorLayer;
 class QgsRasterLayer;
 class QgsHighlight;
 class QgsMapCanvas;
-class QDockWidget;
+class QgsDockWidget;
+class QgsMapLayerAction;
+class QgsEditorWidgetSetup;
 
 class QwtPlotCurve;
 
@@ -53,10 +53,10 @@ class APP_EXPORT QgsIdentifyResultsWebView : public QgsWebView
 {
     Q_OBJECT
   public:
-    QgsIdentifyResultsWebView( QWidget *parent = 0 );
+    QgsIdentifyResultsWebView( QWidget *parent = nullptr );
     QSize sizeHint() const override;
   public slots:
-    void print( void );
+    void print();
   protected:
     void contextMenuEvent( QContextMenuEvent* ) override;
     QgsWebView *createWindow( QWebPage::WebWindowType type ) override;
@@ -68,7 +68,7 @@ class APP_EXPORT QgsIdentifyResultsFeatureItem: public QTreeWidgetItem
     QgsIdentifyResultsFeatureItem( const QgsFields &fields, const QgsFeature &feature, const QgsCoordinateReferenceSystem &crs, const QStringList & strings = QStringList() );
     const QgsFields &fields() const { return mFields; }
     const QgsFeature &feature() const { return mFeature; }
-    const QgsCoordinateReferenceSystem &crs() { return mCrs; }
+    QgsCoordinateReferenceSystem crs() const { return mCrs; }
 
   private:
     QgsFields mFields;
@@ -81,10 +81,10 @@ class APP_EXPORT QgsIdentifyResultsWebViewItem: public QObject, public QTreeWidg
     Q_OBJECT
 
   public:
-    QgsIdentifyResultsWebViewItem( QTreeWidget *treeWidget = 0 );
+    QgsIdentifyResultsWebViewItem( QTreeWidget *treeWidget = nullptr );
     QgsIdentifyResultsWebView *webView() { return mWebView; }
     void setHtml( const QString &html );
-    /** @note added in 2.1 */
+    //! @note added in 2.1
     void setContent( const QByteArray & data, const QString & mimeType = QString(), const QUrl & baseUrl = QUrl() );
 
   public slots:
@@ -98,13 +98,16 @@ class APP_EXPORT QgsIdentifyPlotCurve
 {
   public:
 
-    QgsIdentifyPlotCurve() { mPlotCurve = 0; }
+    QgsIdentifyPlotCurve() { mPlotCurve = nullptr; }
     QgsIdentifyPlotCurve( const QMap<QString, QString> &attributes,
                           QwtPlot* plot, const QString &title = QString(), QColor color = QColor() );
     ~QgsIdentifyPlotCurve();
 
   private:
     QwtPlotCurve* mPlotCurve;
+
+    QgsIdentifyPlotCurve( const QgsIdentifyPlotCurve& rh );
+    QgsIdentifyPlotCurve& operator=( const QgsIdentifyPlotCurve& rh );
 };
 
 class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdentifyResultsBase
@@ -115,16 +118,16 @@ class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdenti
 
     //! Constructor - takes it own copy of the QgsAttributeAction so
     // that it is independent of whoever created it.
-    QgsIdentifyResultsDialog( QgsMapCanvas *canvas, QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    QgsIdentifyResultsDialog( QgsMapCanvas *canvas, QWidget *parent = nullptr, Qt::WindowFlags f = 0 );
 
     ~QgsIdentifyResultsDialog();
 
-    /** Add add feature from vector layer */
+    //! Add add feature from vector layer
     void addFeature( QgsVectorLayer * layer,
                      const QgsFeature &f,
                      const QMap< QString, QString > &derivedAttributes );
 
-    /** Add add feature from other layer */
+    //! Add add feature from other layer
     void addFeature( QgsRasterLayer * layer,
                      const QString& label,
                      const QMap< QString, QString > &attributes,
@@ -133,13 +136,13 @@ class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdenti
                      const QgsFeature &feature = QgsFeature(),
                      const QMap<QString, QVariant> &params = ( QMap<QString, QVariant>() ) );
 
-    /** Add feature from identify results */
+    //! Add feature from identify results
     void addFeature( const QgsMapToolIdentify::IdentifyResult& result );
 
-    /** Map tool was deactivated */
+    //! Map tool was deactivated
     void deactivate();
 
-    /** Map tool was activated */
+    //! Map tool was activated
     void activate();
 
   signals:
@@ -153,7 +156,7 @@ class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdenti
     void activateLayer( QgsMapLayer * );
 
   public slots:
-    /** Remove results */
+    //! Remove results
     void clear();
 
     void updateViewModes();
@@ -215,7 +218,7 @@ class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdenti
     void mapLayerActionDestroyed();
 
   private:
-    QString representValue( QgsVectorLayer* vlayer, const QString& fieldName, const QVariant& value );
+    QString representValue( QgsVectorLayer* vlayer, const QgsEditorWidgetSetup& setup, const QString& fieldName, const QVariant& value );
 
     enum ItemDataRole
     {
@@ -250,7 +253,7 @@ class APP_EXPORT QgsIdentifyResultsDialog: public QDialog, private Ui::QgsIdenti
 
     void doMapLayerAction( QTreeWidgetItem *item, QgsMapLayerAction* action );
 
-    QDockWidget *mDock;
+    QgsDockWidget *mDock;
 
     QVector<QgsIdentifyPlotCurve *> mPlotCurves;
 };
@@ -260,8 +263,11 @@ class QgsIdentifyResultsDialogMapLayerAction : public QAction
     Q_OBJECT
 
   public:
-    QgsIdentifyResultsDialogMapLayerAction( const QString &name, QObject *parent, QgsMapLayerAction* action, QgsMapLayer* layer, QgsFeature * f ) :
-        QAction( name, parent ), mAction( action ), mFeature( f ), mLayer( layer )
+    QgsIdentifyResultsDialogMapLayerAction( const QString &name, QObject *parent, QgsMapLayerAction* action, QgsMapLayer* layer, QgsFeature * f )
+        : QAction( name, parent )
+        , mAction( action )
+        , mFeature( f )
+        , mLayer( layer )
     {}
 
   public slots:

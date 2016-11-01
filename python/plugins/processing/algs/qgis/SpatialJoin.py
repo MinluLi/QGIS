@@ -16,15 +16,24 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import zip
+from builtins import range
 
 __author__ = 'Joshua Arnott'
 __date__ = 'October 2013'
 __copyright__ = '(C) 2013, Joshua Arnott'
+
 # This will get replaced with a git SHA1 when you do a git archive
+
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import QVariant
-from qgis.core import QGis, QgsFields, QgsField, QgsFeature, QgsGeometry, NULL
+import os
+
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QVariant
+
+from qgis.core import Qgis, QgsFields, QgsField, QgsFeature, QgsGeometry, NULL, QgsWkbTypes
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
@@ -34,6 +43,8 @@ from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterString
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class SpatialJoin(GeoAlgorithm):
@@ -45,6 +56,9 @@ class SpatialJoin(GeoAlgorithm):
     STATS = "STATS"
     KEEP = "KEEP"
     OUTPUT = "OUTPUT"
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'join_location.png'))
 
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Join attributes by location')
@@ -61,11 +75,9 @@ class SpatialJoin(GeoAlgorithm):
         ]
 
         self.addParameter(ParameterVector(self.TARGET,
-                                          self.tr('Target vector layer'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Target vector layer')))
         self.addParameter(ParameterVector(self.JOIN,
-                                          self.tr('Join vector layer'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Join vector layer')))
         predicates = list(ParameterGeometryPredicate.predicates)
         predicates.remove('disjoint')
         self.addParameter(ParameterGeometryPredicate(self.PREDICATE,
@@ -97,40 +109,37 @@ class SpatialJoin(GeoAlgorithm):
 
         sumList = self.getParameterValue(self.STATS).lower().split(',')
 
-        targetProvider = target.dataProvider()
-        joinProvider = join.dataProvider()
-
-        targetFields = targetProvider.fields()
-        joinFields = joinProvider.fields()
+        targetFields = target.fields()
+        joinFields = join.fields()
 
         fieldList = QgsFields()
 
         if not summary:
             joinFields = vector.testForUniqueness(targetFields, joinFields)
-            seq = range(0, len(targetFields) + len(joinFields))
+            seq = list(range(len(targetFields) + len(joinFields)))
             targetFields.extend(joinFields)
-            targetFields = dict(zip(seq, targetFields))
+            targetFields = dict(list(zip(seq, targetFields)))
         else:
             numFields = {}
-            for j in xrange(len(joinFields)):
-                if joinFields[j].type() in [QVariant.Int, QVariant.Double]:
+            for j in range(len(joinFields)):
+                if joinFields[j].type() in [QVariant.Int, QVariant.Double, QVariant.LongLong, QVariant.UInt, QVariant.ULongLong]:
                     numFields[j] = []
                     for i in sumList:
-                        field = QgsField(i + unicode(joinFields[j].name()), QVariant.Double, '', 24, 16)
+                        field = QgsField(i + str(joinFields[j].name()), QVariant.Double, '', 24, 16)
                         fieldList.append(field)
             field = QgsField('count', QVariant.Double, '', 24, 16)
             fieldList.append(field)
             joinFields = vector.testForUniqueness(targetFields, fieldList)
             targetFields.extend(fieldList)
-            seq = range(0, len(targetFields))
-            targetFields = dict(zip(seq, targetFields))
+            seq = list(range(len(targetFields)))
+            targetFields = dict(list(zip(seq, targetFields)))
 
         fields = QgsFields()
-        for f in targetFields.values():
+        for f in list(targetFields.values()):
             fields.append(f)
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, targetProvider.geometryType(), targetProvider.crs())
+            fields, target.wkbType(), target.crs())
 
         outFeat = QgsFeature()
         inFeatB = QgsFeature()
@@ -151,7 +160,7 @@ class SpatialJoin(GeoAlgorithm):
             inGeom = vector.snapToPrecision(f.geometry(), precision)
             none = True
             joinList = []
-            if inGeom.type() == QGis.Point:
+            if inGeom.type() == QgsWkbTypes.PointGeometry:
                 bbox = inGeom.buffer(10, 2).boundingBox()
             else:
                 bbox = inGeom.boundingBox()
@@ -190,15 +199,15 @@ class SpatialJoin(GeoAlgorithm):
                             atMap = atMap1
                             atMap2 = atMap2
                             atMap.extend(atMap2)
-                            atMap = dict(zip(seq, atMap))
+                            atMap = dict(list(zip(seq, atMap)))
                             break
                         else:
-                            for j in numFields.keys():
+                            for j in list(numFields.keys()):
                                 numFields[j].append(atMap2[j])
 
                 if summary and not none:
                     atMap = atMap1
-                    for j in numFields.keys():
+                    for j in list(numFields.keys()):
                         for k in sumList:
                             if k == 'sum':
                                 atMap.append(sum(self._filterNull(numFields[j])))
@@ -223,11 +232,11 @@ class SpatialJoin(GeoAlgorithm):
 
                         numFields[j] = []
                     atMap.append(count)
-                    atMap = dict(zip(seq, atMap))
+                    atMap = dict(list(zip(seq, atMap)))
             if none:
                 outFeat.setAttributes(atMap1)
             else:
-                outFeat.setAttributes(atMap.values())
+                outFeat.setAttributes(list(atMap.values()))
 
             if keep:
                 writer.addFeature(outFeat)

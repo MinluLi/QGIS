@@ -24,6 +24,10 @@
 
 #include "qgsdataitem.h"
 
+/** \ingroup core
+ * \class QgsBrowserWatcher
+ * \note not available in Python bindings
+*/
 class CORE_EXPORT QgsBrowserWatcher : public QFutureWatcher<QVector <QgsDataItem*> >
 {
     Q_OBJECT
@@ -41,18 +45,21 @@ class CORE_EXPORT QgsBrowserWatcher : public QFutureWatcher<QVector <QgsDataItem
     QgsDataItem *mItem;
 };
 
+/** \ingroup core
+ * \class QgsBrowserModel
+ */
 class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
 {
     Q_OBJECT
 
   public:
-    explicit QgsBrowserModel( QObject *parent = 0 );
+    explicit QgsBrowserModel( QObject *parent = nullptr );
     ~QgsBrowserModel();
 
     enum ItemDataRole
     {
-      // item path used to access path in the tree, see QgsDataItem::mPath
-      PathRole = Qt::UserRole
+      PathRole = Qt::UserRole, //!< Item path used to access path in the tree, see QgsDataItem::mPath
+      CommentRole = Qt::UserRole + 1, //!< Item comment
     };
     // implemented methods from QAbstractItemModel for read-only access
 
@@ -70,40 +77,40 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
       by views that can display header information. */
     virtual QVariant headerData( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const override;
 
-    /** Provides the number of rows of data exposed by the model. */
+    //! Provides the number of rows of data exposed by the model.
     virtual int rowCount( const QModelIndex &parent = QModelIndex() ) const override;
 
     /** Provides the number of columns of data exposed by the model. List models do not provide this function
       because it is already implemented in QAbstractListModel. */
     virtual int columnCount( const QModelIndex &parent = QModelIndex() ) const override;
 
-    /** Returns the index of the item in the model specified by the given row, column and parent index. */
+    //! Returns the index of the item in the model specified by the given row, column and parent index.
     virtual QModelIndex index( int row, int column, const QModelIndex & parent = QModelIndex() ) const override;
 
-    QModelIndex findItem( QgsDataItem *item, QgsDataItem *parent = 0 ) const;
+    QModelIndex findItem( QgsDataItem *item, QgsDataItem *parent = nullptr ) const;
 
     /** Returns the parent of the model item with the given index.
      * If the item has no parent, an invalid QModelIndex is returned.
      */
     virtual QModelIndex parent( const QModelIndex &index ) const override;
 
-    /** Returns a list of mime that can describe model indexes */
+    //! Returns a list of mime that can describe model indexes
     virtual QStringList mimeTypes() const override;
 
-    /** Returns an object that contains serialized items of data corresponding to the list of indexes specified */
+    //! Returns an object that contains serialized items of data corresponding to the list of indexes specified
     virtual QMimeData * mimeData( const QModelIndexList &indexes ) const override;
 
-    /** Handles the data supplied by a drag and drop operation that ended with the given action */
+    //! Handles the data supplied by a drag and drop operation that ended with the given action
     virtual bool dropMimeData( const QMimeData * data, Qt::DropAction action, int row, int column, const QModelIndex & parent ) override;
 
     QgsDataItem *dataItem( const QModelIndex &idx ) const;
 
     bool hasChildren( const QModelIndex &parent = QModelIndex() ) const override;
 
-    // Refresh item specified by path
+    //! Refresh item specified by path
     void refresh( const QString& path );
 
-    // Refresh item childs
+    //! Refresh item children
     void refresh( const QModelIndex &index = QModelIndex() );
 
     /** Return index of item with given path. It only searches in currently fetched
@@ -113,6 +120,8 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
      *        item with the longest match from start with path (to get as close/deep as possible to deleted item).
      * @return model index, invalid if item not found */
     QModelIndex findPath( const QString& path, Qt::MatchFlag matchFlag = Qt::MatchExactly );
+
+    //! @note not available in python bindings
     static QModelIndex findPath( QAbstractItemModel *model, const QString& path, Qt::MatchFlag matchFlag = Qt::MatchExactly );
 
     void connectItem( QgsDataItem *item );
@@ -121,11 +130,11 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
     void fetchMore( const QModelIndex & parent ) override;
 
   signals:
-    /** Emitted when item children fetch was finished */
+    //! Emitted when item children fetch was finished
     void stateChanged( const QModelIndex & index, QgsDataItem::State oldState );
 
   public slots:
-    // Reload the whole model
+    //! Reload the whole model
     void reload();
     void beginInsertItems( QgsDataItem *parent, int first, int last );
     void endInsertItems();
@@ -134,17 +143,32 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
     void itemDataChanged( QgsDataItem * item );
     void itemStateChanged( QgsDataItem * item, QgsDataItem::State oldState );
 
-    void addFavouriteDirectory( const QString& favDir );
-    void removeFavourite( const QModelIndex &index );
+    /**
+     * Adds a directory to the favorites group.
+     * @note added in QGIS 3.0
+     * @see removeFavorite()
+     */
+    void addFavoriteDirectory( const QString& directory );
+
+    /**
+     * Removes a favorite directory from its corresponding model index.
+     * @note added in QGIS 3.0
+     * @see addFavoriteDirectory()
+     */
+    void removeFavorite( const QModelIndex &index );
+
     void updateProjectHome();
 
+    //! Hide the given path in the browser model
+    void hidePath( QgsDataItem *item );
+
   protected:
-    // populates the model
+    //! Populates the model
     void addRootItems();
     void removeRootItems();
 
     QVector<QgsDataItem*> mRootItems;
-    QgsFavouritesItem *mFavourites;
+    QgsFavoritesItem *mFavorites;
     QgsDirectoryItem *mProjectHome;
 };
 

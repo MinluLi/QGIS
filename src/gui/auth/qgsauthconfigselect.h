@@ -37,30 +37,30 @@ class GUI_EXPORT QgsAuthConfigSelect : public QWidget, private Ui::QgsAuthConfig
      * @param parent Parent widget
      * @param dataprovider The key of the calling layer provider, if applicable
      */
-    explicit QgsAuthConfigSelect( QWidget *parent = 0, const QString &dataprovider = QString() );
+    explicit QgsAuthConfigSelect( QWidget *parent = nullptr, const QString &dataprovider = QString() );
     ~QgsAuthConfigSelect();
 
-    /** Set the authentication config id for the resource */
+    //! Set the authentication config id for the resource
     void setConfigId( const QString& authcfg );
 
-    /** Get the authentication config id for the resource */
+    //! Get the authentication config id for the resource
     const QString configId() const { return mAuthCfg; }
 
-    /** Set key of layer provider, if applicable */
+    //! Set key of layer provider, if applicable
     void setDataProviderKey( const QString &key );
 
   signals:
-    /** Emitted when authentication config is changed or missing */
+    //! Emitted when authentication config is changed or missing
     void selectedConfigIdChanged( const QString& authcfg );
 
-    /** Emitted when authentication config is removed */
+    //! Emitted when authentication config is removed
     void selectedConfigIdRemoved( const QString& authcfg );
 
   public slots:
-    /** Show a small message bar with a close button */
+    //! Show a small message bar with a close button
     void showMessage( const QString &msg );
 
-    /** Clear and hide small message bar */
+    //! Clear and hide small message bar
     void clearMessage();
 
   private slots:
@@ -112,19 +112,19 @@ class GUI_EXPORT QgsAuthConfigUriEdit : public QDialog, private Ui::QgsAuthConfi
      * @param datauri URI QString with of without an authcfg=ID string
      * @param dataprovider The key of the calling layer provider, if applicable
      */
-    explicit QgsAuthConfigUriEdit( QWidget *parent = 0,
+    explicit QgsAuthConfigUriEdit( QWidget *parent = nullptr,
                                    const QString &datauri = QString(),
                                    const QString &dataprovider = QString() );
     ~QgsAuthConfigUriEdit();
 
-    /** Set the data source URI to parse */
+    //! Set the data source URI to parse
     void setDataSourceUri( const QString &datauri );
 
-    /** The returned, possibly edited data source URI */
+    //! The returned, possibly edited data source URI
     QString dataSourceUri();
 
-    /** Whether a string contains an authcfg ID */
-    static bool hasConfigID( const QString &txt );
+    //! Whether a string contains an authcfg ID
+    static bool hasConfigId( const QString &txt );
 
   private slots:
     void saveChanges();

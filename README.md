@@ -6,8 +6,8 @@ QGIS is an Open Source Geographic Information System. The project was born in
 May of 2002 and was established as a project on SourceForge in June of the same
 year. We've worked hard to make GIS software (which is traditionally expensive
 commercial software) a viable prospect for anyone with basic access to a
-Personal Computer.  QGIS currently runs on most Unix platforms, Windows, and OS
-X. QGIS is developed using the Qt toolkit (http://qt.io) and C++.  This
+Personal Computer.  QGIS currently runs on most Unix platforms (macOS/OS X included)
+and Windows. QGIS is developed using the Qt toolkit (http://qt.io) and C++.  This
 means that QGIS feels snappy to use and has a pleasing, easy to use graphical
 user interface.
 
@@ -34,13 +34,14 @@ modified.
  * SDTS
  * GeoTiff
  * Tiff with world file
- * WMS
+ * WMS, WCS
 
 ## Supported vector formats include:
 
  * ESRI Shapefiles
  * PostgreSQL/PostGIS
  * GRASS
+ * GeoPackage
  * Spatialite
  * [Other OGR supported formats](http://www.gdal.org/ogr_formats.html)
  * MSSQL
@@ -62,7 +63,7 @@ an email address where we can request additional information.
 ## Support
 You can get support in the following ways:
 
- -  Using the QGIS community site at http://qgis.org
+ -  Using the QGIS community site at http://qgis.org 
  -  Joining the [qgis-users mailing list](https://lists.osgeo.org/mailman/listinfo/qgis-user)
  -  Using IRC by joining the [#qgis](http://webchat.freenode.net/?channels=#qgis) channel on irc.freenode.net.       Please wait around for a response to your question as many folks on the channel are doing other things and it may take a while for them to notice your question.
  -  Join the [Gitter](https://gitter.im/qgis/QGIS?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) chat.

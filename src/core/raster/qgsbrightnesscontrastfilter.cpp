@@ -35,8 +35,8 @@ QgsBrightnessContrastFilter::~QgsBrightnessContrastFilter()
 
 QgsBrightnessContrastFilter* QgsBrightnessContrastFilter::clone() const
 {
-  QgsDebugMsg( "Entered" );
-  QgsBrightnessContrastFilter * filter = new QgsBrightnessContrastFilter( 0 );
+  QgsDebugMsgLevel( "Entered", 4 );
+  QgsBrightnessContrastFilter * filter = new QgsBrightnessContrastFilter( nullptr );
   filter->setBrightness( mBrightness );
   filter->setContrast( mContrast );
   return filter;
@@ -57,11 +57,11 @@ int QgsBrightnessContrastFilter::bandCount() const
   return 0;
 }
 
-QGis::DataType QgsBrightnessContrastFilter::dataType( int bandNo ) const
+Qgis::DataType QgsBrightnessContrastFilter::dataType( int bandNo ) const
 {
   if ( mOn )
   {
-    return QGis::ARGB32_Premultiplied;
+    return Qgis::ARGB32_Premultiplied;
   }
 
   if ( mInput )
@@ -69,24 +69,24 @@ QGis::DataType QgsBrightnessContrastFilter::dataType( int bandNo ) const
     return mInput->dataType( bandNo );
   }
 
-  return QGis::UnknownDataType;
+  return Qgis::UnknownDataType;
 }
 
 bool QgsBrightnessContrastFilter::setInput( QgsRasterInterface* input )
 {
-  QgsDebugMsg( "Entered" );
+  QgsDebugMsgLevel( "Entered", 4 );
 
   // Brightness filter can only work with single band ARGB32_Premultiplied
   if ( !input )
   {
-    QgsDebugMsg( "No input" );
+    QgsDebugMsgLevel( "No input", 4 );
     return false;
   }
 
   if ( !mOn )
   {
     // In off mode we can connect to anything
-    QgsDebugMsg( "OK" );
+    QgsDebugMsgLevel( "OK", 4 );
     mInput = input;
     return true;
   }
@@ -97,22 +97,22 @@ bool QgsBrightnessContrastFilter::setInput( QgsRasterInterface* input )
     return false;
   }
 
-  if ( input->dataType( 1 ) != QGis::ARGB32_Premultiplied &&
-       input->dataType( 1 ) != QGis::ARGB32 )
+  if ( input->dataType( 1 ) != Qgis::ARGB32_Premultiplied &&
+       input->dataType( 1 ) != Qgis::ARGB32 )
   {
     QgsDebugMsg( "Unknown input data type" );
     return false;
   }
 
   mInput = input;
-  QgsDebugMsg( "OK" );
+  QgsDebugMsgLevel( "OK", 4 );
   return true;
 }
 
-QgsRasterBlock * QgsBrightnessContrastFilter::block( int bandNo, QgsRectangle  const & extent, int width, int height )
+QgsRasterBlock * QgsBrightnessContrastFilter::block( int bandNo, QgsRectangle  const & extent, int width, int height, QgsRasterBlockFeedback* feedback )
 {
   Q_UNUSED( bandNo );
-  QgsDebugMsg( QString( "width = %1 height = %2 extent = %3" ).arg( width ).arg( height ).arg( extent.toString() ) );
+  QgsDebugMsgLevel( QString( "width = %1 height = %2 extent = %3" ).arg( width ).arg( height ).arg( extent.toString() ), 4 );
 
   QgsRasterBlock *outputBlock = new QgsRasterBlock();
   if ( !mInput )
@@ -122,7 +122,7 @@ QgsRasterBlock * QgsBrightnessContrastFilter::block( int bandNo, QgsRectangle  c
 
   // At this moment we know that we read rendered image
   int bandNumber = 1;
-  QgsRasterBlock *inputBlock = mInput->block( bandNumber, extent, width, height );
+  QgsRasterBlock *inputBlock = mInput->block( bandNumber, extent, width, height, feedback );
   if ( !inputBlock || inputBlock->isEmpty() )
   {
     QgsDebugMsg( "No raster data!" );
@@ -132,12 +132,12 @@ QgsRasterBlock * QgsBrightnessContrastFilter::block( int bandNo, QgsRectangle  c
 
   if ( mBrightness == 0 && mContrast == 0 )
   {
-    QgsDebugMsg( "No brightness changes." );
+    QgsDebugMsgLevel( "No brightness changes.", 4 );
     delete outputBlock;
     return inputBlock;
   }
 
-  if ( !outputBlock->reset( QGis::ARGB32_Premultiplied, width, height ) )
+  if ( !outputBlock->reset( Qgis::ARGB32_Premultiplied, width, height ) )
   {
     delete inputBlock;
     return outputBlock;
@@ -186,7 +186,7 @@ int QgsBrightnessContrastFilter::adjustColorComponent( int colorComponent, int a
   }
   else
   {
-    // Semi-transparent pixel. We need to adjust the math since we are using QGis::ARGB32_Premultiplied
+    // Semi-transparent pixel. We need to adjust the math since we are using Qgis::ARGB32_Premultiplied
     // and color values have been premultiplied by alpha
     double alphaFactor = alpha / 255.;
     double adjustedColor = colorComponent / alphaFactor;
@@ -196,27 +196,27 @@ int QgsBrightnessContrastFilter::adjustColorComponent( int colorComponent, int a
   }
 }
 
-void QgsBrightnessContrastFilter::writeXML( QDomDocument& doc, QDomElement& parentElem ) const
+void QgsBrightnessContrastFilter::writeXml( QDomDocument& doc, QDomElement& parentElem ) const
 {
   if ( parentElem.isNull() )
   {
     return;
   }
 
-  QDomElement filterElem = doc.createElement( "brightnesscontrast" );
+  QDomElement filterElem = doc.createElement( QStringLiteral( "brightnesscontrast" ) );
 
-  filterElem.setAttribute( "brightness", QString::number( mBrightness ) );
-  filterElem.setAttribute( "contrast", QString::number( mContrast ) );
+  filterElem.setAttribute( QStringLiteral( "brightness" ), QString::number( mBrightness ) );
+  filterElem.setAttribute( QStringLiteral( "contrast" ), QString::number( mContrast ) );
   parentElem.appendChild( filterElem );
 }
 
-void QgsBrightnessContrastFilter::readXML( const QDomElement& filterElem )
+void QgsBrightnessContrastFilter::readXml( const QDomElement& filterElem )
 {
   if ( filterElem.isNull() )
   {
     return;
   }
 
-  mBrightness = filterElem.attribute( "brightness", "0" ).toInt();
-  mContrast = filterElem.attribute( "contrast", "0" ).toInt();
+  mBrightness = filterElem.attribute( QStringLiteral( "brightness" ), QStringLiteral( "0" ) ).toInt();
+  mContrast = filterElem.attribute( QStringLiteral( "contrast" ), QStringLiteral( "0" ) ).toInt();
 }

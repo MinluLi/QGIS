@@ -63,7 +63,6 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
 
 
   public:
-
     static const char* QGIS_ORGANIZATION_NAME;
     static const char* QGIS_ORGANIZATION_DOMAIN;
     static const char* QGIS_APPLICATION_NAME;
@@ -125,7 +124,7 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
     static void setUITheme( const QString &themeName );
 
     /**
-     * @brief All themes found in ~/.qgis2/themes folder.
+     * @brief All themes found in ~/.qgis3/themes folder.
      * The path is to the root folder for the theme
      * @note Valid theme folders must contain a style.qss file.
      * @return A hash of theme name and theme path. Valid theme folders contain style.qss
@@ -159,7 +158,7 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
 
     /*!
       Returns the path to the licence file.
-    */
+     */
     static QString licenceFilePath();
 
     //! Returns the path to the help application.
@@ -226,13 +225,40 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
     static QPixmap getThemePixmap( const QString &theName );
 
     //! Returns the path to user's style.
-    static QString userStyleV2Path();
+    static QString userStylePath();
+
+    //! Returns the short name regular expression for line edit validator
+    static QRegExp shortNameRegExp();
+
+    /** Returns the user's operating system login account name.
+     * @note added in QGIS 2.14
+     * @see userFullName()
+     */
+    static QString userLoginName();
+
+    /** Returns the user's operating system login account full display name.
+     * @note added in QGIS 2.14
+     * @see userLoginName()
+     */
+    static QString userFullName();
+
+    /** Returns a string name of the operating system QGIS is running on.
+     * @note added in QGIS 2.14
+     * @see platform()
+     */
+    static QString osName();
+
+    /** Returns the QGIS platform name, eg "desktop" or "server".
+     * @note added in QGIS 2.14
+     * @see osName()
+     */
+    static QString platform();
 
     //! Returns the path to user's themes folder
     static QString userThemesFolder();
 
     //! Returns the path to default style (works as a starting point).
-    static QString defaultStyleV2Path();
+    static QString defaultStylePath();
 
     //! Returns the path to default themes folder from install (works as a starting point).
     static QString defaultThemesFolder();
@@ -265,10 +291,13 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
     static bool createDB( QString* errorMessage = 0 );
 
     //! Create the users theme folder
-    static bool createThemeFolder( );
+    static bool createThemeFolder();
 
     //! deletes provider registry and map layer registry
     static void exitQgis();
+
+    //! get application icon
+    static QString appIconPath();
 
     /** Constants for endian-ness */
     enum endian_t
@@ -350,7 +379,23 @@ static void qtgui_UpdatePyArgv(PyObject *argvlist, int argc, char **argv)
     bool x11EventFilter ( XEvent * event );
 %End
 
+  public slots:
+
+    /** Causes the application instance to emit the settingsChanged() signal. This should
+     * be called whenever global, application-wide settings are altered to advise listeners
+     * that they may need to update their state.
+     * @see settingsChanged()
+     * @note added in QGIS 3.0
+     */
+    void emitSettingsChanged();
+
   signals:
     //! @note not available in python bindings
     // void preNotify( QObject * receiver, QEvent * event, bool * done );
+
+    /** Emitted whenever any global, application-wide settings are changed.
+     * @note added in QGIS 3.0
+     * @see emitSettingsChanged()
+     */
+    void settingsChanged();
 };

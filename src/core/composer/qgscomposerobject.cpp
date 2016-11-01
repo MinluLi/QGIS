@@ -22,19 +22,13 @@
 #include "qgscomposerobject.h"
 #include "qgsdatadefined.h"
 
-#define FONT_WORKAROUND_SCALE 10 //scale factor for upscaling fontsize and downscaling painter
-
-#ifndef M_DEG2RAD
-#define M_DEG2RAD 0.0174532925
-#endif
-
 QgsComposerObject::QgsComposerObject( QgsComposition* composition )
-    : QObject( 0 )
+    : QObject( nullptr )
     , mComposition( composition )
 {
 
   // data defined strings
-  mDataDefinedNames.insert( QgsComposerObject::TestProperty, QString( "dataDefinedTestProperty" ) );
+  mDataDefinedNames.insert( QgsComposerObject::TestProperty, QStringLiteral( "dataDefinedTestProperty" ) );
 
   if ( mComposition )
   {
@@ -58,7 +52,7 @@ QgsComposerObject::~QgsComposerObject()
   qDeleteAll( mDataDefinedProperties );
 }
 
-bool QgsComposerObject::writeXML( QDomElement &elem, QDomDocument &doc ) const
+bool QgsComposerObject::writeXml( QDomElement &elem, QDomDocument &doc ) const
 {
   if ( elem.isNull() )
   {
@@ -74,7 +68,7 @@ bool QgsComposerObject::writeXML( QDomElement &elem, QDomDocument &doc ) const
   return true;
 }
 
-bool QgsComposerObject::readXML( const QDomElement &itemElem, const QDomDocument &doc )
+bool QgsComposerObject::readXml( const QDomElement &itemElem, const QDomDocument &doc )
 {
   Q_UNUSED( doc );
   if ( itemElem.isNull() )
@@ -96,18 +90,18 @@ QgsDataDefined *QgsComposerObject::dataDefinedProperty( const QgsComposerObject:
   if ( property == QgsComposerObject::AllProperties || property == QgsComposerObject::NoProperty )
   {
     //bad property requested, don't return anything
-    return 0;
+    return nullptr;
   }
 
   //find corresponding QgsDataDefined and return it
-  QMap< QgsComposerObject::DataDefinedProperty, QgsDataDefined* >::const_iterator it = mDataDefinedProperties.find( property );
+  QMap< QgsComposerObject::DataDefinedProperty, QgsDataDefined* >::const_iterator it = mDataDefinedProperties.constFind( property );
   if ( it != mDataDefinedProperties.constEnd() )
   {
     return it.value();
   }
 
   //could not find matching QgsDataDefined
-  return 0;
+  return nullptr;
 }
 
 void QgsComposerObject::setDataDefinedProperty( const QgsComposerObject::DataDefinedProperty property, const bool active, const bool useExpression, const QString &expression, const QString &field )
@@ -122,7 +116,7 @@ void QgsComposerObject::setDataDefinedProperty( const QgsComposerObject::DataDef
 
   if ( mDataDefinedProperties.contains( property ) )
   {
-    QMap< QgsComposerObject::DataDefinedProperty, QgsDataDefined* >::const_iterator it = mDataDefinedProperties.find( property );
+    QMap< QgsComposerObject::DataDefinedProperty, QgsDataDefined* >::const_iterator it = mDataDefinedProperties.constFind( property );
     if ( it != mDataDefinedProperties.constEnd() )
     {
       QgsDataDefined* dd = it.value();
@@ -163,13 +157,13 @@ bool QgsComposerObject::dataDefinedEvaluate( const DataDefinedProperty property,
 
 void QgsComposerObject::prepareDataDefinedExpressions() const
 {
-  QScopedPointer< QgsExpressionContext > context( createExpressionContext() );
+  QgsExpressionContext context = createExpressionContext();
 
   //prepare all QgsDataDefineds
   QMap< DataDefinedProperty, QgsDataDefined* >::const_iterator it = mDataDefinedProperties.constBegin();
   if ( it != mDataDefinedProperties.constEnd() )
   {
-    it.value()->prepareExpression( *context.data() );
+    it.value()->prepareExpression( context );
   }
 }
 
@@ -193,18 +187,16 @@ QStringList QgsComposerObject::customProperties() const
   return mCustomProperties.keys();
 }
 
-QgsExpressionContext* QgsComposerObject::createExpressionContext() const
+QgsExpressionContext QgsComposerObject::createExpressionContext() const
 {
-  QgsExpressionContext* context = 0;
   if ( mComposition )
   {
-    context = mComposition->createExpressionContext();
+    return mComposition->createExpressionContext();
   }
   else
   {
-    context = new QgsExpressionContext();
-    context->appendScope( QgsExpressionContextUtils::globalScope() );
-    context->appendScope( QgsExpressionContextUtils::projectScope() );
+    return QgsExpressionContext()
+           << QgsExpressionContextUtils::globalScope()
+           << QgsExpressionContextUtils::projectScope();
   }
-  return context;
 }

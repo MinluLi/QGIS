@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
 
 __author__ = 'Agresta S. Coop - www.agresta.org'
 __date__ = 'June 2014'
@@ -27,8 +29,8 @@ import os
 from processing.core.parameters import ParameterFile
 from processing.core.parameters import ParameterString
 from processing.core.outputs import OutputFile
-from FusionAlgorithm import FusionAlgorithm
-from FusionUtils import FusionUtils
+from .FusionAlgorithm import FusionAlgorithm
+from .FusionUtils import FusionUtils
 
 
 class Csv2Grid(FusionAlgorithm):

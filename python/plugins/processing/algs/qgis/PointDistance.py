@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import next
+from builtins import str
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,8 +28,13 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 import math
-from qgis.core import QgsFeatureRequest, QgsFeature, QgsGeometry, QgsDistanceArea
+
+from qgis.PyQt.QtGui import QIcon
+
+from qgis.core import QgsFeatureRequest, QgsDistanceArea
+
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterVector
@@ -34,6 +42,8 @@ from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterTableField
 from processing.core.outputs import OutputTable
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class PointDistance(GeoAlgorithm):
@@ -46,6 +56,9 @@ class PointDistance(GeoAlgorithm):
     NEAREST_POINTS = 'NEAREST_POINTS'
     DISTANCE_MATRIX = 'DISTANCE_MATRIX'
 
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'matrix.png'))
+
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Distance matrix')
         self.group, self.i18n_group = self.trAlgorithm('Vector analysis tools')
@@ -55,12 +68,12 @@ class PointDistance(GeoAlgorithm):
                           self.tr('Summary distance matrix (mean, std. dev., min, max)')]
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input point layer'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Input point layer'), [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterTableField(self.INPUT_FIELD,
                                               self.tr('Input unique ID field'), self.INPUT_LAYER,
                                               ParameterTableField.DATA_TYPE_ANY))
         self.addParameter(ParameterVector(self.TARGET_LAYER,
-                                          self.tr('Target point layer'), ParameterVector.VECTOR_TYPE_POINT))
+                                          self.tr('Target point layer'), dataobjects.TYPE_VECTOR_POINT))
         self.addParameter(ParameterTableField(self.TARGET_FIELD,
                                               self.tr('Target unique ID field'), self.TARGET_LAYER,
                                               ParameterTableField.DATA_TYPE_ANY))
@@ -110,32 +123,27 @@ class PointDistance(GeoAlgorithm):
 
         index = vector.spatialindex(targetLayer)
 
-        inIdx = inLayer.fieldNameIndex(inField)
-        outIdx = targetLayer.fieldNameIndex(targetField)
+        inIdx = inLayer.fields().lookupField(inField)
+        outIdx = targetLayer.fields().lookupField(targetField)
 
-        outFeat = QgsFeature()
-        inGeom = QgsGeometry()
-        outGeom = QgsGeometry()
         distArea = QgsDistanceArea()
 
         features = vector.features(inLayer)
-        current = 0
-        total = 100.0 / float(len(features))
-        for inFeat in features:
+        total = 100.0 / len(features)
+        for current, inFeat in enumerate(features):
             inGeom = inFeat.geometry()
-            inID = unicode(inFeat.attributes()[inIdx])
+            inID = str(inFeat.attributes()[inIdx])
             featList = index.nearestNeighbor(inGeom.asPoint(), nPoints)
             distList = []
             vari = 0.0
-            for i in featList:
-                request = QgsFeatureRequest().setFilterFid(i)
-                outFeat = targetLayer.getFeatures(request).next()
+            request = QgsFeatureRequest().setFilterFids(featList).setSubsetOfAttributes([outIdx])
+            for outFeat in targetLayer.getFeatures(request):
                 outID = outFeat.attributes()[outIdx]
                 outGeom = outFeat.geometry()
                 dist = distArea.measureLine(inGeom.asPoint(),
                                             outGeom.asPoint())
                 if matType == 0:
-                    self.writer.addRecord([inID, unicode(outID), unicode(dist)])
+                    self.writer.addRecord([inID, str(outID), str(dist)])
                 else:
                     distList.append(float(dist))
 
@@ -144,32 +152,26 @@ class PointDistance(GeoAlgorithm):
                 for i in distList:
                     vari += (i - mean) * (i - mean)
                 vari = math.sqrt(vari / len(distList))
-                self.writer.addRecord([inID, unicode(mean),
-                                      unicode(vari), unicode(min(distList)),
-                                      unicode(max(distList))])
+                self.writer.addRecord([inID, str(mean),
+                                       str(vari), str(min(distList)),
+                                       str(max(distList))])
 
-            current += 1
             progress.setPercentage(int(current * total))
 
     def regularMatrix(self, inLayer, inField, targetLayer, targetField,
                       nPoints, progress):
         index = vector.spatialindex(targetLayer)
 
-        inIdx = inLayer.fieldNameIndex(inField)
+        inIdx = inLayer.fields().lookupField(inField)
 
-        outFeat = QgsFeature()
-        inGeom = QgsGeometry()
-        outGeom = QgsGeometry()
         distArea = QgsDistanceArea()
 
         first = True
-        current = 0
         features = vector.features(inLayer)
-        total = 100.0 / float(len(features))
-
-        for inFeat in features:
+        total = 100.0 / len(features)
+        for current, inFeat in enumerate(features):
             inGeom = inFeat.geometry()
-            inID = unicode(inFeat.attributes()[inIdx])
+            inID = str(inFeat.attributes()[inIdx])
             featList = index.nearestNeighbor(inGeom.asPoint(), nPoints)
             if first:
                 first = False
@@ -181,12 +183,11 @@ class PointDistance(GeoAlgorithm):
             data = [inID]
             for i in featList:
                 request = QgsFeatureRequest().setFilterFid(i)
-                outFeat = targetLayer.getFeatures(request).next()
+                outFeat = next(targetLayer.getFeatures(request))
                 outGeom = outFeat.geometry()
                 dist = distArea.measureLine(inGeom.asPoint(),
                                             outGeom.asPoint())
-                data.append(unicode(float(dist)))
+                data.append(str(float(dist)))
             self.writer.addRecord(data)
 
-            current += 1
             progress.setPercentage(int(current * total))

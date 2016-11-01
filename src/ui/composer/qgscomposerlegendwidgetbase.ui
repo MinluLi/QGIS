@@ -23,7 +23,16 @@
    <property name="spacing">
     <number>0</number>
    </property>
-   <property name="margin">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
     <number>0</number>
    </property>
    <item>
@@ -54,9 +63,9 @@
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>-420</y>
+        <y>0</y>
         <width>375</width>
-        <height>1392</height>
+        <height>1506</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="mainLayout">
@@ -86,9 +95,6 @@
             <property name="text">
              <string>&amp;Title</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
             <property name="buddy">
              <cstring>mTitleLineEdit</cstring>
             </property>
@@ -102,21 +108,15 @@
             <property name="text">
              <string>Map</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QComboBox" name="mMapComboBox"/>
+           <widget class="QgsComposerItemComboBox" name="mMapComboBox"/>
           </item>
           <item row="3" column="0">
            <widget class="QLabel" name="label">
             <property name="text">
              <string>Wrap text on</string>
-            </property>
-            <property name="wordWrap">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -130,7 +130,7 @@
           <item row="1" column="0">
            <widget class="QLabel" name="label_15">
             <property name="text">
-             <string>Title alignment:</string>
+             <string>Title alignment</string>
             </property>
            </widget>
           </item>
@@ -151,6 +151,13 @@
               <string>Right</string>
              </property>
             </item>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QCheckBox" name="mCheckboxResizeContents">
+            <property name="text">
+             <string>Resize to fit contents</string>
+            </property>
            </widget>
           </item>
          </layout>
@@ -210,11 +217,14 @@
           </item>
           <item>
            <widget class="QgsLayerTreeView" name="mItemTreeView">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>250</height>
+             </size>
+            </property>
             <property name="selectionMode">
              <enum>QAbstractItemView::ContiguousSelection</enum>
-            </property>
-            <property name="wordWrap">
-             <bool>false</bool>
             </property>
             <property name="headerHidden">
              <bool>true</bool>
@@ -353,7 +363,7 @@
               </property>
               <property name="icon">
                <iconset resource="../../../images/images.qrc">
-                <normaloff>:/images/themes/default/mActionSum.png</normaloff>:/images/themes/default/mActionSum.png</iconset>
+                <normaloff>:/images/themes/default/mActionSum.svg</normaloff>:/images/themes/default/mActionSum.svg</iconset>
               </property>
               <property name="iconSize">
                <size>
@@ -490,7 +500,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QgsColorButtonV2" name="mFontColorButton">
+             <widget class="QgsColorButton" name="mFontColorButton">
               <property name="minimumSize">
                <size>
                 <width>120</width>
@@ -613,9 +623,6 @@
             <property name="text">
              <string>Symbol width</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="0" column="1">
@@ -635,9 +642,6 @@
            <widget class="QLabel" name="label_4">
             <property name="text">
              <string>Symbol height</string>
-            </property>
-            <property name="wordWrap">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -679,7 +683,7 @@
              <item row="0" column="1">
               <layout class="QHBoxLayout" name="horizontalLayout_6">
                <item>
-                <widget class="QgsColorButtonV2" name="mRasterBorderColorButton">
+                <widget class="QgsColorButton" name="mRasterBorderColorButton">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
@@ -722,9 +726,6 @@
               <widget class="QLabel" name="mOutlineWidthLabel">
                <property name="text">
                 <string>Thickness</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
                </property>
                <property name="buddy">
                 <cstring>mRasterBorderWidthSpinBox</cstring>
@@ -785,9 +786,6 @@
             <property name="text">
              <string>Legend width</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="0" column="1">
@@ -810,9 +808,6 @@
            <widget class="QLabel" name="label_14">
             <property name="text">
              <string>Legend height</string>
-            </property>
-            <property name="wordWrap">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -864,9 +859,6 @@
             <property name="text">
              <string>Group Space</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="1" column="1">
@@ -886,9 +878,6 @@
             </property>
             <property name="text">
              <string>Subgroup space</string>
-            </property>
-            <property name="wordWrap">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -910,9 +899,6 @@
             <property name="text">
              <string>Symbol space</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="3" column="1">
@@ -933,9 +919,6 @@
             <property name="text">
              <string>Icon label space</string>
             </property>
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
            </widget>
           </item>
           <item row="4" column="1">
@@ -952,9 +935,6 @@
            <widget class="QLabel" name="label_9">
             <property name="text">
              <string>Box space</string>
-            </property>
-            <property name="wordWrap">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -1019,13 +999,13 @@
   <customwidget>
    <class>QgsCollapsibleGroupBoxBasic</class>
    <extends>QGroupBox</extends>
-   <header location="global">qgscollapsiblegroupbox.h</header>
+   <header>qgscollapsiblegroupbox.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsColorButtonV2</class>
+   <class>QgsColorButton</class>
    <extends>QToolButton</extends>
-   <header>qgscolorbuttonv2.h</header>
+   <header>qgscolorbutton.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -1037,6 +1017,11 @@
    <class>QgsSpinBox</class>
    <extends>QSpinBox</extends>
    <header>qgsspinbox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsComposerItemComboBox</class>
+   <extends>QComboBox</extends>
+   <header>qgscomposeritemcombobox.h</header>
   </customwidget>
   <customwidget>
    <class>QgsLayerTreeView</class>
@@ -1056,6 +1041,7 @@
   <tabstop>mTitleAlignCombo</tabstop>
   <tabstop>mMapComboBox</tabstop>
   <tabstop>mWrapCharLineEdit</tabstop>
+  <tabstop>mCheckboxResizeContents</tabstop>
   <tabstop>mLegendItemColGroupBox</tabstop>
   <tabstop>mCheckBoxAutoUpdate</tabstop>
   <tabstop>mUpdateAllPushButton</tabstop>
@@ -1068,6 +1054,8 @@
   <tabstop>mEditPushButton</tabstop>
   <tabstop>mCountToolButton</tabstop>
   <tabstop>mFilterByMapToolButton</tabstop>
+  <tabstop>mExpressionFilterButton</tabstop>
+  <tabstop>mFilterLegendByAtlasCheckBox</tabstop>
   <tabstop>mFontsColGroupBox</tabstop>
   <tabstop>mTitleFontButton</tabstop>
   <tabstop>mLayerFontButton</tabstop>

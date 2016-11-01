@@ -138,8 +138,8 @@ class QgsDelimitedTextFile : public QObject
     void setTypeWhitespace();
 
     /** Set the parser for parsing based on a reqular expression delimiter
-        @param regexp A string defining the regular expression
-    */
+     *  @param regexp A string defining the regular expression
+     */
     void setTypeRegexp( const QString& regexp );
     /** Set the parser to use a character type delimiter.
      *  @param delim  The field delimiter character set
@@ -323,9 +323,9 @@ class QgsDelimitedTextFile : public QObject
      */
     void resetDefinition();
 
-    /** Parse reqular expression delimited fields */
+    //! Parse reqular expression delimited fields
     Status parseRegexp( QString &buffer, QStringList &fields );
-    /** Parse quote delimited fields, where quote and escape are different */
+    //! Parse quote delimited fields, where quote and escape are different
     Status parseQuoted( QString &buffer, QStringList &fields );
 
     /** Return the next line from the data file.  If skipBlank is true then

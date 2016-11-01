@@ -41,19 +41,19 @@ QgsMapLayer* QgsHostedVDSBuilder::createMapLayer( const QDomElement& elem,
   Q_UNUSED( filesToRemove );
   if ( elem.isNull() )
   {
-    return 0;
+    return nullptr;
   }
 
-  QString providerType = elem.attribute( "providerType", "not found" );
-  QString uri = elem.attribute( "uri", "not found" );
+  QString providerType = elem.attribute( QStringLiteral( "providerType" ), QStringLiteral( "not found" ) );
+  QString uri = elem.attribute( QStringLiteral( "uri" ), QStringLiteral( "not found" ) );
 
-  if ( providerType == "not found" || uri == "not found" )
+  if ( providerType == QLatin1String( "not found" ) || uri == QLatin1String( "not found" ) )
   {
     QgsDebugMsg( "error, provider type not found" );
-    return 0;
+    return nullptr;
   }
 
-  QgsMapLayer* ml = 0;
+  QgsMapLayer* ml = nullptr;
 
   if ( allowCaching ) //take layer from cache if allowed
   {
@@ -70,7 +70,7 @@ QgsMapLayer* QgsHostedVDSBuilder::createMapLayer( const QDomElement& elem,
     {
       QgsDebugMsg( "error, VectorLayer is 0 or invalid" );
       delete ml;
-      return 0;
+      return nullptr;
     }
 
     if ( allowCaching )
@@ -86,7 +86,7 @@ QgsMapLayer* QgsHostedVDSBuilder::createMapLayer( const QDomElement& elem,
   //projection
   if ( ml )
   {
-    QString epsg = elem.attribute( "epsg" );
+    QString epsg = elem.attribute( QStringLiteral( "epsg" ) );
     if ( !epsg.isEmpty() )
     {
       bool conversionOk;
@@ -94,8 +94,7 @@ QgsMapLayer* QgsHostedVDSBuilder::createMapLayer( const QDomElement& elem,
       if ( conversionOk )
       {
         //set spatial ref sys
-        QgsCoordinateReferenceSystem srs;
-        srs.createFromOgcWmsCrs( QString( "EPSG:%1" ).arg( epsgnr ) );
+        QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromOgcWmsCrs( QStringLiteral( "EPSG:%1" ).arg( epsgnr ) );
         ml->setCrs( srs );
       }
     }

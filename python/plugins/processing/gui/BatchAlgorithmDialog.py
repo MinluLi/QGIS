@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -25,8 +26,11 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtGui import QApplication, QCursor, QMessageBox
-from PyQt4.QtCore import Qt
+from qgis.PyQt.QtWidgets import QApplication, QMessageBox, QSizePolicy
+from qgis.PyQt.QtGui import QCursor
+from qgis.PyQt.QtCore import Qt
+
+from qgis.gui import QgsMessageBar
 
 from processing.gui.BatchPanel import BatchPanel
 from processing.gui.AlgorithmDialogBase import AlgorithmDialogBase
@@ -35,17 +39,7 @@ from processing.gui.Postprocessing import handleAlgorithmResults
 
 from processing.core.ProcessingResults import ProcessingResults
 
-from processing.core.parameters import ParameterFile
-from processing.core.parameters import ParameterRaster
-from processing.core.parameters import ParameterTable
-from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterExtent
-from processing.core.parameters import ParameterCrs
-from processing.core.parameters import ParameterBoolean
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterFixedTable
-from processing.core.parameters import ParameterMultipleInput
-from processing.core.parameters import ParameterGeometryPredicate
 from processing.core.outputs import OutputNumber
 from processing.core.outputs import OutputString
 from processing.core.outputs import OutputHTML
@@ -64,32 +58,13 @@ class BatchAlgorithmDialog(AlgorithmDialogBase):
 
         self.setWindowTitle(self.tr('Batch Processing - %s') % self.alg.name)
 
-        self.mainWidget = BatchPanel(self, self.alg)
-        self.setMainWidget()
+        self.setMainWidget(BatchPanel(self, self.alg))
 
-    def setParamValue(self, param, widget, alg=None):
-        if isinstance(param, (ParameterRaster, ParameterVector, ParameterTable,
-                              ParameterMultipleInput)):
-            value = widget.getText()
-            if unicode(value).strip() == '':
-                value = None
-            return param.setValue(value)
-        elif isinstance(param, ParameterBoolean):
-            return param.setValue(widget.currentIndex() == 0)
-        elif isinstance(param, ParameterSelection):
-            return param.setValue(widget.currentIndex())
-        elif isinstance(param, ParameterFixedTable):
-            return param.setValue(widget.table)
-        elif isinstance(param, ParameterExtent):
-            if alg is not None:
-                widget.useNewAlg(alg)
-            return param.setValue(widget.getValue())
-        elif isinstance(param, (ParameterCrs, ParameterFile)):
-            return param.setValue(widget.getValue())
-        elif isinstance(param, ParameterGeometryPredicate):
-            return param.setValue(widget.value())
-        else:
-            return param.setValue(widget.text())
+        self.textShortHelp.setVisible(False)
+
+        self.bar = QgsMessageBar()
+        self.bar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout().insertWidget(0, self.bar)
 
     def accept(self):
         self.algs = []
@@ -102,27 +77,13 @@ class BatchAlgorithmDialog(AlgorithmDialogBase):
             for param in alg.parameters:
                 if param.hidden:
                     continue
-                if isinstance(param, ParameterExtent):
-                    col += 1
-                    continue
-                widget = self.mainWidget.tblParameters.cellWidget(row, col)
-                if not self.setParamValue(param, widget, alg):
-                    self.lblProgress.setText(
-                        self.tr('<b>Missing parameter value: %s (row %d)</b>') % (param.description, row + 1))
+                wrapper = self.mainWidget.wrappers[row][col]
+                if not self.mainWidget.setParamValue(param, wrapper, alg):
+                    self.bar.pushMessage("", self.tr('Wrong or missing parameter value: %s (row %d)')
+                                         % (param.description, row + 1),
+                                         level=QgsMessageBar.WARNING, duration=5)
                     self.algs = None
                     return
-                col += 1
-            col = 0
-            for param in alg.parameters:
-                if param.hidden:
-                    continue
-                if isinstance(param, ParameterExtent):
-                    widget = self.mainWidget.tblParameters.cellWidget(row, col)
-                    if not self.setParamValue(param, widget, alg):
-                        self.lblProgress.setText(
-                            self.tr('<b>Missing parameter value: %s (row %d)</b>') % (param.description, row + 1))
-                        self.algs = None
-                        return
                 col += 1
             for out in alg.outputs:
                 if out.hidden:
@@ -134,8 +95,9 @@ class BatchAlgorithmDialog(AlgorithmDialogBase):
                     out.value = text
                     col += 1
                 else:
-                    self.lblProgress.setText(
-                        self.tr('<b>Wrong or missing parameter value: %s (row %d)</b>') % (out.description, row + 1))
+                    self.bar.pushMessage("", self.tr('Wrong or missing output value: %s (row %d)')
+                                         % (out.description, row + 1),
+                                         level=QgsMessageBar.WARNING, duration=5)
                     self.algs = None
                     return
 

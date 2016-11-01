@@ -35,6 +35,7 @@
 #include "qgsattributetablemodel.h"
 #include "qgsattributetablefiltermodel.h"
 #include "qgscredentialdialog.h"
+#include "qgsrasterdataprovider.h"
 
 #ifdef ANDROID
 #define QGIS_ICON_SIZE 32
@@ -42,14 +43,14 @@
 #define QGIS_ICON_SIZE 24
 #endif
 
-QgsBrowser::QgsBrowser( QWidget *parent, const Qt::WindowFlags& flags )
+QgsBrowser::QgsBrowser( QWidget *parent, Qt::WindowFlags flags )
     : QMainWindow( parent, flags )
     , mDirtyMetadata( true )
     , mDirtyPreview( true )
     , mDirtyAttributes( true )
-    , mLayer( 0 )
-    , mParamWidget( 0 )
-    , mAttributeTableFilterModel( 0 )
+    , mLayer( nullptr )
+    , mParamWidget( nullptr )
+    , mAttributeTableFilterModel( nullptr )
 {
   setupUi( this );
 
@@ -81,7 +82,7 @@ QgsBrowser::QgsBrowser( QWidget *parent, const Qt::WindowFlags& flags )
 
   //Set the icon size of for all the toolbars created in the future.
   QSettings settings;
-  int size = settings.value( "/IconSize", QGIS_ICON_SIZE ).toInt();
+  int size = settings.value( QStringLiteral( "/IconSize" ), QGIS_ICON_SIZE ).toInt();
   setIconSize( QSize( size, size ) );
 
   //Change all current icon sizes.
@@ -131,7 +132,7 @@ void QgsBrowser::itemClicked( const QModelIndex& index )
   mDirtyAttributes = true;
 
   // clear the previous stuff
-  setLayer( 0 );
+  setLayer( nullptr );
 
   QList<QgsMapCanvasLayer> nolayers;
   mapCanvas->setLayerSet( nolayers );
@@ -141,13 +142,13 @@ void QgsBrowser::itemClicked( const QModelIndex& index )
     paramLayout->removeWidget( mParamWidget );
     mParamWidget->hide();
     delete mParamWidget;
-    mParamWidget = 0;
+    mParamWidget = nullptr;
   }
 
   // QgsMapLayerRegistry deletes the previous layer(s) for us
   // TODO: in future we could cache the layers in the registry
   QgsMapLayerRegistry::instance()->removeAllMapLayers();
-  mLayer = 0;
+  mLayer = nullptr;
 
   // this should probably go to the model and only emit signal when a layer is clicked
   mParamWidget = item->paramWidget();
@@ -223,7 +224,7 @@ bool QgsBrowser::layerClicked( QgsLayerItem *item )
     }
     if ( type == QgsMapLayer::RasterLayer )
     {
-      mLayer = new QgsRasterLayer( uri, "", providerKey );
+      mLayer = new QgsRasterLayer( uri, QLatin1String( "" ), providerKey );
     }
   }
 
@@ -262,7 +263,7 @@ void QgsBrowser::newVectorLayer()
     if ( dirItem )
     {
       QSettings settings;
-      settings.setValue( "/UI/lastVectorFileFilterDir", dirItem->dirPath() );
+      settings.setValue( QStringLiteral( "/UI/lastVectorFileFilterDir" ), dirItem->dirPath() );
     }
   }
 
@@ -280,7 +281,7 @@ void QgsBrowser::newVectorLayer()
 
 void QgsBrowser::on_mActionWmsConnections_triggered()
 {
-  QDialog *wmss = dynamic_cast<QDialog*>( QgsProviderRegistry::instance()->selectWidget( QString( "wms" ), this ) );
+  QDialog *wmss = dynamic_cast<QDialog*>( QgsProviderRegistry::instance()->selectWidget( QStringLiteral( "wms" ), this ) );
   if ( !wmss )
   {
     QMessageBox::warning( this, tr( "WMS" ), tr( "Cannot get WMS select dialog from provider." ) );
@@ -302,7 +303,7 @@ void QgsBrowser::on_mActionSetProjection_triggered()
   mySelector->setSelectedCrsId( mLayer->crs().srsid() );
   if ( mySelector->exec() )
   {
-    QgsCoordinateReferenceSystem srs( mySelector->selectedCrsId(), QgsCoordinateReferenceSystem::InternalCrsId );
+    QgsCoordinateReferenceSystem srs = QgsCoordinateReferenceSystem::fromSrsId( mySelector->selectedCrsId() );
 
     // TODO: open data source in write mode set crs and save
 #if 0
@@ -333,30 +334,30 @@ void QgsBrowser::on_mActionSetProjection_triggered()
 void QgsBrowser::saveWindowState()
 {
   QSettings settings;
-  settings.setValue( "/Windows/Browser/state", saveState() );
-  settings.setValue( "/Windows/Browser/geometry", saveGeometry() );
-  settings.setValue( "/Windows/Browser/sizes/0", splitter->sizes().at( 0 ) );
-  settings.setValue( "/Windows/Browser/sizes/1", splitter->sizes().at( 1 ) );
+  settings.setValue( QStringLiteral( "/Windows/Browser/state" ), saveState() );
+  settings.setValue( QStringLiteral( "/Windows/Browser/geometry" ), saveGeometry() );
+  settings.setValue( QStringLiteral( "/Windows/Browser/sizes/0" ), splitter->sizes().at( 0 ) );
+  settings.setValue( QStringLiteral( "/Windows/Browser/sizes/1" ), splitter->sizes().at( 1 ) );
 }
 
 void QgsBrowser::restoreWindowState()
 {
   QSettings settings;
-  if ( !restoreState( settings.value( "/Windows/Browser/state" ).toByteArray() ) )
+  if ( !restoreState( settings.value( QStringLiteral( "/Windows/Browser/state" ) ).toByteArray() ) )
   {
     QgsDebugMsg( "restore of UI state failed" );
   }
-  if ( !restoreGeometry( settings.value( "/Windows/Browser/geometry" ).toByteArray() ) )
+  if ( !restoreGeometry( settings.value( QStringLiteral( "/Windows/Browser/geometry" ) ).toByteArray() ) )
   {
     QgsDebugMsg( "restore of UI geometry failed" );
   }
-  int size0 = settings.value( "/Windows/Browser/sizes/0" ).toInt();
+  int size0 = settings.value( QStringLiteral( "/Windows/Browser/sizes/0" ) ).toInt();
   if ( size0 > 0 )
   {
 
     QList<int> sizes;
     sizes << size0;
-    sizes << settings.value( "/Windows/Browser/sizes/1" ).toInt();
+    sizes << settings.value( QStringLiteral( "/Windows/Browser/sizes/1" ) ).toInt();
     QgsDebugMsg( QString( "set splitter sizes to %1 %2" ).arg( sizes[0] ).arg( sizes[1] ) );
     splitter->setSizes( sizes );
   }
@@ -364,7 +365,6 @@ void QgsBrowser::restoreWindowState()
 
 void QgsBrowser::keyPressEvent( QKeyEvent * e )
 {
-  QgsDebugMsg( "Entered" );
   if ( e->key() == Qt::Key_Escape )
   {
     stopRendering();
@@ -377,7 +377,6 @@ void QgsBrowser::keyPressEvent( QKeyEvent * e )
 
 void QgsBrowser::keyReleaseEvent( QKeyEvent * e )
 {
-  QgsDebugMsg( "Entered" );
   if ( treeView->hasFocus() && ( e->key() == Qt::Key_Up || e->key() == Qt::Key_Down ) )
   {
     itemClicked( treeView->selectionModel()->currentIndex() );
@@ -390,7 +389,6 @@ void QgsBrowser::keyReleaseEvent( QKeyEvent * e )
 
 void QgsBrowser::stopRendering()
 {
-  QgsDebugMsg( "Entered" );
   if ( mapCanvas )
     mapCanvas->stopRendering();
 }
@@ -462,7 +460,7 @@ void QgsBrowser::updateCurrentTab()
     }
     else
     {
-      setLayer( 0 );
+      setLayer( nullptr );
     }
     mDirtyAttributes = false;
   }
@@ -485,13 +483,11 @@ void QgsBrowser::tabChanged()
 
 void QgsBrowser::on_mActionRefresh_triggered()
 {
-  QgsDebugMsg( "Entered" );
   refresh();
 }
 
 void QgsBrowser::refresh( const QModelIndex& index )
 {
-  QgsDebugMsg( "Entered" );
   if ( index.isValid() )
   {
     QgsDataItem *item = mModel->dataItem( index );
@@ -519,26 +515,26 @@ void QgsBrowser::refresh( const QModelIndex& index )
 
 void QgsBrowser::setLayer( QgsVectorLayer* vLayer )
 {
-  attributeTable->setModel( NULL );
+  attributeTable->setModel( nullptr );
 
   if ( mAttributeTableFilterModel )
   {
     // Cleanup
     delete mAttributeTableFilterModel;
-    mAttributeTableFilterModel = NULL;
+    mAttributeTableFilterModel = nullptr;
   }
 
   if ( vLayer )
   {
     // Initialize the cache
     QSettings settings;
-    int cacheSize = qMax( 1, settings.value( "/qgis/attributeTableRowCache", "10000" ).toInt() );
+    int cacheSize = qMax( 1, settings.value( QStringLiteral( "/qgis/attributeTableRowCache" ), "10000" ).toInt() );
     QgsVectorLayerCache* layerCache = new QgsVectorLayerCache( vLayer, cacheSize, this );
     layerCache->setCacheGeometry( false );
 
     QgsAttributeTableModel *tableModel = new QgsAttributeTableModel( layerCache );
 
-    mAttributeTableFilterModel = new QgsAttributeTableFilterModel( NULL, tableModel, this );
+    mAttributeTableFilterModel = new QgsAttributeTableFilterModel( nullptr, tableModel, this );
 
     // Let Qt do the garbage collection
     layerCache->setParent( tableModel );

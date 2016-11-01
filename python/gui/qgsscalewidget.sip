@@ -1,7 +1,8 @@
 
-/** A combobox which lets the user select map scale from predefined list
+/** \ingroup gui
+ * A combobox which lets the user select map scale from predefined list
  * and highlights nearest to current scale value
- */
+ **/
 class QgsScaleWidget : QWidget
 {
 %TypeHeaderCode
@@ -25,9 +26,11 @@ class QgsScaleWidget : QWidget
     //! Function to set the selected scale from text
     bool setScaleString( const QString& scaleTxt );
     //! Function to read the selected scale as double
-    double scale();
+    double scale() const;
     //! Function to set the selected scale from double
     void setScale( double scale );
+    //! Function to read the min scale
+    double minScale() const;
 
     //! Helper function to convert a double to scale string
     // Performs rounding, so an exact representation is not to
@@ -42,9 +45,12 @@ class QgsScaleWidget : QWidget
     //! assign the current scale from the map canvas
     void setScaleFromCanvas();
 
+    //! Function to set the min scale
+    void setMinScale( double scale );
+
   signals:
     //! Signal is emitted when *user* has finished editing/selecting a new scale.
-    void scaleChanged();
+    void scaleChanged( double scale );
 
 
 };

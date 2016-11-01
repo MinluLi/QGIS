@@ -1,5 +1,4 @@
-/** \ingroup MapComposer
- * \ingroup gui
+/** \ingroup core
  * Widget to display the composer items. Manages the composer tools and the
  * mouse/key events.
  * Creates the composer items according to the current map tools and keeps track
@@ -92,7 +91,7 @@ class QgsComposerView : QGraphicsView
 
     /** Sets the composition for the view. If the composition is being set manually and not by a QgsComposer, then this must
      * be set BEFORE adding any items to the composition.
-    */
+     */
     void setComposition( QgsComposition* c /KeepReference/ );
 
     /** Returns the composition or 0 in case of error*/
@@ -113,18 +112,25 @@ class QgsComposerView : QGraphicsView
     /** Set zoom level, where a zoom level of 1.0 corresponds to 100%*/
     void setZoomLevel( double zoomLevel );
 
+    /** Scales the view in a safe way, by limiting the acceptable range
+     * of the scale applied.
+     * @param scale factor to scale view by
+     * @note added in QGIS 2.16
+     */
+    void scaleSafe( double scale );
+
     /** Sets whether a preview effect should be used to alter the view's appearance
      * @param enabled Set to true to enable the preview effect on the view
      * @note added in 2.3
      * @see setPreviewMode
-    */
+     */
     void setPreviewModeEnabled( bool enabled );
     /** Sets the preview mode which should be used to modify the view's appearance. Preview modes are only used
      * if setPreviewMode is set to true.
      * @param mode PreviewMode to be used to draw the view
      * @note added in 2.3
      * @see setPreviewModeEnabled
-    */
+     */
     void setPreviewMode( QgsPreviewEffect::PreviewMode mode );
 
   protected:

@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,12 +25,12 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import Qt, QObject, SIGNAL
-from PyQt4.QtGui import QWidget, QAction, QApplication, QMenu
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QWidget, QAction, QApplication, QMenu
 
-from ui_widgetInfo import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetInfo import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 import platform
 
@@ -48,18 +50,18 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.base.resize(400, 360)
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.suppressGCPCheck, SIGNAL("stateChanged( int )")),
-            (self.suppressMDCheck, SIGNAL("stateChanged( int )"))
+            (self.inSelector, "filenameChanged"),
+            (self.suppressGCPCheck, "stateChanged"),
+            (self.suppressMDCheck, "stateChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
 
         # helper actions for copying info output
         self.copyLine = QAction(self.tr("Copy"), self)
-        QObject.connect(self.copyLine, SIGNAL("triggered()"), self.doCopyLine)
+        self.copyLine.triggered.connect(self.doCopyLine)
         self.copyAll = QAction(self.tr("Copy all"), self)
-        QObject.connect(self.copyAll, SIGNAL("triggered()"), self.doCopyAll)
+        self.copyAll.triggered.connect(self.doCopyAll)
 
     def doCopyLine(self):
         output = ''
@@ -94,7 +96,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
 
     def finished(self):
         self.rasterInfoList.clear()
-        arr = unicode(self.base.process.readAllStandardOutput()).strip()
+        arr = str(self.base.process.readAllStandardOutput()).strip()
         if platform.system() == "Windows":
             #info = QString.fromLocal8Bit( arr ).strip().split( "\r\n" )
             # TODO test

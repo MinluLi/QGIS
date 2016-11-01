@@ -22,6 +22,7 @@ class QgsStatisticalSummary
     enum Statistic
     {
       Count,  //!< Count
+      CountMissing, //!< Number of missing (null) values
       Sum,  //!< Sum of values
       Mean,  //!< Mean of values
       Median, //!< Median of values
@@ -43,7 +44,7 @@ class QgsStatisticalSummary
     /** Constructor for QgsStatisticalSummary
      * @param stats flags for statistics to calculate
      */
-    QgsStatisticalSummary( const QgsStatisticalSummary::Statistics& stats = QgsStatisticalSummary::All );
+    QgsStatisticalSummary( QgsStatisticalSummary::Statistics stats = QgsStatisticalSummary::All );
 
     virtual ~QgsStatisticalSummary();
 
@@ -58,7 +59,7 @@ class QgsStatisticalSummary
      * @param stats flags for statistics to calculate
      * @see statistics
      */
-    void setStatistics( const QgsStatisticalSummary::Statistics& stats );
+    void setStatistics( QgsStatisticalSummary::Statistics stats );
 
     /** Resets the calculated values
      */
@@ -69,6 +70,46 @@ class QgsStatisticalSummary
      */
     void calculate( const QList<double>& values );
 
+    /** Adds a single value to the statistics calculation. Calling this method
+     * allows values to be added to the calculation one at a time. For large
+     * quantities of values this may be more efficient then first adding all the
+     * values to a list and calling calculate().
+     * @param value value to add
+     * @note call reset() before adding the first value using this method
+     * to clear the results from any previous calculations
+     * @note finalize() must be called after adding the final value and before
+     * retrieving calculated statistics.
+     * @see calculate()
+     * @see addVariant()
+     * @see finalize()
+     * @note added in QGIS 2.16
+     */
+    void addValue( double value );
+
+    /** Adds a single value to the statistics calculation. Calling this method
+     * allows values to be added to the calculation one at a time. For large
+     * quantities of values this may be more efficient then first adding all the
+     * values to a list and calling calculate().
+     * @param value variant containing to add. Non-numeric values are treated as null.
+     * @note call reset() before adding the first value using this method
+     * to clear the results from any previous calculations
+     * @note finalize() must be called after adding the final value and before
+     * retrieving calculated statistics.
+     * @see addValue()
+     * @see calculate()
+     * @see finalize()
+     * @note added in QGIS 2.16
+     */
+    void addVariant( const QVariant& value );
+
+    /** Must be called after adding all values with addValues() and before retrieving
+     * any calculated statistics.
+     * @see addValue()
+     * @see addVariant()
+     * @note added in QGIS 2.16
+     */
+    void finalize();
+
     /** Returns the value of a specified statistic
      * @param stat statistic to return
      * @returns calculated value of statistic
@@ -78,6 +119,11 @@ class QgsStatisticalSummary
     /** Returns calculated count of values
      */
     int count() const;
+
+    /** Returns the number of missing (null) values
+     * @note added in QGIS 2.16
+     */
+    int countMissing() const;
 
     /** Returns calculated sum of values
      */

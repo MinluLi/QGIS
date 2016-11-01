@@ -22,14 +22,12 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from qgis.PyQt.QtCore import QTime
 
-from ..data_model import TableDataModel, SqlResultModel, \
-    BaseTableModel, TableFieldsModel, SimpleTableModel
+from ..data_model import TableDataModel, SqlResultModel, BaseTableModel
 from ..plugin import DbError
-from qgis.core import *
 
 
 class ORTableDataModel(TableDataModel):
@@ -41,8 +39,7 @@ class ORTableDataModel(TableDataModel):
         if not self.table.rowCount:
             self.table.refreshRowCount()
 
-        self.connect(self.table, SIGNAL("aboutToChange"),
-                     self._deleteCursor)
+        self.table.aboutToChange.connect(self._deleteCursor)
         self._createCursor()
 
     def _createCursor(self):
@@ -76,7 +73,7 @@ class ORTableDataModel(TableDataModel):
                     int(field.modifier)
                 return u"CAST({} AS VARCHAR2({}))".format(
                     self.db.quoteId(field.name),
-                    unicode(nbChars))
+                    str(nbChars))
 
         return u"CAST({0} As VARCHAR2({1}))".format(
             self.db.quoteId(field.name), field.charMaxLen)
@@ -86,8 +83,7 @@ class ORTableDataModel(TableDataModel):
         self.cursor = None
 
     def __del__(self):
-        self.disconnect(
-            self.table, SIGNAL("aboutToChange"), self._deleteCursor)
+        self.table.aboutToChange.disconnect(self._deleteCursor)
         self._deleteCursor()
 
     def getData(self, row, col):
@@ -125,7 +121,7 @@ class ORSqlResultModel(SqlResultModel):
 
         t = QTime()
         t.start()
-        c = self.db._execute(None, unicode(sql))
+        c = self.db._execute(None, str(sql))
 
         self._affectedRows = 0
         data = []

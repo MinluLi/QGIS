@@ -36,14 +36,17 @@ class CORE_EXPORT QgsSingleBandColorDataRenderer: public QgsRasterRenderer
 
     bool setInput( QgsRasterInterface* input ) override;
 
-    QgsRasterBlock* block( int bandNo, const QgsRectangle & extent, int width, int height ) override;
+    QgsRasterBlock* block( int bandNo, const QgsRectangle & extent, int width, int height, QgsRasterBlockFeedback* feedback = nullptr ) override;
 
-    void writeXML( QDomDocument& doc, QDomElement& parentElem ) const override;
+    void writeXml( QDomDocument& doc, QDomElement& parentElem ) const override;
 
     QList<int> usesBands() const override;
 
   private:
     int mBand;
+
+    QgsSingleBandColorDataRenderer( const QgsSingleBandColorDataRenderer& );
+    const QgsSingleBandColorDataRenderer& operator=( const QgsSingleBandColorDataRenderer& );
 };
 
 #endif // QGSSINGLEBANDCOLORDATARENDERER_H

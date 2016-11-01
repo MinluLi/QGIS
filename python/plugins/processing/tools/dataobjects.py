@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 
 __author__ = 'Victor Olaya'
@@ -28,15 +29,36 @@ __revision__ = '$Format:%H$'
 
 import os
 import re
-from qgis.core import QGis, QgsProject, QgsVectorFileWriter, QgsMapLayer, QgsRasterLayer, QgsVectorLayer, QgsMapLayerRegistry, QgsCoordinateReferenceSystem
+
+from qgis.PyQt.QtCore import QSettings
+from qgis.core import (Qgis,
+                       QgsProject,
+                       QgsVectorFileWriter,
+                       QgsMapLayer,
+                       QgsRasterLayer,
+                       QgsWkbTypes,
+                       QgsVectorLayer,
+                       QgsMapLayerRegistry,
+                       QgsCoordinateReferenceSystem)
 from qgis.gui import QgsSublayersDialog
-from PyQt4.QtCore import QSettings
 from qgis.utils import iface
+
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.algs.gdal.GdalUtils import GdalUtils
-from processing.tools.system import getTempFilenameInTempFolder, getTempFilename, isWindows
+from processing.tools.system import (getTempFilenameInTempFolder,
+                                     getTempFilename,
+                                     removeInvalidChars,
+                                     isWindows)
 
 ALL_TYPES = [-1]
+
+TYPE_VECTOR_ANY = -1
+TYPE_VECTOR_POINT = 0
+TYPE_VECTOR_LINE = 1
+TYPE_VECTOR_POLYGON = 2
+TYPE_RASTER = 3
+TYPE_FILE = 4
+
 
 _loadedLayers = {}
 
@@ -49,8 +71,8 @@ def resetLoadedLayers():
 def getSupportedOutputVectorLayerExtensions():
     formats = QgsVectorFileWriter.supportedFiltersAndFormats()
     exts = ['shp']  # shp is the default, should be the first
-    for extension in formats.keys():
-        extension = unicode(extension)
+    for extension in list(formats.keys()):
+        extension = str(extension)
         extension = extension[extension.find('*.') + 2:]
         extension = extension[:extension.find(' ')]
         if extension.lower() != 'shp':
@@ -60,7 +82,7 @@ def getSupportedOutputVectorLayerExtensions():
 
 def getSupportedOutputRasterLayerExtensions():
     allexts = ['tif']
-    for exts in GdalUtils.getSupportedRasters().values():
+    for exts in list(GdalUtils.getSupportedRasters().values()):
         for ext in exts:
             if ext not in allexts:
                 allexts.append(ext)
@@ -74,13 +96,7 @@ def getSupportedOutputTableExtensions():
 
 def getRasterLayers(sorting=True):
     layers = QgsProject.instance().layerTreeRoot().findLayers()
-    raster = []
-
-    for layer in layers:
-        mapLayer = layer.layer()
-        if mapLayer.type() == QgsMapLayer.RasterLayer:
-            if mapLayer.providerType() == 'gdal':  # only gdal file-based layers
-                raster.append(mapLayer)
+    raster = [lay.layer() for lay in layers if lay.layer() is not None and canUseRasterLayer(lay.layer())]
     if sorting:
         return sorted(raster, key=lambda layer: layer.name().lower())
     else:
@@ -89,17 +105,27 @@ def getRasterLayers(sorting=True):
 
 def getVectorLayers(shapetype=[-1], sorting=True):
     layers = QgsProject.instance().layerTreeRoot().findLayers()
-    vector = []
-    for layer in layers:
-        mapLayer = layer.layer()
-        if mapLayer.type() == QgsMapLayer.VectorLayer and mapLayer.dataProvider().name() != "grass":
-            if (mapLayer.hasGeometryType() and
-                    (shapetype == ALL_TYPES or mapLayer.geometryType() in shapetype)):
-                vector.append(mapLayer)
+    vector = [lay.layer() for lay in layers if canUseVectorLayer(lay.layer(), shapetype)]
     if sorting:
         return sorted(vector, key=lambda layer: layer.name().lower())
     else:
         return vector
+
+
+def canUseVectorLayer(layer, shapetype):
+    if layer.type() == QgsMapLayer.VectorLayer and layer.dataProvider().name() != "grass":
+        if (layer.hasGeometryType() and
+                (shapetype == ALL_TYPES or layer.geometryType() in shapetype)):
+            return True
+    return False
+
+
+def canUseRasterLayer(layer):
+    if layer.type() == QgsMapLayer.RasterLayer:
+        if layer.providerType() == 'gdal':  # only gdal file-based layers
+            return True
+
+    return False
 
 
 def getAllLayers():
@@ -143,7 +169,7 @@ def extent(layers):
     if first:
         return '0,0,0,0'
     else:
-        return unicode(xmin) + ',' + unicode(xmax) + ',' + unicode(ymin) + ',' + unicode(ymax)
+        return str(xmin) + ',' + str(xmax) + ',' + str(ymin) + ',' + str(ymax)
 
 
 def loadList(layers):
@@ -169,9 +195,9 @@ def load(fileName, name=None, crs=None, style=None):
         if crs is not None and qgslayer.crs() is None:
             qgslayer.setCrs(crs, False)
         if style is None:
-            if qgslayer.geometryType() == QGis.Point:
+            if qgslayer.geometryType() == QgsWkbTypes.PointGeometry:
                 style = ProcessingConfig.getSetting(ProcessingConfig.VECTOR_POINT_STYLE)
-            elif qgslayer.geometryType() == QGis.Line:
+            elif qgslayer.geometryType() == QgsWkbTypes.LineGeometry:
                 style = ProcessingConfig.getSetting(ProcessingConfig.VECTOR_LINE_STYLE)
             else:
                 style = ProcessingConfig.getSetting(ProcessingConfig.VECTOR_POLYGON_STYLE)
@@ -186,12 +212,11 @@ def load(fileName, name=None, crs=None, style=None):
                 style = ProcessingConfig.getSetting(ProcessingConfig.RASTER_STYLE)
             qgslayer.loadNamedStyle(style)
             QgsMapLayerRegistry.instance().addMapLayers([qgslayer])
-            iface.legendInterface().refreshLayerSymbology(qgslayer)
         else:
             if prjSetting:
                 settings.setValue('/Projections/defaultBehaviour', prjSetting)
-            raise RuntimeError('Could not load layer: ' + unicode(fileName)
-                               + '\nCheck the procesing framework log to look for errors')
+            raise RuntimeError('Could not load layer: ' + str(fileName)
+                               + '\nCheck the processing framework log to look for errors')
     if prjSetting:
         settings.setValue('/Projections/defaultBehaviour', prjSetting)
 
@@ -248,19 +273,15 @@ def getObjectFromUri(uri, forceLoad=True):
         settings.setValue('/Projections/defaultBehaviour', '')
 
         # If is not opened, we open it
-        layer = QgsVectorLayer(uri, uri, 'ogr')
-        if layer.isValid():
-            if prjSetting:
-                settings.setValue('/Projections/defaultBehaviour', prjSetting)
-            _loadedLayers[normalizeLayerSource(layer.source())] = layer
-            return layer
-        layer = QgsVectorLayer(uri, uri, 'postgres')
-        if layer.isValid():
-            if prjSetting:
-                settings.setValue('/Projections/defaultBehaviour', prjSetting)
-            _loadedLayers[normalizeLayerSource(layer.source())] = layer
-            return layer
-        layer = QgsRasterLayer(uri, uri)
+        name = os.path.basename(uri)
+        for provider in ['ogr', 'postgres', 'spatialite', 'virtual']:
+            layer = QgsVectorLayer(uri, name, provider)
+            if layer.isValid():
+                if prjSetting:
+                    settings.setValue('/Projections/defaultBehaviour', prjSetting)
+                _loadedLayers[normalizeLayerSource(layer.source())] = layer
+                return layer
+        layer = QgsRasterLayer(uri, name)
         if layer.isValid():
             if prjSetting:
                 settings.setValue('/Projections/defaultBehaviour', prjSetting)
@@ -272,7 +293,7 @@ def getObjectFromUri(uri, forceLoad=True):
         return None
 
 
-def exportVectorLayer(layer):
+def exportVectorLayer(layer, supported=None):
     """Takes a QgsVectorLayer and returns the filename to refer to it,
     which allows external apps which support only file-based layers to
     use it. It performs the necessary export in case the input layer
@@ -286,27 +307,24 @@ def exportVectorLayer(layer):
     a new file if the original one contains non-ascii characters.
     """
 
+    supported = supported or ["shp"]
     settings = QSettings()
     systemEncoding = settings.value('/UI/encoding', 'System')
 
-    filename = os.path.basename(unicode(layer.source()))
-    idx = filename.rfind('.')
-    if idx != -1:
-        filename = filename[:idx]
-
-    filename = unicode(layer.name())
-    validChars = \
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:'
-    filename = ''.join(c for c in filename if c in validChars)
-    if len(filename) == 0:
-        filename = 'layer'
-    output = getTempFilenameInTempFolder(filename + '.shp')
+    output = getTempFilename('shp')
+    basename = removeInvalidChars(os.path.basename(layer.source()))
+    if basename:
+        if not basename.endswith("shp"):
+            basename = basename + ".shp"
+        output = getTempFilenameInTempFolder(basename)
+    else:
+        output = getTempFilename("shp")
     provider = layer.dataProvider()
     useSelection = ProcessingConfig.getSetting(ProcessingConfig.USE_SELECTED)
     if useSelection and layer.selectedFeatureCount() != 0:
         writer = QgsVectorFileWriter(output, systemEncoding,
-                                     layer.pendingFields(),
-                                     provider.geometryType(), layer.crs())
+                                     layer.fields(),
+                                     layer.wkbType(), layer.crs())
         selection = layer.selectedFeatures()
         for feat in selection:
             writer.addFeature(feat)
@@ -315,13 +333,13 @@ def exportVectorLayer(layer):
     else:
         isASCII = True
         try:
-            unicode(layer.source()).decode('ascii')
+            str(layer.source())
         except UnicodeEncodeError:
             isASCII = False
-        if not unicode(layer.source()).endswith('shp') or not isASCII:
+        if not os.path.splitext(layer.source())[1].lower() in supported or not isASCII:
             writer = QgsVectorFileWriter(
                 output, systemEncoding,
-                layer.pendingFields(), provider.geometryType(),
+                layer.fields(), layer.wkbType(),
                 layer.crs()
             )
             for feat in layer.getFeatures():
@@ -329,7 +347,7 @@ def exportVectorLayer(layer):
             del writer
             return output
         else:
-            return unicode(layer.source())
+            return str(layer.source())
 
 
 def exportRasterLayer(layer):
@@ -346,7 +364,7 @@ def exportRasterLayer(layer):
     """
 
     # TODO: Do the conversion here
-    return unicode(layer.source())
+    return str(layer.source())
 
 
 def exportTable(table):
@@ -365,25 +383,24 @@ def exportTable(table):
     settings = QSettings()
     systemEncoding = settings.value('/UI/encoding', 'System')
     output = getTempFilename()
-    provider = table.dataProvider()
     isASCII = True
     try:
-        unicode(table.source()).decode('ascii')
+        str(table.source()).decode('ascii')
     except UnicodeEncodeError:
         isASCII = False
-    isDbf = unicode(table.source()).endswith('dbf') \
-        or unicode(table.source()).endswith('shp')
+    isDbf = str(table.source()).endswith('dbf') \
+        or str(table.source()).endswith('shp')
     if not isDbf or not isASCII:
         writer = QgsVectorFileWriter(output, systemEncoding,
-                                     provider.fields(), QGis.WKBNoGeometry,
+                                     layer.fields(), QgsWkbTypes.NullGeometry,
                                      QgsCoordinateReferenceSystem('4326'))
         for feat in table.getFeatures():
             writer.addFeature(feat)
         del writer
         return output + '.dbf'
     else:
-        filename = unicode(table.source())
-        if unicode(table.source()).endswith('shp'):
+        filename = str(table.source())
+        if str(table.source()).endswith('shp'):
             return filename[:-3] + 'dbf'
         else:
             return filename
@@ -419,13 +436,16 @@ def getRasterSublayer(path, param):
                 if subLayer.endswith("\""):
                     subLayer = subLayer[:-1]
 
-                layers.append(unicode(subLayerNum) + "|" + subLayer)
+                ld = QgsSublayersDialog.LayerDefinition()
+                ld.layerId = subLayerNum
+                ld.layerName = subLayer
+                layers.append(ld)
                 subLayerNum = subLayerNum + 1
 
             # Use QgsSublayersDialog
             # Would be good if QgsSublayersDialog had an option to allow only one sublayer to be selected
             chooseSublayersDialog = QgsSublayersDialog(QgsSublayersDialog.Gdal, "gdal")
-            chooseSublayersDialog.populateLayerTable(layers, "|")
+            chooseSublayersDialog.populateLayerTable(layers)
 
             if chooseSublayersDialog.exec_():
                 return layer.subLayers()[chooseSublayersDialog.selectionIndexes()[0]]
@@ -438,3 +458,18 @@ def getRasterSublayer(path, param):
     except:
         # If the layer is not a raster layer, then just return the input path
         return path
+
+
+def vectorDataType(obj):
+    types = ''
+    for t in obj.datatype:
+        if t == dataobjects.TYPE_VECTOR_POINT:
+            types += 'point, '
+        elif t == dataobjects.TYPE_VECTOR_LINE:
+            types += 'line, '
+        elif t == dataobjects.TYPE_VECTOR_POLYGON:
+            types += 'polygon, '
+        else:
+            types += 'any, '
+
+    return types[:-2]

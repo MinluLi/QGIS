@@ -21,10 +21,13 @@
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 
-#include "qgsdial.h"
-#include "qgsslider.h"
+class QAbstractSlider;
+class QSlider;
+class QDial;
+class QgsSlider;
+class QgsDial;
 
-/**
+/** \ingroup gui
  * Wraps a range widget.
  *
  * Options:
@@ -41,22 +44,25 @@ class GUI_EXPORT QgsRangeWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsRangeWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = 0 );
+    explicit QgsRangeWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    virtual QVariant value() override;
+    virtual QVariant value() const override;
 
   protected:
     virtual QWidget* createWidget( QWidget* parent ) override;
     virtual void initWidget( QWidget* editor ) override;
-    bool valid() override;
+    bool valid() const override;
 
   public slots:
     virtual void setValue( const QVariant& value ) override;
 
-  public slots:
-    void valueChanged( const QVariant& );
+  private slots:
+
+    // NOTE - cannot be named "valueChanged", otherwise implicit conversion to QVariant results in
+    // infinite recursion
+    void valueChangedVariant( const QVariant& );
 
   private:
     QSpinBox* mIntSpinBox;

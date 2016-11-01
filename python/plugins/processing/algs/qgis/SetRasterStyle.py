@@ -27,7 +27,7 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4.QtXml import QDomDocument
+from qgis.PyQt.QtXml import QDomDocument
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterFile
@@ -69,4 +69,3 @@ class SetRasterStyle(GeoAlgorithm):
             layer.readSymbology(n, '')
             self.setOutputValue(self.OUTPUT, filename)
             iface.mapCanvas().refresh()
-            iface.legendInterface().refreshLayerSymbology(layer)

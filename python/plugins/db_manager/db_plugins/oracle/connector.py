@@ -22,17 +22,17 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import range
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4.QtSql import QSqlDatabase
+from qgis.PyQt.QtSql import QSqlDatabase
 
 from ..connector import DBConnector
 from ..plugin import ConnectionError, DbError, Table
 
 import os
-from qgis.core import QGis, QgsApplication
-import QtSqlDB
+from qgis.core import Qgis, QgsApplication, NULL, QgsWkbTypes
+from . import QtSqlDB
 import sqlite3
 
 
@@ -46,18 +46,18 @@ def classFactory():
 class OracleDBConnector(DBConnector):
 
     ORGeomTypes = {
-        2001: QGis.WKBPoint,
-        2002: QGis.WKBLineString,
-        2003: QGis.WKBPolygon,
-        2005: QGis.WKBMultiPoint,
-        2006: QGis.WKBMultiLineString,
-        2007: QGis.WKBMultiPolygon,
-        3001: QGis.WKBPoint25D,
-        3002: QGis.WKBLineString25D,
-        3003: QGis.WKBPolygon25D,
-        3005: QGis.WKBMultiPoint25D,
-        3006: QGis.WKBMultiLineString25D,
-        3007: QGis.WKBMultiPolygon25D
+        2001: QgsWkbTypes.Point,
+        2002: QgsWkbTypes.LineString,
+        2003: QgsWkbTypes.Polygon,
+        2005: QgsWkbTypes.MultiPoint,
+        2006: QgsWkbTypes.MultiLineString,
+        2007: QgsWkbTypes.MultiPolygon,
+        3001: QgsWkbTypes.Point25D,
+        3002: QgsWkbTypes.LineString25D,
+        3003: QgsWkbTypes.Polygon25D,
+        3005: QgsWkbTypes.MultiPoint25D,
+        3006: QgsWkbTypes.MultiLineString25D,
+        3007: QgsWkbTypes.MultiPolygon25D
     }
 
     def __init__(self, uri, connName):
@@ -86,6 +86,8 @@ class OracleDBConnector(DBConnector):
             'allowGeometrylessTables').lower() == "true"
         self.onlyExistingTypes = uri.param(
             'onlyExistingTypes').lower() == "true"
+        self.includeGeoAttributes = uri.param(
+            'includeGeoAttributes').lower() == "true"
 
         # For refreshing
         self.populated = False
@@ -102,8 +104,7 @@ class OracleDBConnector(DBConnector):
         if (os.path.isfile(sqlite_cache_file)):
             try:
                 self.cache_connection = sqlite3.connect(sqlite_cache_file)
-            except sqlite3.Error as e:
-
+            except sqlite3.Error:
                 self.cache_connection = False
 
         # Find if there is cache for our connection:
@@ -118,14 +119,14 @@ class OracleDBConnector(DBConnector):
                 if not has_cached:
                     self.cache_connection = False
 
-            except sqlite3.Error as e:
+            except sqlite3.Error:
                 self.cache_connection = False
 
         self._checkSpatial()
         self._checkGeometryColumnsTable()
 
     def _connectionInfo(self):
-        return unicode(self._uri.connectionInfo())
+        return str(self._uri.connectionInfo(True))
 
     def _checkSpatial(self):
         """Check whether Oracle Spatial is present in catalog."""
@@ -190,13 +191,13 @@ class OracleDBConnector(DBConnector):
         return self.has_spatial
 
     def hasRasterSupport(self):
-        """No raster support for the moment !"""
+        """No raster support for the moment!"""
         # return self.has_raster
         return False
 
     def hasCustomQuerySupport(self):
-        """From QGis v2.2 Oracle custom queries are supported."""
-        return QGis.QGIS_VERSION_INT >= 20200
+        """From Qgis v2.2 Oracle custom queries are supported."""
+        return Qgis.QGIS_VERSION_INT >= 20200
 
     def hasTableColumnEditingSupport(self):
         """Tables can always be edited."""
@@ -240,8 +241,6 @@ class OracleDBConnector(DBConnector):
         user.
         """
         result = [False, False, False, False]
-        if owner != self.user:
-            prefix = u"USER"
         # Inspect in all tab privs
         sql = u"""
         SELECT DISTINCT PRIVILEGE
@@ -340,7 +339,6 @@ class OracleDBConnector(DBConnector):
             # get all non geographic tables and views
             prefix = u"ALL"
             owner = u"o.owner"
-            metatable = u"tab_columns"
             where = u""
             if self.userTablesOnly:
                 prefix = u"USER"
@@ -373,8 +371,8 @@ class OracleDBConnector(DBConnector):
 
         self.populated = True
 
-        listTables = sorted(items, cmp=lambda x, y: cmp((x[2], x[1]),
-                                                        (y[2], y[1])))
+        listTables = sorted(items, key=cmp_to_key(lambda x, y: (x[1] > y[1]) - (x[1] < y[1])))
+
         if self.hasCache():
             self.updateCache(listTables, schema)
             return self.getTablesCache(schema)
@@ -396,9 +394,7 @@ class OracleDBConnector(DBConnector):
             pass
 
         if not self.allowGeometrylessTables:
-            return sorted(items,
-                          cmp=lambda x, y: cmp((x[2], x[1]),
-                                               (y[2], y[1])))
+            return sorted(items, key=cmp_to_key(lambda x, y: (x[1] > y[1]) - (x[1] < y[1])))
 
         # get all non geographic tables and views
         schema_where = u""
@@ -425,7 +421,7 @@ class OracleDBConnector(DBConnector):
                 items.append(item)
         c.close()
 
-        return sorted(items, cmp=lambda x, y: cmp((x[2], x[1]), (y[2], y[1])))
+        return sorted(items, key=cmp_to_key(lambda x, y: (x[1] > y[1]) - (x[1] < y[1])))
 
     def updateCache(self, tableList, schema=None):
         """Update the SQLite cache of table list for a schema."""
@@ -477,21 +473,21 @@ class OracleDBConnector(DBConnector):
 
     def singleGeomTypes(self, geomtypes, srids):
         """Intelligent wkbtype grouping (multi with non multi)"""
-        if (QGis.WKBPolygon in geomtypes
-                and QGis.WKBMultiPolygon in geomtypes):
-            srids.pop(geomtypes.index(QGis.WKBPolygon))
-            geomtypes.pop(geomtypes.index(QGis.WKBPolygon))
-        if (QGis.WKBPoint in geomtypes
-                and QGis.WKBMultiPoint in geomtypes):
-            srids.pop(geomtypes.index(QGis.WKBPoint))
-            geomtypes.pop(geomtypes.index(QGis.WKBPoint))
-        if (QGis.WKBLineString in geomtypes
-                and QGis.WKBMultiLineString in geomtypes):
-            srids.pop(geomtypes.index(QGis.WKBLineString))
-            geomtypes.pop(geomtypes.index(QGis.WKBLineString))
-        if QGis.WKBUnknown in geomtypes and len(geomtypes) > 1:
-            srids.pop(geomtypes.index(QGis.WKBUnknown))
-            geomtypes.pop(geomtypes.index(QGis.WKBUnknown))
+        if (QgsWkbTypes.Polygon in geomtypes
+                and QgsWkbTypes.MultiPolygon in geomtypes):
+            srids.pop(geomtypes.index(QgsWkbTypes.Polygon))
+            geomtypes.pop(geomtypes.index(QgsWkbTypes.Polygon))
+        if (QgsWkbTypes.Point in geomtypes
+                and QgsWkbTypes.MultiPoint in geomtypes):
+            srids.pop(geomtypes.index(QgsWkbTypes.Point))
+            geomtypes.pop(geomtypes.index(QgsWkbTypes.Point))
+        if (QgsWkbTypes.LineString in geomtypes
+                and QgsWkbTypes.MultiLineString in geomtypes):
+            srids.pop(geomtypes.index(QgsWkbTypes.LineString))
+            geomtypes.pop(geomtypes.index(QgsWkbTypes.LineString))
+        if QgsWkbTypes.Unknown in geomtypes and len(geomtypes) > 1:
+            srids.pop(geomtypes.index(QgsWkbTypes.Unknown))
+            geomtypes.pop(geomtypes.index(QgsWkbTypes.Unknown))
 
         return geomtypes, srids
 
@@ -536,18 +532,18 @@ class OracleDBConnector(DBConnector):
             geomtypes = item.pop()
             item.insert(0, Table.VectorType)
             if len(geomtypes) > 0 and len(srids) > 0:
-                geomtypes = [int(l) for l in unicode(geomtypes).split(u",")]
-                srids = [int(l) for l in unicode(srids).split(u",")]
+                geomtypes = [int(l) for l in str(geomtypes).split(u",")]
+                srids = [int(l) for l in str(srids).split(u",")]
                 geomtypes, srids = self.singleGeomTypes(geomtypes, srids)
                 for j in range(len(geomtypes)):
                     buf = list(item)
                     geomtype = geomtypes[j]
                     srid = srids[j]
-                    datatype = QGis.featureType(QGis.singleType(geomtype))
+                    datatype = Qgis.featureType(Qgis.singleType(geomtype))
                     geo = datatype[3:].upper().strip(u"25D")
                     buf.append(geo)
                     buf.append(geomtype)
-                    buf.append(QGis.wkbDimensions(geomtype))  # Dimensions
+                    buf.append(Qgis.wkbDimensions(geomtype))  # Dimensions
                     buf.append(srid)
                     buf.append(None)  # To respect ORTableVector row
                     buf.append(None)  # To respect ORTableVector row
@@ -616,7 +612,7 @@ class OracleDBConnector(DBConnector):
         for i, tbl in enumerate(lst_tables):
             item = list(tbl)
             detectedSrid = item.pop()
-            if isinstance(detectedSrid, QPyNullVariant):
+            if detectedSrid == NULL:
                 detectedSrid = u"-1"
             else:
                 detectedSrid = int(detectedSrid)
@@ -638,26 +634,26 @@ class OracleDBConnector(DBConnector):
             for j in range(len(geomtypes)):
                 buf = list(item)
                 geomtype = geomtypes[j]
-                datatype = QGis.featureType(QGis.singleType(geomtype))
+                datatype = Qgis.featureType(Qgis.singleType(geomtype))
                 geo = datatype[3:].upper().strip(u"25D")
                 buf.append(geo)  # Geometry type as String
-                buf.append(geomtype)  # QGis.WkbType
-                buf.append(QGis.wkbDimensions(geomtype))  # Dimensions
+                buf.append(geomtype)  # Qgis.WkbType
+                buf.append(Qgis.wkbDimensions(geomtype))  # Dimensions
                 buf.append(detectedSrid)  # srid
                 if not self.onlyExistingTypes:
                     geomMultiTypes.append(0)
                     multiSrids.append(multiSrids[0])
-                buf.append(u",".join([unicode(x) for x in
+                buf.append(u",".join([str(x) for x in
                                       geomMultiTypes]))
-                buf.append(u",".join([unicode(x) for x in multiSrids]))
+                buf.append(u",".join([str(x) for x in multiSrids]))
                 items.append(buf)
 
             if self.allowGeometrylessTables and buf[-6] != u"UNKNOWN":
                 copybuf = list(buf)
                 copybuf[4] = u""
                 copybuf[-6] = u"UNKNOWN"
-                copybuf[-5] = QGis.WKBNoGeometry
-                copybuf[-2] = QGis.WKBNoGeometry
+                copybuf[-5] = QgsWkbTypes.NullGeometry
+                copybuf[-2] = QgsWkbTypes.NullGeometry
                 copybuf[-1] = u"0"
                 items.append(copybuf)
 
@@ -770,28 +766,28 @@ class OracleDBConnector(DBConnector):
 
         try:
             c = self._execute(None, query)
-        except DbError as e:  # handle error views or other problems
-            return [QGis.WKBUnknown], [-1]
+        except DbError:  # handle error views or other problems
+            return [QgsWkbTypes.Unknown], [-1]
 
         rows = self._fetchall(c)
         c.close()
 
         # Handle results
         if len(rows) == 0:
-            return [QGis.WKBUnknown], [-1]
+            return [QgsWkbTypes.Unknown], [-1]
 
         # A dict to store the geomtypes
         geomtypes = []
         srids = []
         for row in rows:
-            if isinstance(row[1], QPyNullVariant):
+            if row[1] == NULL:
                 srids.append(-1)
             else:
                 srids.append(int(row[1]))
-            if int(row[0]) in OracleDBConnector.ORGeomTypes.keys():
+            if int(row[0]) in list(OracleDBConnector.ORGeomTypes.keys()):
                 geomtypes.append(OracleDBConnector.ORGeomTypes[int(row[0])])
             else:
-                geomtypes.append(QGis.WKBUnknown)
+                geomtypes.append(QgsWkbTypes.Unknown)
 
         return geomtypes, srids
 
@@ -803,14 +799,14 @@ class OracleDBConnector(DBConnector):
         geomTypes, srids = self.getTableGeomTypes(table, geomCol)
 
         # Make the decision:
-        wkbType = QGis.WKBUnknown
+        wkbType = QgsWkbTypes.Unknown
         srid = -1
-        order = [QGis.WKBMultiPolygon25D, QGis.WKBPolygon25D,
-                 QGis.WKBMultiPolygon, QGis.WKBPolygon,
-                 QGis.WKBMultiLineString25D, QGis.WKBLineString25D,
-                 QGis.WKBMultiLineString, QGis.WKBLineString,
-                 QGis.WKBMultiPoint25D, QGis.WKBPoint25D,
-                 QGis.WKBMultiPoint, QGis.WKBPoint]
+        order = [QgsWkbTypes.MultiPolygon25D, QgsWkbTypes.Polygon25D,
+                 QgsWkbTypes.MultiPolygon, QgsWkbTypes.Polygon,
+                 QgsWkbTypes.MultiLineString25D, QgsWkbTypes.LineString25D,
+                 QgsWkbTypes.MultiLineString, QgsWkbTypes.LineString,
+                 QgsWkbTypes.MultiPoint25D, QgsWkbTypes.Point25D,
+                 QgsWkbTypes.MultiPoint, QgsWkbTypes.Point]
         for geomType in order:
             if geomType in geomTypes:
                 wkbType = geomType
@@ -836,7 +832,7 @@ class OracleDBConnector(DBConnector):
         res = self._fetchone(c)
         c.close()
 
-        if not res or isinstance(res[0], QPyNullVariant):
+        if not res or res[0] == NULL:
             return 0
         else:
             return int(res[0])
@@ -1075,7 +1071,7 @@ class OracleDBConnector(DBConnector):
 
         try:
             c = self._execute(None, sql)
-        except DbError as e:  # no spatial index on table, try aggregation
+        except DbError:  # no spatial index on table, try aggregation
             return None
 
         res = self._fetchone(c)
@@ -1110,7 +1106,7 @@ class OracleDBConnector(DBConnector):
             sql = request.format(where, dimension)
             try:
                 c = self._execute(None, sql)
-            except DbError as e:  # no statistics for the current table
+            except DbError:  # no statistics for the current table
                 return None
 
             res_d = self._fetchone(c)
@@ -1118,7 +1114,7 @@ class OracleDBConnector(DBConnector):
 
             if not res_d or len(res_d) < 2:
                 return None
-            elif isinstance(res_d[0], QPyNullVariant):
+            elif res_d[0] == NULL:
                 return None
             else:
                 res.extend(res_d)
@@ -1164,7 +1160,7 @@ class OracleDBConnector(DBConnector):
                 None,
                 (u"SELECT CS_NAME FROM MDSYS.CS_SRS WHERE"
                  u" SRID = {}".format(srid)))
-        except DbError as e:
+        except DbError:
             return
         sr = self._fetchone(c)
         c.close()
@@ -1216,8 +1212,6 @@ class OracleDBConnector(DBConnector):
         """Delete table and its reference in sdo_geom_metadata."""
 
         schema, tablename = self.getSchemaTableName(table)
-        schema_part = u"AND owner = {} ".format(
-            self.quoteString(schema)) if schema else ""
 
         if self.isVectorTable(table):
             self.deleteMetadata(table)
@@ -1287,8 +1281,6 @@ class OracleDBConnector(DBConnector):
     def deleteView(self, view):
         """Delete a view."""
         schema, tablename = self.getSchemaTableName(view)
-        schema_part = u"AND owner = {} ".format(
-            self.quoteString(schema)) if schema else ""
 
         if self.isVectorTable(view):
             self.deleteMetadata(view)
@@ -1542,7 +1534,7 @@ class OracleDBConnector(DBConnector):
                {3})
             """.format(self.quoteString(tablename),
                        self.quoteString(geom_column),
-                       sqlExtent, unicode(srid))
+                       sqlExtent, str(srid))
 
         self._execute_and_commit(sql)
 
@@ -1621,10 +1613,8 @@ class OracleDBConnector(DBConnector):
         CREATE INDEX {0}
         ON {1}({2})
         INDEXTYPE IS MDSYS.SPATIAL_INDEX
-        PARAMETERS ('TABLESPACE={3} SDO_DML_BATCH_SIZE = 1')
         """.format(idx_name, self.quoteId(table),
-                   self.quoteId(geom_column),
-                   u"{}_INDEX".format(schema))
+                   self.quoteId(geom_column))
         self._execute_and_commit(sql)
 
     def deleteSpatialIndex(self, table, geom_column='GEOM'):
@@ -1651,7 +1641,7 @@ class OracleDBConnector(DBConnector):
             if c:
                 c.close()
 
-        except self.error_types() as e:
+        except self.error_types():
             pass
 
         return
@@ -1687,11 +1677,6 @@ class OracleDBConnector(DBConnector):
     # moved into the parent class: DbConnector._get_cursor_columns()
     # def _get_cursor_columns(self, c):
     #     pass
-
-    def getQueryBuilderDictionary(self):
-        from .sql_dictionary import getQueryBuilderDictionary
-
-        return getQueryBuilderDictionary()
 
     def getSqlDictionary(self):
         """Returns the dictionary for SQL dialog."""
@@ -1756,5 +1741,4 @@ class OracleDBConnector(DBConnector):
 
     def getQueryBuilderDictionary(self):
         from .sql_dictionary import getQueryBuilderDictionary
-
         return getQueryBuilderDictionary()

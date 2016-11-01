@@ -18,6 +18,7 @@
 #include "qgsrastercalcdialog.h"
 #include "qgsmaplayerregistry.h"
 #include "qgsrastercalcnode.h"
+#include "qgsrasterdataprovider.h"
 #include "qgsrasterlayer.h"
 #include "cpl_string.h"
 #include "gdal.h"
@@ -30,7 +31,7 @@ QgsRasterCalcDialog::QgsRasterCalcDialog( QWidget * parent, Qt::WindowFlags f ):
   setupUi( this );
 
   QSettings settings;
-  restoreGeometry( settings.value( "/Windows/RasterCalc/geometry" ).toByteArray() );
+  restoreGeometry( settings.value( QStringLiteral( "/Windows/RasterCalc/geometry" ) ).toByteArray() );
 
   //add supported output formats
   insertAvailableOutputFormats();
@@ -46,7 +47,7 @@ QgsRasterCalcDialog::QgsRasterCalcDialog( QWidget * parent, Qt::WindowFlags f ):
 QgsRasterCalcDialog::~QgsRasterCalcDialog()
 {
   QSettings settings;
-  settings.setValue( "/Windows/RasterCalc/geometry", saveGeometry() );
+  settings.setValue( QStringLiteral( "/Windows/RasterCalc/geometry" ), saveGeometry() );
 }
 
 QString QgsRasterCalcDialog::formulaString() const
@@ -86,7 +87,7 @@ QString QgsRasterCalcDialog::outputFormat() const
   int index = mOutputFormatComboBox->currentIndex();
   if ( index == -1 )
   {
-    return "";
+    return QLatin1String( "" );
   }
   return mOutputFormatComboBox->itemData( index ).toString();
 }
@@ -127,7 +128,7 @@ void QgsRasterCalcDialog::insertAvailableRasterBands()
   for ( ; layerIt != layers.constEnd(); ++layerIt )
   {
     QgsRasterLayer* rlayer = dynamic_cast<QgsRasterLayer*>( layerIt.value() );
-    if ( rlayer && rlayer->dataProvider() && rlayer->dataProvider()->name() == "gdal" )
+    if ( rlayer && rlayer->dataProvider() && rlayer->dataProvider()->name() == QLatin1String( "gdal" ) )
     {
       if ( firstLayer ) //set bounding box / resolution of output to the values of the first possible input layer
       {
@@ -164,12 +165,12 @@ void QgsRasterCalcDialog::insertAvailableOutputFormats()
     GDALDriverH driver = GDALGetDriver( i );
     if ( driver )
     {
-      char** driverMetadata = GDALGetMetadata( driver, NULL );
+      char** driverMetadata = GDALGetMetadata( driver, nullptr );
       if ( CSLFetchBoolean( driverMetadata, GDAL_DCAP_CREATE, false ) )
       {
         QString driverShortName = GDALGetDriverShortName( driver );
         QString driverLongName = GDALGetDriverLongName( driver );
-        if ( driverShortName == "MEM" )
+        if ( driverShortName == QLatin1String( "MEM" ) )
         {
           // in memory rasters are not (yet) supported because the GDAL dataset handle
           // would need to be passed directly to QgsRasterLayer (it is not possible to
@@ -181,7 +182,7 @@ void QgsRasterCalcDialog::insertAvailableOutputFormats()
 
         //store the driver shortnames and the corresponding extensions
         //(just in case the user does not give an extension for the output file name)
-        QString driverExtension = GDALGetMetadataItem( driver, GDAL_DMD_EXTENSION, NULL );
+        QString driverExtension = GDALGetMetadataItem( driver, GDAL_DMD_EXTENSION, nullptr );
         mDriverExtensionMap.insert( driverShortName, driverExtension );
       }
     }
@@ -189,7 +190,7 @@ void QgsRasterCalcDialog::insertAvailableOutputFormats()
 
   //and set last used driver in combo box
   QSettings s;
-  QString lastUsedDriver = s.value( "/RasterCalculator/lastOutputFormat", "GeoTIFF" ).toString();
+  QString lastUsedDriver = s.value( QStringLiteral( "/RasterCalculator/lastOutputFormat" ), "GeoTIFF" ).toString();
   int lastDriverIndex = mOutputFormatComboBox->findText( lastUsedDriver );
   if ( lastDriverIndex != -1 )
   {
@@ -218,14 +219,14 @@ void QgsRasterCalcDialog::on_mButtonBox_accepted()
 {
   //save last output format
   QSettings s;
-  s.setValue( "/RasterCalculator/lastOutputFormat", QVariant( mOutputFormatComboBox->currentText() ) );
-  s.setValue( "/RasterCalculator/lastOutputDir", QVariant( QFileInfo( mOutputLayerLineEdit->text() ).absolutePath() ) );
+  s.setValue( QStringLiteral( "/RasterCalculator/lastOutputFormat" ), QVariant( mOutputFormatComboBox->currentText() ) );
+  s.setValue( QStringLiteral( "/RasterCalculator/lastOutputDir" ), QVariant( QFileInfo( mOutputLayerLineEdit->text() ).absolutePath() ) );
 }
 
 void QgsRasterCalcDialog::on_mOutputLayerPushButton_clicked()
 {
   QSettings s;
-  QString saveFileName = QFileDialog::getSaveFileName( 0, tr( "Enter result file" ), s.value( "/RasterCalculator/lastOutputDir" ).toString() );
+  QString saveFileName = QFileDialog::getSaveFileName( nullptr, tr( "Enter result file" ), s.value( QStringLiteral( "/RasterCalculator/lastOutputDir" ), QDir::homePath() ).toString() );
   if ( !saveFileName.isNull() )
   {
     mOutputLayerLineEdit->setText( saveFileName );
@@ -237,7 +238,7 @@ void QgsRasterCalcDialog::on_mCurrentLayerExtentButton_clicked()
   QListWidgetItem* currentLayerItem = mRasterBandsListWidget->currentItem();
   if ( currentLayerItem )
   {
-    QgsRasterLayer* rlayer = 0;
+    QgsRasterLayer* rlayer = nullptr;
     QList<QgsRasterCalculatorEntry>::const_iterator rasterIt = mAvailableRasterBands.constBegin();
     for ( ; rasterIt != mAvailableRasterBands.constEnd(); ++rasterIt )
     {
@@ -328,129 +329,129 @@ void QgsRasterCalcDialog::on_mRasterBandsListWidget_itemDoubleClicked( QListWidg
 
 void QgsRasterCalcDialog::on_mPlusPushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " + " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " + " ) );
 }
 
 void QgsRasterCalcDialog::on_mMinusPushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " - " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " - " ) );
 }
 
 void QgsRasterCalcDialog::on_mMultiplyPushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " * " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " * " ) );
 }
 
 void QgsRasterCalcDialog::on_mDividePushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " / " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " / " ) );
 }
 
 void QgsRasterCalcDialog::on_mSqrtButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " sqrt ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " sqrt ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mCosButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " cos ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " cos ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mSinButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " sin ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " sin ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mASinButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " asin ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " asin ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mExpButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " ^ " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " ^ " ) );
 }
 
 void QgsRasterCalcDialog::on_mTanButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " tan ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " tan ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mACosButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " acos ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " acos ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mATanButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " atan ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " atan ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mLnButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " ln ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " ln ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mLogButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " log10 ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " log10 ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mNotEqualButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " != " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " != " ) );
 }
 
 void QgsRasterCalcDialog::on_mOpenBracketPushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " ( " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " ( " ) );
 }
 
 void QgsRasterCalcDialog::on_mCloseBracketPushButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " ) " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " ) " ) );
 }
 
 void QgsRasterCalcDialog::on_mLessButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " < " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " < " ) );
 }
 
 void QgsRasterCalcDialog::on_mGreaterButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " > " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " > " ) );
 }
 
 void QgsRasterCalcDialog::on_mEqualButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " = " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " = " ) );
 }
 
 void QgsRasterCalcDialog::on_mLesserEqualButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " <= " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " <= " ) );
 }
 
 void QgsRasterCalcDialog::on_mGreaterEqualButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " >= " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " >= " ) );
 }
 
 void QgsRasterCalcDialog::on_mAndButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " AND " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " AND " ) );
 }
 
 void QgsRasterCalcDialog::on_mOrButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( " OR " );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " OR " ) );
 }
 
 QString QgsRasterCalcDialog::quoteBandEntry( const QString& layerName )
 {
   // '"' -> '\\"'
   QString quotedName = layerName;
-  quotedName.replace( '\"', "\\\"" );
+  quotedName.replace( '\"', QLatin1String( "\\\"" ) );
   quotedName.append( '\"' );
   quotedName.prepend( '\"' );
   return quotedName;

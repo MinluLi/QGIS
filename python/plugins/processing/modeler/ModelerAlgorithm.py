@@ -16,7 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
-from operator import attrgetter
+from builtins import str
+from builtins import object
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -33,23 +34,36 @@ import time
 import json
 import codecs
 import traceback
-from PyQt4.QtCore import QCoreApplication, QPointF
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication, QPointF
+from qgis.PyQt.QtGui import QIcon
+from operator import attrgetter
+
 from qgis.core import QgsRasterLayer, QgsVectorLayer
 from qgis.gui import QgsMessageBar
 from qgis.utils import iface
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.modeler.WrongModelException import WrongModelException
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
-from processing.modeler.ModelerUtils import ModelerUtils
-from processing.core.parameters import getParameterFromString, ParameterRaster, ParameterVector, ParameterTable, ParameterTableField, ParameterBoolean, ParameterString, ParameterNumber, ParameterExtent, ParameterDataObject, ParameterMultipleInput
-from processing.tools import dataobjects
+from processing.core.parameters import (getParameterFromString,
+                                        ParameterRaster,
+                                        ParameterVector,
+                                        ParameterTable,
+                                        ParameterTableField,
+                                        ParameterBoolean,
+                                        ParameterString,
+                                        ParameterNumber,
+                                        ParameterExtent,
+                                        ParameterCrs,
+                                        ParameterDataObject,
+                                        ParameterMultipleInput)
+
 from processing.gui.Help2Html import getHtmlFromDescriptionsDict
+from processing.core.alglist import algList
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
 
 
-class ModelerParameter():
+class ModelerParameter(object):
 
     def __init__(self, param=None, pos=None):
         self.param = param
@@ -63,7 +77,7 @@ class ModelerParameter():
         return ModelerParameter(d["param"], d["pos"])
 
 
-class ModelerOutput():
+class ModelerOutput(object):
 
     def __init__(self, description=""):
         self.description = description
@@ -73,24 +87,24 @@ class ModelerOutput():
         return self.__dict__
 
 
-class Algorithm():
+class Algorithm(object):
 
     def __init__(self, consoleName=""):
 
         self.name = None
         self.description = ""
 
-        #The type of the algorithm, indicated as a string, which corresponds
-        #to the string used to refer to it in the python console
+        # The type of the algorithm, indicated as a string, which corresponds
+        # to the string used to refer to it in the python console
         self.consoleName = consoleName
 
         self._algInstance = None
 
-        #A dict of Input object. keys are param names
+        # A dict of Input object. keys are param names
         self.params = {}
 
-        #A dict of ModelerOutput with final output descriptions. Keys are output names.
-        #Outputs not final are not stored in this dict
+        # A dict of ModelerOutput with final output descriptions. Keys are output names.
+        # Outputs not final are not stored in this dict
         self.outputs = {}
 
         self.pos = None
@@ -102,21 +116,21 @@ class Algorithm():
         self.active = True
 
     def todict(self):
-        return {k: v for k, v in self.__dict__.iteritems() if not k.startswith("_")}
+        return {k: v for k, v in list(self.__dict__.items()) if not k.startswith("_")}
 
     @property
     def algorithm(self):
         if self._algInstance is None:
-            self._algInstance = ModelerUtils.getAlgorithm(self.consoleName).getCopy()
+            self._algInstance = algList.getAlgorithm(self.consoleName).getCopy()
         return self._algInstance
 
     def setName(self, model):
         if self.name is None:
             i = 1
-            name = self.consoleName + "_" + unicode(i)
+            name = self.consoleName + "_" + str(i)
             while name in model.algs:
                 i += 1
-                name = self.consoleName + "_" + unicode(i)
+                name = self.consoleName + "_" + str(i)
             self.name = name
 
     def getOutputType(self, outputName):
@@ -132,23 +146,24 @@ class Algorithm():
             def _toString(v):
                 if isinstance(v, (ValueFromInput, ValueFromOutput)):
                     return v.asPythonParameter()
-                elif isinstance(v, basestring):
-                    return "'%s'" % v
+                elif isinstance(v, str):
+                    return "\\n".join(("'%s'" % v).splitlines())
                 elif isinstance(v, list):
                     return "[%s]" % ",".join([_toString(val) for val in v])
                 else:
-                    return unicode(value)
+                    return str(value)
             params.append(_toString(value))
         for out in self.algorithm.outputs:
-            if out.name in self.outputs:
-                params.append(safeName(self.outputs[out.name].description).lower())
-            else:
-                params.append(str(None))
+            if not out.hidden:
+                if out.name in self.outputs:
+                    params.append(safeName(self.outputs[out.name].description).lower())
+                else:
+                    params.append(str(None))
         s.append("outputs_%s=processing.runalg('%s', %s)" % (self.name, self.consoleName, ",".join(params)))
         return s
 
 
-class ValueFromInput():
+class ValueFromInput(object):
 
     def __init__(self, name=""):
         self.name = name
@@ -169,7 +184,7 @@ class ValueFromInput():
         return self.name
 
 
-class ValueFromOutput():
+class ValueFromOutput(object):
 
     def __init__(self, alg="", output=""):
         self.alg = alg
@@ -191,6 +206,28 @@ class ValueFromOutput():
         return "outputs_%s['%s']" % (self.alg, self.output)
 
 
+class CompoundValue(object):
+
+    def __init__(self, values=[], definition=""):
+        self.values = values
+        self.definition = definition
+
+    def todict(self):
+        return self.__dict__
+
+    def __eq__(self, other):
+        try:
+            return self.values == other.values and self.definition == other.definition
+        except:
+            return False
+
+    def __str__(self):
+        return self.definition
+
+    def asPythonParameter(self):
+        return ""  # TODO
+
+
 class ModelerAlgorithm(GeoAlgorithm):
 
     CANVAS_SIZE = 4000
@@ -198,7 +235,11 @@ class ModelerAlgorithm(GeoAlgorithm):
     def getCopy(self):
         newone = ModelerAlgorithm()
         newone.provider = self.provider
-        newone.algs = copy.deepcopy(self.algs)
+
+        newone.algs = {}
+        for algname, alg in self.algs.items():
+            newone.algs[algname] = Algorithm()
+            newone.algs[algname].__dict__.update(copy.deepcopy(alg.todict()))
         newone.inputs = copy.deepcopy(self.inputs)
         newone.defineCharacteristics()
         newone.name = self.name
@@ -217,7 +258,7 @@ class ModelerAlgorithm(GeoAlgorithm):
         # Geoalgorithms in this model. A dict of Algorithm objects, with names as keys
         self.algs = {}
 
-        #Input parameters. A dict of Input objects, with names as keys
+        # Input parameters. A dict of Input objects, with names as keys
         self.inputs = {}
         GeoAlgorithm.__init__(self)
 
@@ -229,14 +270,16 @@ class ModelerAlgorithm(GeoAlgorithm):
                    ParameterBoolean, ParameterString, ParameterNumber]
         self.parameters = []
         for c in classes:
-            for inp in self.inputs.values():
+            for inp in list(self.inputs.values()):
                 if isinstance(inp.param, c):
                     self.parameters.append(inp.param)
-        for inp in self.inputs.values():
+        for inp in list(self.inputs.values()):
             if inp.param not in self.parameters:
                 self.parameters.append(inp.param)
+        self.parameters.sort(key=attrgetter("description"))
+
         self.outputs = []
-        for alg in self.algs.values():
+        for alg in list(self.algs.values()):
             if alg.active:
                 for out in alg.outputs:
                     modelOutput = copy.deepcopy(alg.algorithm.getOutputFromName(out))
@@ -258,9 +301,9 @@ class ModelerAlgorithm(GeoAlgorithm):
 
     def getNameForAlgorithm(self, alg):
         i = 1
-        while alg.consoleName.upper().replace(":", "") + "_" + unicode(i) in self.algs.keys():
+        while alg.consoleName.upper().replace(":", "") + "_" + str(i) in list(self.algs.keys()):
             i += 1
-        return alg.consoleName.upper().replace(":", "") + "_" + unicode(i)
+        return alg.consoleName.upper().replace(":", "") + "_" + str(i)
 
     def updateAlgorithm(self, alg):
         alg.pos = self.algs[alg.name].pos
@@ -273,7 +316,7 @@ class ModelerAlgorithm(GeoAlgorithm):
             alg.outputs[out].pos = (alg.outputs[out].pos or
                                     alg.pos + QPointF(
                 ModelerGraphicItem.BOX_WIDTH,
-                        (i + 1.5) * ModelerGraphicItem.BOX_HEIGHT))
+                (i + 1.5) * ModelerGraphicItem.BOX_HEIGHT))
 
     def removeAlgorithm(self, name):
         """Returns True if the algorithm could be removed, False if
@@ -299,8 +342,8 @@ class ModelerAlgorithm(GeoAlgorithm):
         """This method returns True if some other element depends on
         the passed one.
         """
-        for alg in self.algs.values():
-            for value in alg.params.values():
+        for alg in list(self.algs.values()):
+            for value in list(alg.params.values()):
                 if value is None:
                     continue
                 if isinstance(value, list):
@@ -326,9 +369,14 @@ class ModelerAlgorithm(GeoAlgorithm):
         alg = self.algs[name]
         algs = set()
         algs.update(set(alg.dependencies))
-        for value in alg.params.values():
+        for value in list(alg.params.values()):
             if value is None:
                 continue
+            if isinstance(value, CompoundValue):
+                for v in value.values:
+                    if isinstance(v, ValueFromOutput):
+                        algs.add(v.alg)
+                        algs.update(self.getDependsOnAlgorithms(v.alg))
             if isinstance(value, list):
                 for v in value:
                     if isinstance(v, ValueFromOutput):
@@ -346,8 +394,8 @@ class ModelerAlgorithm(GeoAlgorithm):
         """
         algs = set()
         algs.add(name)
-        for alg in self.algs.values():
-            for value in alg.params.values():
+        for alg in list(self.algs.values()):
+            for value in list(alg.params.values()):
                 if value is None:
                     continue
                 if isinstance(value, list):
@@ -355,17 +403,17 @@ class ModelerAlgorithm(GeoAlgorithm):
                         if isinstance(v, ValueFromOutput) and v.alg == name:
                             algs.update(self.getDependentAlgorithms(alg.name))
                 elif isinstance(value, ValueFromOutput) and value.alg == name:
-                            algs.update(self.getDependentAlgorithms(alg.name))
+                    algs.update(self.getDependentAlgorithms(alg.name))
 
         return algs
 
     def setPositions(self, paramPos, algPos, outputsPos):
-        for param, pos in paramPos.iteritems():
+        for param, pos in list(paramPos.items()):
             self.inputs[param].pos = pos
-        for alg, pos in algPos.iteritems():
+        for alg, pos in list(algPos.items()):
             self.algs[alg].pos = pos
-        for alg, positions in outputsPos.iteritems():
-            for output, pos in positions.iteritems():
+        for alg, positions in list(outputsPos.items()):
+            for output, pos in list(positions.items()):
                 self.algs[alg].outputs[output].pos = pos
 
     def prepareAlgorithm(self, alg):
@@ -373,20 +421,21 @@ class ModelerAlgorithm(GeoAlgorithm):
         for param in algInstance.parameters:
             if not param.hidden:
                 if param.name in alg.params:
-                    value = self.resolveValue(alg.params[param.name])
+                    value = self.resolveValue(alg.params[param.name], param)
                 else:
-                    iface.messageBar().pushMessage(self.tr("Warning"),
-                                                   self.tr("Parameter %s in algorithm %s in the model is run with default value! Edit the model to make sure that this is correct." % (param.name, alg.name)),
-                                                   QgsMessageBar.WARNING, 4)
-                    value = None
-                if value is None and isinstance(param, ParameterExtent):
-                    value = self.getMinCoveringExtent()
+                    if iface is not None:
+                        iface.messageBar().pushMessage(self.tr("Warning"),
+                                                       self.tr("Parameter %s in algorithm %s in the model is run with default value! Edit the model to make sure that this is correct.") % (param.name, alg.name),
+                                                       QgsMessageBar.WARNING, 4)
+                    value = param.default
                 # We allow unexistent filepaths, since that allows
                 # algorithms to skip some conversion routines
                 if not param.setValue(value) and not isinstance(param,
                                                                 ParameterDataObject):
                     raise GeoAlgorithmExecutionException(
-                        self.tr('Wrong value: %s', 'ModelerAlgorithm') % value)
+                        self.tr('Wrong value %s for %s %s', 'ModelerAlgorithm')
+                        % (value, param.__class__.__name__, param.name))
+
         for out in algInstance.outputs:
             if not out.hidden:
                 if out.name in alg.outputs:
@@ -415,58 +464,24 @@ class ModelerAlgorithm(GeoAlgorithm):
     def getSafeNameForOutput(self, algName, outName):
         return outName + '_ALG' + algName
 
-    def resolveValue(self, value):
+    def resolveValue(self, value, param):
         if value is None:
-            return None
+            v = None
         if isinstance(value, list):
-            return ";".join([self.resolveValue(v) for v in value])
-        if isinstance(value, ValueFromInput):
-            return self.getParameterFromName(value.name).value
+            v = ";".join([self.resolveValue(v, param) for v in value])
+        elif isinstance(value, CompoundValue):
+            v = self.resolveValue(value.definition, param)
+        elif isinstance(value, ValueFromInput):
+            v = self.getParameterFromName(value.name).value
         elif isinstance(value, ValueFromOutput):
-            return self.algs[value.alg].algorithm.getOutputFromName(value.output).value
+            v = self.algs[value.alg].algorithm.getOutputFromName(value.output).value
         else:
-            return value
-
-    def getMinCoveringExtent(self):
-        first = True
-        found = False
-        for param in self.parameters:
-            if param.value:
-                if isinstance(param, (ParameterRaster, ParameterVector)):
-                    found = True
-                    if isinstance(param.value, (QgsRasterLayer, QgsVectorLayer)):
-                        layer = param.value
-                    else:
-                        layer = dataobjects.getObjectFromUri(param.value)
-                    self.addToRegion(layer, first)
-                    first = False
-                elif isinstance(param, ParameterMultipleInput):
-                    found = True
-                    layers = param.value.split(';')
-                    for layername in layers:
-                        layer = dataobjects.getObjectFromUri(layername)
-                        self.addToRegion(layer, first)
-                        first = False
-        if found:
-            return ','.join([unicode(v) for v in [self.xmin, self.xmax, self.ymin, self.ymax]])
-        else:
-            return None
-
-    def addToRegion(self, layer, first):
-        if first:
-            self.xmin = layer.extent().xMinimum()
-            self.xmax = layer.extent().xMaximum()
-            self.ymin = layer.extent().yMinimum()
-            self.ymax = layer.extent().yMaximum()
-        else:
-            self.xmin = min(self.xmin, layer.extent().xMinimum())
-            self.xmax = max(self.xmax, layer.extent().xMaximum())
-            self.ymin = min(self.ymin, layer.extent().yMinimum())
-            self.ymax = max(self.ymax, layer.extent().yMaximum())
+            v = value
+        return param.evaluateForModeler(v, self)
 
     def processAlgorithm(self, progress):
         executed = []
-        toExecute = [alg for alg in self.algs.values() if alg.active]
+        toExecute = [alg for alg in list(self.algs.values()) if alg.active]
         while len(executed) < len(toExecute):
             for alg in toExecute:
                 if alg.name not in executed:
@@ -483,8 +498,8 @@ class ModelerAlgorithm(GeoAlgorithm):
                             self.prepareAlgorithm(alg)
                             progress.setText(
                                 self.tr('Running %s [%i/%i]', 'ModelerAlgorithm') % (alg.description, len(executed) + 1, len(toExecute)))
-                            progress.setDebugInfo('Parameters: ' + ', '.join([unicode(p).strip()
-                                                                              + '=' + unicode(p.value) for p in alg.algorithm.parameters]))
+                            progress.setDebugInfo('Parameters: ' + ', '.join([str(p).strip()
+                                                                              + '=' + str(p.value) for p in alg.algorithm.parameters]))
                             t0 = time.time()
                             alg.algorithm.execute(progress, self)
                             dt = time.time() - t0
@@ -511,6 +526,12 @@ class ModelerAlgorithm(GeoAlgorithm):
         else:
             return 'modeler:' + os.path.basename(self.descriptionFile)[:-6].lower()
 
+    def checkBeforeOpeningParametersDialog(self):
+        for alg in list(self.algs.values()):
+            algInstance = algList.getAlgorithm(alg.consoleName)
+            if algInstance is None:
+                return "The model you are trying to run contains an algorithm that is not available: <i>%s</i>" % alg.consoleName
+
     def setModelerView(self, dialog):
         self.modelerdialog = dialog
 
@@ -524,9 +545,22 @@ class ModelerAlgorithm(GeoAlgorithm):
         except:
             return False, None
 
+    def shortHelp(self):
+        if 'ALG_DESC' in self.helpContent:
+            return self._formatHelp(str(self.helpContent['ALG_DESC']))
+        return None
+
+    def getParameterDescriptions(self):
+        descs = {}
+        descriptions = self.helpContent
+        for param in self.parameters:
+            if param.name in descriptions:
+                descs[param.name] = str(descriptions[param.name])
+        return descs
+
     def todict(self):
         keys = ["inputs", "group", "name", "algs", "helpContent"]
-        return {k: v for k, v in self.__dict__.iteritems() if k in keys}
+        return {k: v for k, v in list(self.__dict__.items()) if k in keys}
 
     def toJson(self):
         def todict(o):
@@ -535,7 +569,7 @@ class ModelerAlgorithm(GeoAlgorithm):
             try:
                 d = o.todict()
                 return {"class": o.__class__.__module__ + "." + o.__class__.__name__, "values": d}
-            except Exception as e:
+            except Exception:
                 pass
         return json.dumps(self, default=todict, indent=4)
 
@@ -560,7 +594,7 @@ class ModelerAlgorithm(GeoAlgorithm):
                 module = _import(moduleName)
                 clazz = getattr(module, className)
                 instance = clazz()
-                for k, v in values.iteritems():
+                for k, v in list(values.items()):
                     instance.__dict__[k] = v
                 return instance
             except KeyError:
@@ -574,131 +608,23 @@ class ModelerAlgorithm(GeoAlgorithm):
         return model
 
     @staticmethod
-    def fromJsonFile(filename):
+    def fromFile(filename):
         with open(filename) as f:
             s = f.read()
         alg = ModelerAlgorithm.fromJson(s)
         alg.descriptionFile = filename
         return alg
 
-    ############LEGACY METHOD TO SUPPORT OLD FORMAT###########
-
-    LINE_BREAK_STRING = '%%%'
-
-    @staticmethod
-    def fromFile(filename):
-        try:
-            alg = ModelerAlgorithm.fromJsonFile(filename)
-            return alg
-        except WrongModelException as e:
-            alg = ModelerAlgorithm.fromOldFormatFile(filename)
-            return alg
-
-    @staticmethod
-    def fromOldFormatFile(filename):
-        def _tr(s):
-            return QCoreApplication.translate('ModelerAlgorithm', s)
-        hardcodedValues = {}
-        modelParameters = []
-        modelAlgs = []
-        model = ModelerAlgorithm()
-        model.descriptionFile = filename
-        lines = codecs.open(filename, 'r', encoding='utf-8')
-        line = lines.readline().strip('\n').strip('\r')
-        try:
-            while line != '':
-                if line.startswith('PARAMETER:'):
-                    paramLine = line[len('PARAMETER:'):]
-                    param = getParameterFromString(paramLine)
-                    if param:
-                        pass
-                    else:
-                        raise WrongModelException(
-                            _tr('Error in parameter line: %s', 'ModelerAlgorithm') % line)
-                    line = lines.readline().strip('\n')
-                    tokens = line.split(',')
-                    model.addParameter(ModelerParameter(param,
-                                       QPointF(float(tokens[0]), float(tokens[1]))))
-                    modelParameters.append(param.name)
-                elif line.startswith('VALUE:'):
-                    valueLine = line[len('VALUE:'):]
-                    tokens = valueLine.split('===')
-                    name = tokens[0]
-                    value = tokens[1].replace(ModelerAlgorithm.LINE_BREAK_STRING, '\n')
-                    hardcodedValues[name] = value
-                elif line.startswith('NAME:'):
-                    model.name = line[len('NAME:'):]
-                elif line.startswith('GROUP:'):
-                    model.group = line[len('GROUP:'):]
-                elif line.startswith('ALGORITHM:'):
-                    algLine = line[len('ALGORITHM:'):]
-                    alg = ModelerUtils.getAlgorithm(algLine)
-                    if alg is not None:
-                        modelAlg = Algorithm(alg.commandLineName())
-                        modelAlg.description = alg.name
-                        posline = lines.readline().strip('\n').strip('\r')
-                        tokens = posline.split(',')
-                        modelAlg.pos = QPointF(float(tokens[0]), float(tokens[1]))
-                        # dependenceline = lines.readline().strip('\n').strip('\r')
-                        for param in alg.parameters:
-                            if not param.hidden:
-                                line = lines.readline().strip('\n').strip('\r')
-                                if line == unicode(None):
-                                    modelAlg.params[param.name] = None
-                                else:
-                                    tokens = line.split('|')
-                                    algIdx = int(tokens[0])
-                                    if algIdx == -1:
-                                        if tokens[1] in modelParameters:
-                                            modelAlg.params[param.name] = ValueFromInput(tokens[1])
-                                        else:
-                                            modelAlg.params[param.name] = hardcodedValues[tokens[1]]
-                                    else:
-                                        modelAlg.params[param.name] = ValueFromOutput(algIdx, tokens[1])
-
-                        for out in alg.outputs:
-                            if not out.hidden:
-                                line = lines.readline().strip('\n').strip('\r')
-                                if unicode(None) != line:
-                                    if '|' in line:
-                                        tokens = line.split('|')
-                                        name = tokens[0]
-                                        tokens = tokens[1].split(',')
-                                        pos = QPointF(float(tokens[0]), float(tokens[1]))
-                                    else:
-                                        name = line
-                                        pos = None
-                                    modelerOutput = ModelerOutput(name)
-                                    modelerOutput.pos = pos
-                                    modelAlg.outputs[out.name] = modelerOutput
-
-                        model.addAlgorithm(modelAlg)
-                        modelAlgs.append(modelAlg.name)
-                    else:
-                        raise WrongModelException(
-                            _tr('Error in algorithm name: %s', ) % algLine)
-                line = lines.readline().strip('\n').strip('\r')
-            for modelAlg in model.algs.values():
-                for name, value in modelAlg.params.iteritems():
-                    if isinstance(value, ValueFromOutput):
-                        value.alg = modelAlgs[value.alg]
-            return model
-        except Exception as e:
-            if isinstance(e, WrongModelException):
-                raise e
-            else:
-                raise WrongModelException(_tr('Error in model definition line: ') + '%s\n%s' % (line.strip(), traceback.format_exc()))
-
     def toPython(self):
         s = ['##%s=name' % self.name]
-        for param in self.inputs.values():
+        for param in list(self.inputs.values()):
             s.append(param.param.getAsScriptCode())
-        for alg in self.algs.values():
-            for name, out in alg.outputs.iteritems():
+        for alg in list(self.algs.values()):
+            for name, out in list(alg.outputs.items()):
                 s.append('##%s=%s' % (safeName(out.description).lower(), alg.getOutputType(name)))
 
         executed = []
-        toExecute = [alg for alg in self.algs.values() if alg.active]
+        toExecute = [alg for alg in list(self.algs.values()) if alg.active]
         while len(executed) < len(toExecute):
             for alg in toExecute:
                 if alg.name not in executed:

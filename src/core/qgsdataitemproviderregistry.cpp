@@ -21,12 +21,17 @@
 #include "qgslogger.h"
 #include "qgsproviderregistry.h"
 
+typedef QList<QgsDataItemProvider*> dataItemProviders_t();
 
-/** Simple data item provider implementation that handles the support for provider plugins (which may contain
+
+/**
+ * \ingroup core
+ * Simple data item provider implementation that handles the support for provider plugins (which may contain
  * dataCapabilities() and dataItem() functions).
  *
  * Ideally the provider plugins should directly provide implementation of QgsDataItemProvider, for the time being
  * this is a wrapper for the legacy interface.
+ * \note not available in Python bindings
  */
 class QgsDataItemProviderFromPlugin : public QgsDataItemProvider
 {
@@ -61,14 +66,25 @@ QgsDataItemProviderRegistry::QgsDataItemProviderRegistry()
     if ( !library )
       continue;
 
-    dataCapabilities_t * dataCapabilities = ( dataCapabilities_t * ) cast_to_fptr( library->resolve( "dataCapabilities" ) );
+    // new / better way of returning data items from providers
+
+    dataItemProviders_t* dataItemProvidersFn = reinterpret_cast< dataItemProviders_t * >( cast_to_fptr( library->resolve( "dataItemProviders" ) ) );
+    if ( dataItemProvidersFn )
+    {
+      // the function is a factory - we keep ownership of the returned providers
+      mProviders << dataItemProvidersFn();
+    }
+
+    // legacy support - using dataItem() and dataCapabilities() methods
+
+    dataCapabilities_t * dataCapabilities = reinterpret_cast< dataCapabilities_t * >( cast_to_fptr( library->resolve( "dataCapabilities" ) ) );
     if ( !dataCapabilities )
     {
       QgsDebugMsg( library->fileName() + " does not have dataCapabilities" );
       continue;
     }
 
-    dataItem_t *dataItem = ( dataItem_t * ) cast_to_fptr( library->resolve( "dataItem" ) );
+    dataItem_t *dataItem = reinterpret_cast< dataItem_t * >( cast_to_fptr( library->resolve( "dataItem" ) ) );
     if ( !dataItem )
     {
       QgsDebugMsg( library->fileName() + " does not have dataItem" );

@@ -20,20 +20,20 @@
 #include "qgspluginmetadata.h"
 QgsPluginMetadata::QgsPluginMetadata( const QString& _libraryPath,
                                       const QString& _name,
-                                      QgisPlugin * _plugin ):
-    m_name( _name ),
-    libraryPath( _libraryPath ),
-    m_plugin( _plugin )
+                                      QgisPlugin * _plugin )
+    : m_name( _name )
+    , libraryPath( _libraryPath )
+    , m_plugin( _plugin )
 {
 
 }
 
-QString QgsPluginMetadata::name()
+QString QgsPluginMetadata::name() const
 {
   return m_name;
 }
 
-QString QgsPluginMetadata::library()
+QString QgsPluginMetadata::library() const
 {
   return libraryPath;
 }

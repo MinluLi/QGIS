@@ -40,7 +40,7 @@ class QgsPgSourceSelectDelegate : public QItemDelegate
     Q_OBJECT
 
   public:
-    explicit QgsPgSourceSelectDelegate( QObject *parent = NULL )
+    explicit QgsPgSourceSelectDelegate( QObject *parent = nullptr )
         : QItemDelegate( parent )
     {}
 
@@ -63,7 +63,7 @@ class QgsPgSourceSelect : public QDialog, private Ui::QgsDbSourceSelectBase
 
   public:
     //! Constructor
-    QgsPgSourceSelect( QWidget *parent = 0, Qt::WindowFlags fl = QgisGui::ModalDialogFlags, bool managerMode = false, bool embeddedMode = false );
+    QgsPgSourceSelect( QWidget *parent = nullptr, Qt::WindowFlags fl = QgisGui::ModalDialogFlags, bool managerMode = false, bool embeddedMode = false );
     //! Destructor
     ~QgsPgSourceSelect();
     //! Populate the connection list combo box
@@ -73,7 +73,7 @@ class QgsPgSourceSelect : public QDialog, private Ui::QgsDbSourceSelectBase
     //! Connection info (database, host, user, password)
     QString connectionInfo( bool expandAuthCfg = true );
     //! Data source URI
-    QgsDataSourceURI dataSourceUri();
+    QgsDataSourceUri dataSourceUri();
 
   signals:
     void addDatabaseLayers( QStringList const & layerPathList, QString const & providerKey );
@@ -88,8 +88,8 @@ class QgsPgSourceSelect : public QDialog, private Ui::QgsDbSourceSelectBase
     void buildQuery();
 
     /** Connects to the database using the stored connection parameters.
-    * Once connected, available layers are displayed.
-    */
+     * Once connected, available layers are displayed.
+     */
     void on_btnConnect_clicked();
     void on_cbxAllowGeometrylessTables_stateChanged( int );
     //! Opens the create connection dialog to build a new connection
@@ -112,6 +112,7 @@ class QgsPgSourceSelect : public QDialog, private Ui::QgsDbSourceSelectBase
     void setLayerType( const QgsPostgresLayerProperty& layerProperty );
     void on_mTablesTreeView_clicked( const QModelIndex &index );
     void on_mTablesTreeView_doubleClicked( const QModelIndex &index );
+    void treeWidgetSelectionChanged( const QItemSelection &selected, const QItemSelection &deselected );
     //!Sets a new regular expression to the model
     void setSearchExpression( const QString& regexp );
 
@@ -142,7 +143,7 @@ class QgsPgSourceSelect : public QDialog, private Ui::QgsDbSourceSelectBase
     QStringList mColumnLabels;
     // Our thread for doing long running queries
     QgsGeomColumnTypeThread* mColumnTypeThread;
-    QgsDataSourceURI mDataSrcUri;
+    QgsDataSourceUri mDataSrcUri;
     QStringList mSelectedTables;
     bool mUseEstimatedMetadata;
     // Storage for the range of layer type icons

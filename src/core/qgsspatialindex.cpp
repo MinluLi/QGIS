@@ -27,7 +27,11 @@ using namespace SpatialIndex;
 
 
 
-// custom visitor that adds found features to list
+/** \ingroup core
+ * \class QgisVisitor
+ * \brief Custom visitor that adds found features to list.
+ * \note not available in Python bindings
+ */
 class QgisVisitor : public SpatialIndex::IVisitor
 {
   public:
@@ -49,6 +53,10 @@ class QgisVisitor : public SpatialIndex::IVisitor
     QList<QgsFeatureId>& mList;
 };
 
+/** \ingroup core
+ * \class QgsSpatialIndexCopyVisitor
+ * \note not available in Python bindings
+ */
 class QgsSpatialIndexCopyVisitor : public SpatialIndex::IVisitor
 {
   public:
@@ -62,7 +70,7 @@ class QgsSpatialIndexCopyVisitor : public SpatialIndex::IVisitor
     {
       SpatialIndex::IShape* shape;
       d.getShape( &shape );
-      mNewIndex->insertData( 0, 0, *shape, d.getIdentifier() );
+      mNewIndex->insertData( 0, nullptr, *shape, d.getIdentifier() );
       delete shape;
     }
 
@@ -74,14 +82,18 @@ class QgsSpatialIndexCopyVisitor : public SpatialIndex::IVisitor
 };
 
 
-/** Utility class for bulk loading of R-trees. Not a part of public API. */
+/** \ingroup core
+ * \class QgsFeatureIteratorDataStream
+ * \brief Utility class for bulk loading of R-trees. Not a part of public API.
+ * \note not available in Python bindings
+*/
 class QgsFeatureIteratorDataStream : public IDataStream
 {
   public:
     //! constructor - needs to load all data to a vector for later access when bulk loading
     explicit QgsFeatureIteratorDataStream( const QgsFeatureIterator& fi )
         : mFi( fi )
-        , mNextData( 0 )
+        , mNextData( nullptr )
     {
       readNextEntry();
     }
@@ -95,13 +107,13 @@ class QgsFeatureIteratorDataStream : public IDataStream
     virtual IData* getNext() override
     {
       RTree::Data* ret = mNextData;
-      mNextData = 0;
+      mNextData = nullptr;
       readNextEntry();
       return ret;
     }
 
     //! returns true if there are more items in the stream.
-    virtual bool hasNext() override { return mNextData != 0; }
+    virtual bool hasNext() override { return nullptr != mNextData; }
 
     //! returns the total number of entries available in the stream.
     virtual uint32_t size() override { Q_ASSERT( 0 && "not available" ); return 0; }
@@ -119,7 +131,7 @@ class QgsFeatureIteratorDataStream : public IDataStream
       {
         if ( QgsSpatialIndex::featureInfo( f, r, id ) )
         {
-          mNextData = new RTree::Data( 0, 0, r, id );
+          mNextData = new RTree::Data( 0, nullptr, r, id );
           return;
         }
       }
@@ -131,7 +143,11 @@ class QgsFeatureIteratorDataStream : public IDataStream
 };
 
 
-/** Data of spatial index that may be implicitly shared */
+/** \ingroup core
+ *  \class QgsSpatialIndexData
+ * \brief Data of spatial index that may be implicitly shared
+ * \note not available in Python bindings
+*/
 class QgsSpatialIndexData : public QSharedData
 {
   public:
@@ -165,7 +181,7 @@ class QgsSpatialIndexData : public QSharedData
       delete mStorage;
     }
 
-    void initTree( IDataStream* inputStream = 0 )
+    void initTree( IDataStream* inputStream = nullptr )
     {
       // for now only memory manager
       mStorage = StorageManager::createNewMemoryStorageManager();
@@ -188,11 +204,15 @@ class QgsSpatialIndexData : public QSharedData
                                         leafCapacity, dimension, variant, indexId );
     }
 
-    /** Storage manager */
+    //! Storage manager
     SpatialIndex::IStorageManager* mStorage;
 
-    /** R-tree containing spatial index */
+    //! R-tree containing spatial index
     SpatialIndex::ISpatialIndex* mRTree;
+
+  private:
+
+    QgsSpatialIndexData& operator=( const QgsSpatialIndexData& rh );
 };
 
 // -------------------------------------------------------------------------
@@ -224,22 +244,19 @@ QgsSpatialIndex& QgsSpatialIndex::operator=( const QgsSpatialIndex & other )
   return *this;
 }
 
-Region QgsSpatialIndex::rectToRegion( const QgsRectangle& rect )
+SpatialIndex::Region QgsSpatialIndex::rectToRegion( const QgsRectangle& rect )
 {
-  double pt1[2], pt2[2];
-  pt1[0] = rect.xMinimum();
-  pt1[1] = rect.yMinimum();
-  pt2[0] = rect.xMaximum();
-  pt2[1] = rect.yMaximum();
-  return Region( pt1, pt2, 2 );
+  double pt1[2] = { rect.xMinimum(), rect.yMinimum() },
+                  pt2[2] = { rect.xMaximum(), rect.yMaximum() };
+  return SpatialIndex::Region( pt1, pt2, 2 );
 }
 
 bool QgsSpatialIndex::featureInfo( const QgsFeature& f, SpatialIndex::Region& r, QgsFeatureId &id )
 {
-  if ( !f.constGeometry() )
+  if ( !f.hasGeometry() )
     return false;
 
-  QgsGeometry g( *f.constGeometry() );
+  QgsGeometry g = f.geometry();
 
   id = f.id();
   r = rectToRegion( g.boundingBox() );
@@ -249,7 +266,7 @@ bool QgsSpatialIndex::featureInfo( const QgsFeature& f, SpatialIndex::Region& r,
 
 bool QgsSpatialIndex::insertFeature( const QgsFeature& f )
 {
-  Region r;
+  SpatialIndex::Region r;
   QgsFeatureId id;
   if ( !featureInfo( f, r, id ) )
     return false;
@@ -257,7 +274,7 @@ bool QgsSpatialIndex::insertFeature( const QgsFeature& f )
   // TODO: handle possible exceptions correctly
   try
   {
-    d->mRTree->insertData( 0, 0, r, FID_TO_NUMBER( id ) );
+    d->mRTree->insertData( 0, nullptr, r, FID_TO_NUMBER( id ) );
     return true;
   }
   catch ( Tools::Exception &e )
@@ -280,7 +297,7 @@ bool QgsSpatialIndex::insertFeature( const QgsFeature& f )
 
 bool QgsSpatialIndex::deleteFeature( const QgsFeature& f )
 {
-  Region r;
+  SpatialIndex::Region r;
   QgsFeatureId id;
   if ( !featureInfo( f, r, id ) )
     return false;
@@ -294,7 +311,7 @@ QList<QgsFeatureId> QgsSpatialIndex::intersects( const QgsRectangle& rect ) cons
   QList<QgsFeatureId> list;
   QgisVisitor visitor( list );
 
-  Region r = rectToRegion( rect );
+  SpatialIndex::Region r = rectToRegion( rect );
 
   d->mRTree->intersectsWithQuery( r, visitor );
 
@@ -306,9 +323,7 @@ QList<QgsFeatureId> QgsSpatialIndex::nearestNeighbor( const QgsPoint& point, int
   QList<QgsFeatureId> list;
   QgisVisitor visitor( list );
 
-  double pt[2];
-  pt[0] = point.x();
-  pt[1] = point.y();
+  double pt[2] = { point.x(), point.y() };
   Point p( pt, 2 );
 
   d->mRTree->nearestNeighborQuery( neighbors, p, visitor );

@@ -33,6 +33,7 @@ from processing.tools import dataobjects, vector
 
 
 class DeleteDuplicateGeometries(GeoAlgorithm):
+
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
 
@@ -41,41 +42,39 @@ class DeleteDuplicateGeometries(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector general tools')
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addOutput(OutputVector(self.OUTPUT, self.tr('Cleaned')))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT))
 
-        fields = layer.pendingFields()
+        fields = layer.fields()
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(fields,
                                                                      layer.wkbType(), layer.crs())
 
         features = vector.features(layer)
 
-        count = len(features)
-        total = 100.0 / float(count)
+        total = 100.0 / len(features)
         geoms = dict()
-        for count, f in enumerate(features):
-            geoms[f.id()] = QgsGeometry(f.geometry())
-            progress.setPercentage(int(count * total))
+        for current, f in enumerate(features):
+            geoms[f.id()] = f.geometry()
+            progress.setPercentage(int(current * total))
 
         cleaned = dict(geoms)
 
-        for i, g in geoms.iteritems():
-            for j in cleaned.keys():
+        for i, g in list(geoms.items()):
+            for j in list(cleaned.keys()):
                 if i == j or i not in cleaned:
                     continue
                 if g.isGeosEqual(cleaned[j]):
                     del cleaned[j]
 
-        count = len(cleaned)
-        total = 100.0 / float(count)
-        request = QgsFeatureRequest().setFilterFids(cleaned.keys())
-        for count, f in enumerate(layer.getFeatures(request)):
+        total = 100.0 / len(cleaned)
+        request = QgsFeatureRequest().setFilterFids(list(cleaned.keys()))
+        for current, f in enumerate(layer.getFeatures(request)):
             writer.addFeature(f)
-            progress.setPercentage(int(count * total))
+            progress.setPercentage(int(current * total))
 
         del writer

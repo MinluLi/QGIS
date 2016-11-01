@@ -31,8 +31,9 @@ class QgsMapHitTest;
 class QgsMapLayer;
 class QgsMapSettings;
 class QgsExpression;
+class QgsRenderContext;
 
-/**
+/** \ingroup core
  * The QgsLayerTreeModel class is model implementation for Qt item views framework.
  * The model can be used in any QTreeView, it is however recommended to use it
  * with QgsLayerTreeView which brings additional functionality specific to layer tree handling.
@@ -52,7 +53,7 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
   public:
     //! Construct a new tree model with given layer tree (root node must not be null pointer).
     //! The root node is not transferred by the model.
-    explicit QgsLayerTreeModel( QgsLayerTreeGroup* rootNode, QObject *parent = 0 );
+    explicit QgsLayerTreeModel( QgsLayerTreeGroup* rootNode, QObject *parent = nullptr );
     ~QgsLayerTreeModel();
 
     // Implementation of virtual functions from QAbstractItemModel
@@ -76,22 +77,21 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     {
       // display flags
       ShowLegend                 = 0x0001,  //!< Add legend nodes for layer nodes
-      ShowSymbology              = 0x0001,  //!< deprecated - use ShowLegend
       ShowRasterPreviewIcon      = 0x0002,  //!< Will use real preview of raster layer as icon (may be slow)
       ShowLegendAsTree           = 0x0004,  //!< For legends that support it, will show them in a tree instead of a list (needs also ShowLegend). Added in 2.8
-      DeferredLegendInvalidation = 0x0008,  //!< defer legend model invalidation
+      DeferredLegendInvalidation = 0x0008,  //!< Defer legend model invalidation
+      UseEmbeddedWidgets         = 0x0010,  //!< Layer nodes may optionally include extra embedded widgets (if used in QgsLayerTreeView). Added in 2.16
 
       // behavioral flags
       AllowNodeReorder           = 0x1000,  //!< Allow reordering with drag'n'drop
       AllowNodeRename            = 0x2000,  //!< Allow renaming of groups and layers
       AllowNodeChangeVisibility  = 0x4000,  //!< Allow user to set node visibility with a check box
       AllowLegendChangeState     = 0x8000,  //!< Allow check boxes for legend nodes (if supported by layer's legend)
-      AllowSymbologyChangeState  = 0x8000,  //!< deprecated - use AllowLegendChangeState
     };
     Q_DECLARE_FLAGS( Flags, Flag )
 
     //! Set OR-ed combination of model flags
-    void setFlags( const QgsLayerTreeModel::Flags& f );
+    void setFlags( QgsLayerTreeModel::Flags f );
     //! Enable or disable a model flag
     void setFlag( Flag f, bool on = true );
     //! Return OR-ed combination of model flags
@@ -117,9 +117,24 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! @note added in 2.6
     QModelIndex legendNode2index( QgsLayerTreeModelLegendNode* legendNode );
 
-    //! Return list of legend nodes attached to a particular layer node
+    //! Return filtered list of active legend nodes attached to a particular layer node
     //! @note added in 2.6
+    //! @see layerOriginalLegendNodes()
     QList<QgsLayerTreeModelLegendNode*> layerLegendNodes( QgsLayerTreeLayer* nodeLayer );
+
+    //! Return original (unfiltered) list of legend nodes attached to a particular layer node
+    //! @note added in 2.14
+    //! @see layerLegendNodes()
+    QList<QgsLayerTreeModelLegendNode*> layerOriginalLegendNodes( QgsLayerTreeLayer* nodeLayer );
+
+    /** Searches through the layer tree to find a legend node with a matching layer ID
+     * and rule key.
+     * @param layerId map layer ID
+     * @param ruleKey legend node rule key
+     * @returns QgsLayerTreeModelLegendNode if found
+     * @note added in QGIS 2.14
+     */
+    QgsLayerTreeModelLegendNode* findLegendNode( const QString& layerId, const QString& ruleKey ) const;
 
     //! Return pointer to the root node of the layer tree. Always a non-null pointer.
     QgsLayerTreeGroup* rootGroup() const;
@@ -166,10 +181,6 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! @note added in 2.14
     void setLegendFilter( const QgsMapSettings* settings, bool useExtent = true, const QgsGeometry& polygon = QgsGeometry(), bool useExpressions = true );
 
-    //! Returns the current map settings used for legend filtering
-    //! @deprecated It has been renamed to legendFilterMapSettings()
-    Q_DECL_DEPRECATED const QgsMapSettings* legendFilterByMap() const { return mLegendFilterMapSettings.data(); }
-
     //! Returns the current map settings used for the current legend filter (or null if none is enabled)
     //! @note added in 2.14
     const QgsMapSettings* legendFilterMapSettings() const { return mLegendFilterMapSettings.data(); }
@@ -181,7 +192,7 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! Get hints about map view - to be used in legend nodes. Arguments that are not null will receive values.
     //! If there are no valid map view data (from previous call to setLegendMapViewData()), returned values are zeros.
     //! @note added in 2.6
-    void legendMapViewData( double *mapUnitsPerPixel, int *dpi, double *scale );
+    void legendMapViewData( double *mapUnitsPerPixel, int *dpi, double *scale ) const;
 
     //! Get map of map layer style overrides (key: layer ID, value: style name) where a different style should be used instead of the current one
     //! @note added in 2.10
@@ -189,19 +200,6 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! Set map of map layer style overrides (key: layer ID, value: style name) where a different style should be used instead of the current one
     //! @note added in 2.10
     void setLayerStyleOverrides( const QMap<QString, QString>& overrides );
-
-    //! Return true if index represents a legend node (instead of layer node)
-    //! @deprecated use index2legendNode()
-    Q_DECL_DEPRECATED bool isIndexSymbologyNode( const QModelIndex& index ) const;
-    //! Return layer node to which a legend node belongs to. Returns null pointer if index is not a legend node.
-    //! @deprecated use index2legendNode()->parent()
-    Q_DECL_DEPRECATED QgsLayerTreeLayer* layerNodeForSymbologyNode( const QModelIndex& index ) const;
-    //! @deprecated use refreshLayerLegend()
-    Q_DECL_DEPRECATED void refreshLayerSymbology( QgsLayerTreeLayer* nodeLayer ) { refreshLayerLegend( nodeLayer ); }
-    //! @deprecated use setAutoCollapseLegendNodes()
-    Q_DECL_DEPRECATED void setAutoCollapseSymbologyNodes( int nodeCount ) { setAutoCollapseLegendNodes( nodeCount ); }
-    //! @deprecated use autoCollapseLegendNodes()
-    Q_DECL_DEPRECATED int autoCollapseSymbologyNodes() const { return autoCollapseLegendNodes(); }
 
   signals:
 
@@ -240,6 +238,12 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! emit dataChanged() for layer tree node items
     void recursivelyEmitDataChanged( const QModelIndex& index = QModelIndex() );
 
+    /** Updates layer data for scale dependent layers, should be called when map scale changes.
+     * Emits dataChanged() for all scale dependent layers.
+     * @note added in QGIS 2.16
+     */
+    void refreshScaleBasedLayers( const QModelIndex& index = QModelIndex() );
+
     static const QIcon& iconGroup();
 
     //! Filter nodes from QgsMapLayerLegend according to the current filtering rules
@@ -255,6 +259,8 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     QVariant legendNodeData( QgsLayerTreeModelLegendNode* node, int role ) const;
     Qt::ItemFlags legendNodeFlags( QgsLayerTreeModelLegendNode* node ) const;
     bool legendEmbeddedInParent( QgsLayerTreeLayer* nodeLayer ) const;
+    //! Return legend node that may be embbeded in parent (i.e. its icon will be used for layer's icon).
+    QgsLayerTreeModelLegendNode* legendNodeEmbeddedInParent( QgsLayerTreeLayer* nodeLayer ) const;
     QIcon legendIconEmbeddedInParent( QgsLayerTreeLayer* nodeLayer ) const;
     void legendCleanup();
     void legendInvalidateMapBasedData();
@@ -274,6 +280,7 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     //! 1. tree legend representation is enabled in model (ShowLegendAsTree flag)
     //! 2. some legend nodes have non-null parent rule key (accessible via data(ParentRuleKeyRole) method)
     //! The tree structure (parents and children of each node) is extracted by analyzing nodes' parent rules.
+    //! @note not available in Python bindings
     struct LayerLegendTree
     {
       //! Pointer to parent for each active node. Top-level nodes have null parent. Pointers are not owned.
@@ -283,6 +290,7 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     };
 
     //! Structure that stores all data associated with one map layer
+    //! @note not available in Python bindings
     struct LayerLegendData
     {
       //! Active legend nodes. May have been filtered.
@@ -295,6 +303,7 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
       LayerLegendTree* tree;
     };
 
+    //! @note not available in Python bindings
     void tryBuildLegendTree( LayerLegendData& data );
 
     //! Overrides of map layers' styles: key = layer ID, value = style XML.
@@ -313,10 +322,18 @@ class CORE_EXPORT QgsLayerTreeModel : public QAbstractItemModel
     QScopedPointer<QgsMapSettings> mLegendFilterMapSettings;
     QScopedPointer<QgsMapHitTest> mLegendFilterHitTest;
 
+    //! whether to use map filtering
+    bool mLegendFilterUsesExtent;
+
     double mLegendMapViewMupp;
     int mLegendMapViewDpi;
     double mLegendMapViewScale;
     QTimer mDeferLegendInvalidationTimer;
+
+  private:
+
+    //! Returns a temporary render context
+    QgsRenderContext* createTemporaryRenderContext() const;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsLayerTreeModel::Flags )

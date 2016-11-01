@@ -20,7 +20,7 @@ class QgsCptCityArchive
     static QString findFileName( const QString & target, const QString & startDir, const QString & baseDir );
     static QMap< QString, QString > copyingInfo( const QString& fileName );
     static QMap< QString, QString > description( const QString& fileName );
-    //! note not available in python bindings
+    //! @note not available in python bindings
     // static QMap< double, QPair<QColor, QColor> > gradientColorMap( const QString& fileName );
 
     // archive management
@@ -36,6 +36,10 @@ class QgsCptCityArchive
     // items
     QVector< QgsCptCityDataItem* > rootItems() const;
     QVector< QgsCptCityDataItem* > selectionItems() const;
+
+  private:
+
+    QgsCptCityArchive( const QgsCptCityArchive& rh );
 };
 
 /** Base class for all items in the model */
@@ -112,7 +116,7 @@ class QgsCptCityDataItem : QObject
     void setParent( QgsCptCityDataItem* parent );
     QVector<QgsCptCityDataItem*> children() const;
     virtual QIcon icon();
-    virtual QIcon icon( const QSize& size );
+    virtual QIcon icon( QSize size );
     QString name() const;
     QString path() const;
     QString info() const;
@@ -162,9 +166,9 @@ class QgsCptCityColorRampItem : QgsCptCityDataItem
     virtual int leafCount() const;
 
     // --- New virtual methods for layer item derived classes ---
-    const QgsCptCityColorRampV2& ramp() const;
+    const QgsCptCityColorRamp& ramp() const;
     QIcon icon();
-    QIcon icon( const QSize& size );
+    QIcon icon( QSize size );
     void init();
 };
 
@@ -227,7 +231,7 @@ class QgsCptCitySelectionItem : QgsCptCityCollectionItem
     QStringList selectionsList() const;
 
   protected:
-    void parseXML();
+    void parseXml();
 };
 
 /** An "All ramps item", which contains all items in a flat hierarchy */

@@ -11,7 +11,7 @@ class QgsSingleBandPseudoColorRenderer: QgsRasterRenderer
 
     static QgsRasterRenderer* create( const QDomElement& elem, QgsRasterDataProvider* provider ) /Factory/;
 
-    QgsRasterBlock* block( int bandNo, const QgsRectangle & extent, int width, int height ) / Factory /;
+    QgsRasterBlock* block( int bandNo, const QgsRectangle & extent, int width, int height, QgsRasterBlockFeedback* feedback = nullptr ) / Factory /;
 
     /** Takes ownership of the shader*/
     void setShader( QgsRasterShader* shader /Transfer/ );
@@ -19,7 +19,7 @@ class QgsSingleBandPseudoColorRenderer: QgsRasterRenderer
     //! @note available in python as constShader
     const QgsRasterShader* shader() const /PyName=constShader/;
 
-    void writeXML( QDomDocument& doc, QDomElement& parentElem ) const;
+    void writeXml( QDomDocument& doc, QDomElement& parentElem ) const;
 
     void legendSymbologyItems( QList< QPair< QString, QColor > >& symbolItems ) const;
 
@@ -30,7 +30,7 @@ class QgsSingleBandPseudoColorRenderer: QgsRasterRenderer
      */
     int band() const;
 
-     /** Sets the band used by the renderer.
+    /** Sets the band used by the renderer.
      * @see band
      * @note added in QGIS 2.10
      */
@@ -42,5 +42,10 @@ class QgsSingleBandPseudoColorRenderer: QgsRasterRenderer
     void setClassificationMax( double max );
     int classificationMinMaxOrigin() const;
     void setClassificationMinMaxOrigin( int origin );
+
+  private:
+
+    QgsSingleBandPseudoColorRenderer( const QgsSingleBandPseudoColorRenderer& );
+    const QgsSingleBandPseudoColorRenderer& operator=( const QgsSingleBandPseudoColorRenderer& );
 
 };

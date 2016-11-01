@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import object
 
 
 __author__ = 'Victor Olaya'
@@ -26,15 +27,13 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import Qt, QCoreApplication
-from PyQt4.QtGui import QProgressBar
+from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtWidgets import QProgressBar
 from qgis.utils import iface
-from qgis.gui import QgsMessageBar
-from processing.core.ProcessingLog import ProcessingLog
 from processing.gui.MessageDialog import MessageDialog
 
 
-class MessageBarProgress:
+class MessageBarProgress(object):
 
     def __init__(self, algname=None):
         self.msg = []

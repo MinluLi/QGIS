@@ -25,14 +25,21 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from qgis.core import QGis, QgsProject, QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsField
-from PyQt4.QtCore import QVariant
+import os
+
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QVariant
+
+from qgis.core import Qgis, QgsProject, QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsField, QgsWkbTypes
 from qgis.utils import iface
+
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterSelection
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class ExportGeometryInfo(GeoAlgorithm):
@@ -40,6 +47,9 @@ class ExportGeometryInfo(GeoAlgorithm):
     INPUT = 'INPUT'
     METHOD = 'CALC_METHOD'
     OUTPUT = 'OUTPUT'
+
+    def getIcon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'export_geometry.png'))
 
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('Export/Add geometry columns')
@@ -50,7 +60,7 @@ class ExportGeometryInfo(GeoAlgorithm):
                              self.tr('Ellipsoidal')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterSelection(self.METHOD,
                                              self.tr('Calculate using'), self.calc_methods, 0))
 
@@ -62,14 +72,16 @@ class ExportGeometryInfo(GeoAlgorithm):
         method = self.getParameterValue(self.METHOD)
 
         geometryType = layer.geometryType()
-        fields = layer.pendingFields()
+        fields = layer.fields()
 
-        if geometryType == QGis.Polygon:
+        export_z = False
+        export_m = False
+        if geometryType == QgsWkbTypes.PolygonGeometry:
             areaName = vector.createUniqueFieldName('area', fields)
             fields.append(QgsField(areaName, QVariant.Double))
             perimeterName = vector.createUniqueFieldName('perimeter', fields)
             fields.append(QgsField(perimeterName, QVariant.Double))
-        elif geometryType == QGis.Line:
+        elif geometryType == QgsWkbTypes.LineGeometry:
             lengthName = vector.createUniqueFieldName('length', fields)
             fields.append(QgsField(lengthName, QVariant.Double))
         else:
@@ -77,9 +89,17 @@ class ExportGeometryInfo(GeoAlgorithm):
             fields.append(QgsField(xName, QVariant.Double))
             yName = vector.createUniqueFieldName('ycoord', fields)
             fields.append(QgsField(yName, QVariant.Double))
+            if QgsWkbTypes.hasZ(layer.wkbType()):
+                export_z = True
+                zName = vector.createUniqueFieldName('zcoord', fields)
+                fields.append(QgsField(zName, QVariant.Double))
+            if QgsWkbTypes.hasM(layer.wkbType()):
+                export_m = True
+                zName = vector.createUniqueFieldName('mvalue', fields)
+                fields.append(QgsField(zName, QVariant.Double))
 
         writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields.toList(), layer.dataProvider().geometryType(), layer.crs())
+            fields.toList(), layer.wkbType(), layer.crs())
 
         ellips = None
         crs = None
@@ -95,7 +115,7 @@ class ExportGeometryInfo(GeoAlgorithm):
                                                      'NONE')[0]
             crs = layer.crs().srsid()
         elif method == 1:
-            mapCRS = iface.mapCanvas().mapRenderer().destinationCrs()
+            mapCRS = iface.mapCanvas().mapSettings().destinationCrs()
             layCRS = layer.crs()
             coordTransform = QgsCoordinateTransform(layCRS, mapCRS)
 
@@ -105,10 +125,9 @@ class ExportGeometryInfo(GeoAlgorithm):
         outFeat.initAttributes(len(fields))
         outFeat.setFields(fields)
 
-        current = 0
         features = vector.features(layer)
-        total = 100.0 / float(len(features))
-        for f in features:
+        total = 100.0 / len(features)
+        for current, f in enumerate(features):
             inGeom = f.geometry()
 
             if method == 1:
@@ -121,10 +140,16 @@ class ExportGeometryInfo(GeoAlgorithm):
             attrs.append(attr1)
             if attr2 is not None:
                 attrs.append(attr2)
+
+            # add point z/m
+            if export_z:
+                attrs.append(inGeom.geometry().z())
+            if export_m:
+                attrs.append(inGeom.geometry().m())
+
             outFeat.setAttributes(attrs)
             writer.addFeature(outFeat)
 
-            current += 1
             progress.setPercentage(int(current * total))
 
         del writer

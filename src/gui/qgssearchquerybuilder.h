@@ -28,10 +28,9 @@
 class QgsField;
 class QgsVectorLayer;
 
-/*!
+/** \ingroup gui
  * \class QgsSearchQueryBuilder
  * \brief Query Builder for search strings
- *
  */
 class GUI_EXPORT QgsSearchQueryBuilder : public QDialog, private Ui::QgsQueryBuilderBase
 {
@@ -39,8 +38,8 @@ class GUI_EXPORT QgsSearchQueryBuilder : public QDialog, private Ui::QgsQueryBui
 
   public:
     //! Constructor - takes pointer to vector layer as a parameter
-    QgsSearchQueryBuilder( QgsVectorLayer* layer, QWidget *parent = 0,
-                           const Qt::WindowFlags& fl = QgisGui::ModalDialogFlags );
+    QgsSearchQueryBuilder( QgsVectorLayer* layer, QWidget *parent = nullptr,
+                           Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
 
     ~QgsSearchQueryBuilder();
 
@@ -97,11 +96,11 @@ class GUI_EXPORT QgsSearchQueryBuilder : public QDialog, private Ui::QgsQueryBui
   private:
 
     /*!
-    * Populate the field list for the selected table
-    */
+     * Populate the field list for the selected table
+     */
     void populateFields();
     /*!
-       * Setup models for listviews
+     * Setup models for listviews
      */
     void setupListViews();
 

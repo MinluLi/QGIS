@@ -14,9 +14,10 @@
  ***************************************************************************/
 
 #include "qgsmaptooladdpart.h"
-#include "qgscurvepolygonv2.h"
+#include "qgsadvanceddigitizingdockwidget.h"
+#include "qgscurvepolygon.h"
 #include "qgsgeometry.h"
-#include "qgslinestringv2.h"
+#include "qgslinestring.h"
 #include "qgsmapcanvas.h"
 #include "qgsproject.h"
 #include "qgsvectordataprovider.h"
@@ -75,17 +76,17 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
   {
     case CapturePoint:
     {
-      QgsPoint layerPoint;
+      QgsPointV2 layerPoint;
       QgsPoint mapPoint = e->mapPoint();
 
-      if ( nextPoint( mapPoint, layerPoint ) != 0 )
+      if ( nextPoint( QgsPointV2( mapPoint ), layerPoint ) != 0 )
       {
         QgsDebugMsg( "nextPoint failed" );
         return;
       }
 
       vlayer->beginEditCommand( tr( "Part added" ) );
-      errorCode = vlayer->addPart( QList<QgsPoint>() << layerPoint );
+      errorCode = vlayer->addPart( QgsPointSequence() << layerPoint );
     }
     break;
 
@@ -95,7 +96,7 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       //add point to list and to rubber band
       if ( e->button() == Qt::LeftButton )
       {
-        int error = addVertex( e->mapPoint() );
+        int error = addVertex( e->mapPoint(), e->mapPointMatch() );
         if ( error == 1 )
         {
           QgsDebugMsg( "current layer is not a vector layer" );
@@ -131,7 +132,7 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       bool hasCurvedSegments = captureCurve()->hasCurvedSegments();
       bool providerSupportsCurvedSegments = vlayer->dataProvider()->capabilities() & QgsVectorDataProvider::CircularGeometries;
 
-      QgsCurveV2* curveToAdd = 0;
+      QgsCurve* curveToAdd = nullptr;
       if ( hasCurvedSegments && providerSupportsCurvedSegments )
       {
         curveToAdd = captureCurve()->clone();
@@ -145,12 +146,12 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       if ( mode() == CapturePolygon )
       {
         //avoid intersections
-        QgsCurvePolygonV2* cp = new QgsCurvePolygonV2();
+        QgsCurvePolygon* cp = new QgsCurvePolygon();
         cp->setExteriorRing( curveToAdd );
         QgsGeometry* geom = new QgsGeometry( cp );
         geom->avoidIntersections();
 
-        const QgsCurvePolygonV2* cpGeom = dynamic_cast<const QgsCurvePolygonV2*>( geom->geometry() );
+        const QgsCurvePolygon* cpGeom = dynamic_cast<const QgsCurvePolygon*>( geom->geometry() );
         if ( !cpGeom )
         {
           stopCapturing();
@@ -159,7 +160,7 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
           return;
         }
 
-        errorCode = vlayer->addPart( dynamic_cast<QgsCurveV2*>( cpGeom->exteriorRing()->clone() ) );
+        errorCode = vlayer->addPart( cpGeom->exteriorRing()->clone() );
         delete geom;
       }
       else
@@ -184,7 +185,7 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
       emit messageDiscarded();
 
       //add points to other features to keep topology up-to-date
-      int topologicalEditing = QgsProject::instance()->readNumEntry( "Digitizing", "/TopologicalEditing", 0 );
+      bool topologicalEditing = QgsProject::instance()->topologicalEditing();
       if ( topologicalEditing )
       {
         addTopologicalPoints( points() );
@@ -192,7 +193,7 @@ void QgsMapToolAddPart::cadCanvasReleaseEvent( QgsMapMouseEvent * e )
 
       vlayer->endEditCommand();
 
-      mCanvas->refresh();
+      vlayer->triggerRepaint();
       return;
     }
 

@@ -28,7 +28,7 @@ class GUI_EXPORT QgsScaleComboBox : public QComboBox
 {
     Q_OBJECT
   public:
-    QgsScaleComboBox( QWidget* parent = 0 );
+    QgsScaleComboBox( QWidget* parent = nullptr );
     virtual ~QgsScaleComboBox();
 
     //! Function to read the selected scale as text
@@ -36,23 +36,33 @@ class GUI_EXPORT QgsScaleComboBox : public QComboBox
     //! Function to set the selected scale from text
     bool setScaleString( const QString& scaleTxt );
     //! Function to read the selected scale as double
-    double scale();
+    double scale() const;
     //! Function to set the selected scale from double
     void setScale( double scale );
+    //! Function to read the min scale
+    double minScale() const { return mMinScale; }
 
     //! Helper function to convert a double to scale string
     // Performs rounding, so an exact representation is not to
     // be expected.
     static QString toString( double scale );
     //! Helper function to convert a scale string to double
-    static double toDouble( const QString& scaleString, bool *ok = NULL );
+    static double toDouble( const QString& scaleString, bool *ok = nullptr );
 
   signals:
     //! Signal is emitted when *user* has finished editing/selecting a new scale.
-    void scaleChanged();
+    void scaleChanged( double scale );
 
   public slots:
     void updateScales( const QStringList &scales = QStringList() );
+
+    /**
+     * Set the minimum allowed scale.
+     * Anything scale lower than the minimum scale will automatically
+     * be converted to the minimum scale.
+     * Except for 0 which is always allowed.
+     */
+    void setMinScale( double scale );
 
   protected:
     void showPopup() override;
@@ -62,6 +72,7 @@ class GUI_EXPORT QgsScaleComboBox : public QComboBox
 
   private:
     double mScale;
+    double mMinScale;
 };
 
 #endif // QGSSCALECOMBOBOX_H

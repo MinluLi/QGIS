@@ -15,6 +15,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <limits>
+
 #include "qgsraster.h"
 
 QString QgsRaster::contrastEnhancementLimitsAsString( ContrastEnhancementLimits theLimits )
@@ -22,52 +24,72 @@ QString QgsRaster::contrastEnhancementLimitsAsString( ContrastEnhancementLimits 
   switch ( theLimits )
   {
     case QgsRaster::ContrastEnhancementMinMax:
-      return "MinMax";
-      break;
+      return QStringLiteral( "MinMax" );
     case QgsRaster::ContrastEnhancementStdDev:
-      return "StdDev";
-      break;
+      return QStringLiteral( "StdDev" );
     case QgsRaster::ContrastEnhancementCumulativeCut:
-      return "CumulativeCut";
-      break;
+      return QStringLiteral( "CumulativeCut" );
     default:
       break;
   }
-  return "None";
+  return QStringLiteral( "None" );
 }
 
 QgsRaster::ContrastEnhancementLimits QgsRaster::contrastEnhancementLimitsFromString( const QString& theLimits )
 {
-  if ( theLimits == "MinMax" )
+  if ( theLimits == QLatin1String( "MinMax" ) )
   {
     return ContrastEnhancementMinMax;
   }
-  else if ( theLimits == "StdDev" )
+  else if ( theLimits == QLatin1String( "StdDev" ) )
   {
     return ContrastEnhancementStdDev;
   }
-  else if ( theLimits == "CumulativeCut" )
+  else if ( theLimits == QLatin1String( "CumulativeCut" ) )
   {
     return ContrastEnhancementCumulativeCut;
   }
   return ContrastEnhancementNone;
 }
 
-double QgsRaster::representableValue( double value, QGis::DataType dataType )
+bool QgsRaster::isRepresentableValue( double value, Qgis::DataType dataType )
 {
   switch ( dataType )
   {
-    case QGis::Byte:
+    case Qgis::Byte:
+      return value >= std::numeric_limits<quint8>::min() && value <= std::numeric_limits<quint8>::max();
+    case Qgis::UInt16:
+      return value >= std::numeric_limits<quint16>::min() && value <= std::numeric_limits<quint16>::max();
+    case Qgis::Int16:
+      return value >= std::numeric_limits<qint16>::min() && value <= std::numeric_limits<qint16>::max();
+    case Qgis::UInt32:
+      return value >= std::numeric_limits<quint32>::min() && value <= std::numeric_limits<quint32>::max();
+    case Qgis::Int32:
+      return value >= std::numeric_limits<qint32>::min() && value <= std::numeric_limits<qint32>::max();
+    case Qgis::Float32:
+      return qIsNaN( value ) || qIsInf( value ) ||
+             ( value >= -std::numeric_limits<float>::max() && value <= std::numeric_limits<float>::max() );
+    default:
+      return true;
+      break;
+  }
+}
+
+double QgsRaster::representableValue( double value, Qgis::DataType dataType )
+{
+  switch ( dataType )
+  {
+    case Qgis::Byte:
       return static_cast<quint8>( value );
-    case QGis::UInt16:
+    case Qgis::UInt16:
       return static_cast<quint16>( value );
-    case QGis::Int16:
+    case Qgis::Int16:
       return static_cast<qint16>( value );
-    case QGis::UInt32:
+    case Qgis::UInt32:
       return static_cast<quint32>( value );
-    case QGis::Int32:
+    case Qgis::Int32:
       return static_cast<qint32>( value );
-    case QGis::Float32:
+    case Qgis::Float32:
       return static_cast<float>( value );
     default:
       break;

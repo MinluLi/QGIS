@@ -20,6 +20,25 @@ class QgsAttributeForm : QWidget
 %End
 
   public:
+
+    //! Form modes
+    enum Mode
+    {
+      SingleEditMode, /*!< Single edit mode, for editing a single feature */
+      AddFeatureMode, /*!< Add feature mode, for setting attributes for a new feature. In this mode the dialog will be editable even with an invalid feature and
+      will add a new feature when the form is accepted. */
+      MultiEditMode, /*!< Multi edit mode, for editing fields of multiple features at once */
+      SearchMode, /*!< Form values are used for searching/filtering the layer */
+    };
+
+    //! Filter types
+    enum FilterType
+    {
+      ReplaceFilter, /*!< Filter should replace any existing filter */
+      FilterAnd, /*!< Filter should be combined using "AND" */
+      FilterOr, /*!< Filter should be combined using "OR" */
+    };
+
     explicit QgsAttributeForm( QgsVectorLayer* vl, const QgsFeature& feature = QgsFeature(), const QgsAttributeEditorContext& context = QgsAttributeEditorContext(), QWidget *parent /TransferThis/ = 0 );
     ~QgsAttributeForm();
 
@@ -61,14 +80,18 @@ class QgsAttributeForm : QWidget
      */
     bool editable();
 
-    /**
-     * Toggles the form mode between edit feature and add feature.
-     * If set to true, the dialog will be editable even with an invalid feature.
-     * If set to true, the dialog will add a new feature when the form is accepted.
-     *
-     * @param isAddDialog If set to true, turn this dialog into an add feature dialog.
+    /** Returns the current mode of the form.
+     * @note added in QGIS 2.16
+     * @see setMode()
      */
-    void setIsAddDialog( bool isAddDialog );
+    Mode mode() const;
+
+    /** Sets the current mode of the form.
+     * @param mode form mode
+     * @note added in QGIS 2.16
+     * @see mode()
+     */
+    void setMode( Mode mode );
 
     /**
      * Sets the edit command message (Undo) that will be used when the dialog is accepted
@@ -86,6 +109,19 @@ class QgsAttributeForm : QWidget
      * @return         true if the event has been handled (key was ESC)
      */
     bool eventFilter( QObject* object, QEvent* event );
+
+    /** Sets all feature IDs which are to be edited if the form is in multiedit mode
+     * @param fids feature ID list
+     * @note added in QGIS 2.16
+     */
+    void setMultiEditFeatureIds( const QgsFeatureIds& fids );
+
+    /** Sets the message bar to display feedback from the form in. This is used in the search/filter
+     * mode to display the count of selected features.
+     * @param messageBar target message bar
+     * @note added in QGIS 2.16
+     */
+    void setMessageBar( QgsMessageBar* messageBar );
 
   signals:
     /**
@@ -111,6 +147,23 @@ class QgsAttributeForm : QWidget
      */
     void featureSaved( const QgsFeature& feature );
 
+    /** Is emitted when a filter expression is set using the form.
+     * @param expression filter expression
+     * @param type filter type
+     * @note added in QGIS 2.16
+     */
+    void filterExpressionSet( const QString& expression, QgsAttributeForm::FilterType type );
+
+    /** Emitted when the form changes mode.
+     * @param mode new mode
+     */
+    void modeChanged( QgsAttributeForm::Mode mode );
+
+    /** Emitted when the user selects the close option from the form's button bar.
+      * @note added in QGIS 2.16
+     */
+    void closed();
+
   public slots:
     /**
      * Call this to change the content of a given attribute. Will update the editor(s) related to this field.
@@ -135,23 +188,14 @@ class QgsAttributeForm : QWidget
     bool save();
 
     /**
-     * Alias for save()
-     *
-     * @deprecated
-     */
-    void accept() /Deprecated/;
-
-    /**
-     * Alias for resetValues()
-     *
-     * @deprecated
-     */
-    void reject() /Deprecated/;
-
-    /**
      * Sets all values to the values of the current feature
      */
     void resetValues();
+
+    /** Resets the search/filter form values.
+     * @note added in QGIS 2.16
+     */
+    void resetSearch();
 
     /**
      * reload current feature

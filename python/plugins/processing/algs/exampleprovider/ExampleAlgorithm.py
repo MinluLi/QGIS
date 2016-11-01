@@ -25,7 +25,7 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import QSettings
+from qgis.PyQt.QtCore import QSettings
 from qgis.core import QgsVectorFileWriter
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
@@ -69,7 +69,7 @@ class ExampleAlgorithm(GeoAlgorithm):
         # We add the input vector layer. It can have any kind of geometry
         # It is a mandatory (not optional) one, hence the False argument
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_ANY], False))
 
         # We add a vector layer as output
         self.addOutput(OutputVector(self.OUTPUT_LAYER,
@@ -96,10 +96,11 @@ class ExampleAlgorithm(GeoAlgorithm):
         # directly
         settings = QSettings()
         systemEncoding = settings.value('/UI/encoding', 'System')
-        provider = vectorLayer.dataProvider()
-        writer = QgsVectorFileWriter(output, systemEncoding,
-                                     provider.fields(),
-                                     provider.geometryType(), provider.crs())
+        writer = QgsVectorFileWriter(output,
+                                     systemEncoding,
+                                     vectorLayer.fields(),
+                                     vectorLayer.wkbType(),
+                                     vectorLayer.crs())
 
         # Now we take the features from input layer and add them to the
         # output. Method features() returns an iterator, considering the

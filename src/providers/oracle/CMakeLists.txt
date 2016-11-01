@@ -13,6 +13,8 @@ SET(ORACLE_SRCS
   qgsoracletablemodel.cpp
   qgsoraclecolumntypethread.cpp
   qgsoraclefeatureiterator.cpp
+  qgsoracleconnpool.cpp
+  qgsoracleexpressioncompiler.cpp
 )
 
 SET(ORACLE_MOC_HDRS
@@ -23,13 +25,18 @@ SET(ORACLE_MOC_HDRS
   qgsoraclenewconnection.h
   qgsoracletablemodel.h
   qgsoraclecolumntypethread.h
+  qgsoracleconnpool.h
+)
+
+SET(ORACLE_HDRS
+  qgsoracleexpressioncompiler.h
 )
 
 
 ########################################################
 # Build
 
-QT4_WRAP_CPP(ORACLE_MOC_SRCS ${ORACLE_MOC_HDRS})
+QT5_WRAP_CPP(ORACLE_MOC_SRCS ${ORACLE_MOC_HDRS})
 
 INCLUDE_DIRECTORIES(
   ../../core
@@ -47,7 +54,7 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${QSCINTILLA_INCLUDE_DIR}
 )
 
-ADD_LIBRARY (oracleprovider MODULE ${ORACLE_SRCS} ${ORACLE_MOC_SRCS})
+ADD_LIBRARY (oracleprovider MODULE ${ORACLE_SRCS} ${ORACLE_HDRS} ${ORACLE_MOC_SRCS})
 
 TARGET_LINK_LIBRARIES (oracleprovider
   qgis_core

@@ -66,11 +66,11 @@ void QgsDxfPaintEngine::updateState( const QPaintEngineState& state )
     mBrush = state.brush();
 }
 
-void QgsDxfPaintEngine::setRing( QgsPolyline &polyline, const QPointF *points, int pointCount )
+void QgsDxfPaintEngine::setRing( QgsPointSequence &polyline, const QPointF *points, int pointCount )
 {
-  polyline.resize( pointCount );
+  polyline.clear();
   for ( int i = 0; i < pointCount; ++i )
-    polyline[i] = toDxfCoordinates( points[i] );
+    polyline.append( toDxfCoordinates( points[i] ) );
 }
 
 void QgsDxfPaintEngine::drawPolygon( const QPointF *points, int pointCount, PolygonDrawMode mode )
@@ -79,18 +79,19 @@ void QgsDxfPaintEngine::drawPolygon( const QPointF *points, int pointCount, Poly
   if ( !mDxf || !mPaintDevice )
     return;
 
-  QgsPolygon polygon( 1 );
-  setRing( polygon[0], points, pointCount );
+  QgsRingSequence polygon;
+  polygon << QgsPointSequence();
+  setRing( polygon.last(), points, pointCount );
 
   if ( mode == QPaintEngine::PolylineMode )
   {
     if ( mPen.style() != Qt::NoPen && mPen.brush().style() != Qt::NoBrush )
-      mDxf->writePolyline( polygon[0], mLayer, "CONTINUOUS", mPen.color(), currentWidth() );
+      mDxf->writePolyline( polygon.at( 0 ), mLayer, QStringLiteral( "CONTINUOUS" ), mPen.color(), currentWidth() );
   }
   else
   {
     if ( mBrush.style() != Qt::NoBrush )
-      mDxf->writePolygon( polygon, mLayer, "SOLID", mBrush.color() );
+      mDxf->writePolygon( polygon, mLayer, QStringLiteral( "SOLID" ), mBrush.color() );
   }
 }
 
@@ -120,8 +121,8 @@ void QgsDxfPaintEngine::drawPath( const QPainterPath& path )
   endCurve();
   endPolygon();
 
-  if ( mPolygon.size() > 0 && mBrush.style() != Qt::NoBrush )
-    mDxf->writePolygon( mPolygon, mLayer, "SOLID", mBrush.color() );
+  if ( !mPolygon.isEmpty() && mBrush.style() != Qt::NoBrush )
+    mDxf->writePolygon( mPolygon, mLayer, QStringLiteral( "SOLID" ), mBrush.color() );
 
   mPolygon.clear();
 }
@@ -142,7 +143,7 @@ void QgsDxfPaintEngine::lineTo( double dx, double dy )
 void QgsDxfPaintEngine::curveTo( double dx, double dy )
 {
   endCurve();
-  if ( mCurrentPolygon.size() > 0 )
+  if ( !mCurrentPolygon.isEmpty() )
     mCurrentCurve.append( mCurrentPolygon.last() );
 
   mCurrentCurve.append( QPointF( dx, dy ) );
@@ -155,8 +156,8 @@ void QgsDxfPaintEngine::endPolygon()
     if ( mPen.style() != Qt::NoPen )
       drawPolygon( mCurrentPolygon.constData(), mCurrentPolygon.size(), QPaintEngine::PolylineMode );
 
-    mPolygon.resize( mPolygon.size() + 1 );
-    setRing( mPolygon[ mPolygon.size() - 1 ], mCurrentPolygon.constData(), mCurrentPolygon.size() );
+    mPolygon << QgsPointSequence();
+    setRing( mPolygon.last(), mCurrentPolygon.constData(), mCurrentPolygon.size() );
   }
   mCurrentPolygon.clear();
 }
@@ -195,19 +196,19 @@ void QgsDxfPaintEngine::drawLines( const QLineF* lines, int lineCount )
 
   for ( int i = 0; i < lineCount; ++i )
   {
-    QgsPoint pt1 = toDxfCoordinates( lines[i].p1() );
-    QgsPoint pt2 = toDxfCoordinates( lines[i].p2() );
-    mDxf->writeLine( pt1, pt2, mLayer, "CONTINUOUS", mPen.color(), currentWidth() );
+    mDxf->writeLine( toDxfCoordinates( lines[i].p1() ),
+                     toDxfCoordinates( lines[i].p2() ),
+                     mLayer, QStringLiteral( "CONTINUOUS" ), mPen.color(), currentWidth() );
   }
 }
 
-QgsPoint QgsDxfPaintEngine::toDxfCoordinates( const QPointF& pt ) const
+QgsPointV2 QgsDxfPaintEngine::toDxfCoordinates( QPointF pt ) const
 {
   if ( !mPaintDevice || !mDxf )
-    return QgsPoint( pt.x(), pt.y() );
+    return QgsPointV2( pt.x(), pt.y() );
 
   QPointF dxfPt = mPaintDevice->dxfCoordinates( mTransform.map( pt ) ) + mShift;
-  return QgsPoint( dxfPt.x(), dxfPt.y() );
+  return QgsPointV2( dxfPt.x(), dxfPt.y() );
 }
 
 
@@ -265,7 +266,7 @@ double QgsDxfPaintEngine::power( double a, int b )
     return 1;
 
   double tmp = a;
-  for ( int i = 2; i <= qAbs(( double )b ); i++ )
+  for ( int i = 2; i <= qAbs( static_cast< double >( b ) ); i++ )
     a *= tmp;
 
   if ( b > 0 )

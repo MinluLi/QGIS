@@ -22,18 +22,33 @@
  *                                                                         *
  ***************************************************************************/
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
 
-from PyQt4.QtCore import pyqtSignal, QObject, QCoreApplication, QFile, QDir, QDirIterator, QSettings, QDate, QUrl, QFileInfo, QLocale
-from PyQt4.QtXml import QDomDocument
-from PyQt4.QtNetwork import QNetworkRequest, QNetworkReply
+from qgis.PyQt.QtCore import (pyqtSignal, QObject, QCoreApplication, QFile,
+                              QDir, QDirIterator, QSettings, QDate, QUrl,
+                              QFileInfo, QLocale, QByteArray)
+from qgis.PyQt.QtXml import QDomDocument
+from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 import sys
 import os
 import codecs
-import ConfigParser
+try:
+    import configparser
+except ImportError:
+    import configparser as configparser
+try:
+    from importlib import reload
+except ImportError:
+    from imp import reload
 import qgis.utils
-from qgis.core import QGis, QgsNetworkAccessManager
+from qgis.core import Qgis, QgsNetworkAccessManager, QgsAuthManager, QgsWkbTypes
+from qgis.gui import QgsMessageBar
 from qgis.utils import iface, plugin_paths
-from version_compare import compareVersions, normalizeVersion, isCompatible
+from .version_compare import compareVersions, normalizeVersion, isCompatible
+
 
 """
 Data structure:
@@ -72,6 +87,7 @@ mPlugins = dict of dicts {id : {
     "error_details" unicode,                    # error description
     "experimental" boolean,                     # true if experimental, false if stable
     "deprecated" boolean,                       # true if deprected, false if actual
+    "trusted" boolean,                          # true if trusted, false if not trusted
     "version_available" unicode,                # available version
     "zip_repository" unicode,                   # the remote repository id
     "download_url" unicode,                     # url for downloading the plugin
@@ -91,7 +107,7 @@ seenPluginGroup = "/Qgis/plugin-seen"
 
 
 # Repositories: (name, url, possible depreciated url)
-officialRepo = (QCoreApplication.translate("QgsPluginInstaller", "QGIS Official Plugin Repository"), "http://plugins.qgis.org/plugins/plugins.xml", "http://plugins.qgis.org/plugins")
+officialRepo = (QCoreApplication.translate("QgsPluginInstaller", "QGIS Official Plugin Repository"), "https://plugins.qgis.org/plugins/plugins.xml", "https://plugins.qgis.org/plugins")
 depreciatedRepos = [
     ("Old QGIS Official Repository", "http://pyqgis.org/repo/official"),
     ("Old QGIS Contributed Repository", "http://pyqgis.org/repo/contributed"),
@@ -116,7 +132,7 @@ def removeDir(path):
     result = ""
     if not QFile(path).exists():
         result = QCoreApplication.translate("QgsPluginInstaller", "Nothing to remove! Plugin directory doesn't exist:") + "\n" + path
-    elif QFile(path).remove(): # if it is only link, just remove it without resolving.
+    elif QFile(path).remove():  # if it is only link, just remove it without resolving.
         pass
     else:
         fltr = QDir.Dirs | QDir.Files | QDir.Hidden
@@ -146,7 +162,7 @@ class Relay(QObject):
 
     """ Relay object for transmitting signals from QPHttp with adding the repoName information """
     # ----------------------------------------- #
-    anythingChanged = pyqtSignal(unicode, int, int)
+    anythingChanged = pyqtSignal(str, int, int)
 
     def __init__(self, key):
         QObject.__init__(self)
@@ -173,8 +189,8 @@ class Repositories(QObject):
     """ A dict-like class for handling repositories data """
     # ----------------------------------------- #
 
-    anythingChanged = pyqtSignal(unicode, int, int)
-    repositoryFetched = pyqtSignal(unicode)
+    anythingChanged = pyqtSignal(str, int, int)
+    repositoryFetched = pyqtSignal(str)
     checkingDone = pyqtSignal()
 
     def __init__(self):
@@ -219,7 +235,7 @@ class Repositories(QObject):
     # ----------------------------------------- #
     def urlParams(self):
         """ return GET parameters to be added to every request """
-        v = str(QGis.QGIS_VERSION_INT)
+        v = str(Qgis.QGIS_VERSION_INT)
         return "?qgis=%d.%d" % (int(v[0]), int(v[1:3]))
 
     # ----------------------------------------- #
@@ -308,18 +324,19 @@ class Repositories(QObject):
         # first, update repositories in QSettings if needed
         officialRepoPresent = False
         for key in settings.childGroups():
-            url = settings.value(key + "/url", "", type=unicode)
+            url = settings.value(key + "/url", "", type=str)
             if url == officialRepo[1]:
                 officialRepoPresent = True
             if url == officialRepo[2]:
-                settings.setValue(key + "/url", officialRepo[1]) # correct a depreciated url
+                settings.setValue(key + "/url", officialRepo[1])  # correct a depreciated url
                 officialRepoPresent = True
         if not officialRepoPresent:
             settings.setValue(officialRepo[0] + "/url", officialRepo[1])
 
         for key in settings.childGroups():
             self.mRepositories[key] = {}
-            self.mRepositories[key]["url"] = settings.value(key + "/url", "", type=unicode)
+            self.mRepositories[key]["url"] = settings.value(key + "/url", "", type=str)
+            self.mRepositories[key]["authcfg"] = settings.value(key + "/authcfg", "", type=str)
             self.mRepositories[key]["enabled"] = settings.value(key + "/enabled", True, type=bool)
             self.mRepositories[key]["valid"] = settings.value(key + "/valid", True, type=bool)
             self.mRepositories[key]["Relay"] = Relay(key)
@@ -333,10 +350,21 @@ class Repositories(QObject):
         """ start fetching the repository given by key """
         self.mRepositories[key]["state"] = 1
         url = QUrl(self.mRepositories[key]["url"] + self.urlParams())
-        #v=str(QGis.QGIS_VERSION_INT)
+        #v=str(Qgis.QGIS_VERSION_INT)
         #url.addQueryItem('qgis', '.'.join([str(int(s)) for s in [v[0], v[1:3]]]) ) # don't include the bugfix version!
 
         self.mRepositories[key]["QRequest"] = QNetworkRequest(url)
+        authcfg = self.mRepositories[key]["authcfg"]
+        if authcfg and isinstance(authcfg, str):
+            if not QgsAuthManager.instance().updateNetworkRequest(
+                    self.mRepositories[key]["QRequest"], authcfg.strip()):
+                msg = QCoreApplication.translate(
+                    "QgsPluginInstaller",
+                    "Update of network request with authentication "
+                    "credentials FAILED for configuration '{0}'").format(authcfg)
+                iface.pluginManagerInterface().pushMessage(msg, QgsMessageBar.WARNING)
+                self.mRepositories[key]["QRequest"] = None
+                return
         self.mRepositories[key]["QRequest"].setAttribute(QNetworkRequest.User, key)
         self.mRepositories[key]["xmlData"] = QgsNetworkAccessManager.instance().get(self.mRepositories[key]["QRequest"])
         self.mRepositories[key]["xmlData"].setProperty('reposName', key)
@@ -372,7 +400,12 @@ class Repositories(QObject):
             reposXML = QDomDocument()
             content = reply.readAll()
             # Fix lonely ampersands in metadata
-            reposXML.setContent(content.replace("& ", "&amp; "))
+            a = QByteArray()
+            a.append("& ")
+            b = QByteArray()
+            b.append("&amp; ")
+            content = content.replace(a, b)
+            reposXML.setContent(content)
             pluginNodes = reposXML.elementsByTagName("pyqgis_plugin")
             if pluginNodes.size():
                 for i in range(pluginNodes.size()):
@@ -386,6 +419,9 @@ class Repositories(QObject):
                     deprecated = False
                     if pluginNodes.item(i).firstChildElement("deprecated").text().strip().upper() in ["TRUE", "YES"]:
                         deprecated = True
+                    trusted = False
+                    if pluginNodes.item(i).firstChildElement("trusted").text().strip().upper() in ["TRUE", "YES"]:
+                        trusted = True
                     icon = pluginNodes.item(i).firstChildElement("icon").text().strip()
                     if icon and not icon.startswith("http"):
                         icon = "http://%s/%s" % (QUrl(self.mRepositories[reposName]["url"]).host(), icon)
@@ -417,6 +453,7 @@ class Repositories(QObject):
                         "icon": icon,
                         "experimental": experimental,
                         "deprecated": deprecated,
+                        "trusted": trusted,
                         "filename": fileName,
                         "installed": False,
                         "available": True,
@@ -436,8 +473,8 @@ class Repositories(QObject):
                         qgisMaximumVersion = qgisMinimumVersion[0] + ".99"
                     #if compatible, add the plugin to the list
                     if not pluginNodes.item(i).firstChildElement("disabled").text().strip().upper() in ["TRUE", "YES"]:
-                        if isCompatible(QGis.QGIS_VERSION, qgisMinimumVersion, qgisMaximumVersion):
-                        #add the plugin to the cache
+                        if isCompatible(Qgis.QGIS_VERSION, qgisMinimumVersion, qgisMaximumVersion):
+                            #add the plugin to the cache
                             plugins.addFromRepository(plugin)
                 self.mRepositories[reposName]["state"] = 2
             else:
@@ -480,10 +517,10 @@ class Plugins(QObject):
 
     def __init__(self):
         QObject.__init__(self)
-        self.mPlugins = {}   # the dict of plugins (dicts)
-        self.repoCache = {}  # the dict of lists of plugins (dicts)
-        self.localCache = {} # the dict of plugins (dicts)
-        self.obsoletePlugins = [] # the list of outdated 'user' plugins masking newer 'system' ones
+        self.mPlugins = {}         # the dict of plugins (dicts)
+        self.repoCache = {}        # the dict of lists of plugins (dicts)
+        self.localCache = {}       # the dict of plugins (dicts)
+        self.obsoletePlugins = []  # the list of outdated 'user' plugins masking newer 'system' ones
 
     # ----------------------------------------- #
     def all(self):
@@ -541,13 +578,14 @@ class Plugins(QObject):
                 for better control on wchich module is examined
                 in case there is an installed plugin masking a core one """
             global errorDetails
-            cp = ConfigParser.ConfigParser()
+            cp = configparser.ConfigParser()
             try:
-                cp.readfp(codecs.open(metadataFile, "r", "utf8"))
+                with codecs.open(metadataFile, "r", "utf8") as f:
+                    cp.read_file(f)
                 return cp.get('general', fct)
             except Exception as e:
                 if not errorDetails:
-                    errorDetails = e.args[0] # set to the first problem
+                    errorDetails = e.args[0]  # set to the first problem
                 return ""
 
         def pluginMetadata(fct):
@@ -566,7 +604,7 @@ class Plugins(QObject):
         if not QDir(path).exists():
             return
 
-        global errorDetails # to communicate with the metadataParser fn
+        global errorDetails  # to communicate with the metadataParser fn
         plugin = dict()
         error = ""
         errorDetails = ""
@@ -584,7 +622,7 @@ class Plugins(QObject):
             if not qgisMaximumVersion:
                 qgisMaximumVersion = qgisMinimumVersion[0] + ".99"
             #if compatible, add the plugin to the list
-            if not isCompatible(QGis.QGIS_VERSION, qgisMinimumVersion, qgisMaximumVersion):
+            if not isCompatible(Qgis.QGIS_VERSION, qgisMinimumVersion, qgisMaximumVersion):
                 error = "incompatible"
                 errorDetails = "%s - %s" % (qgisMinimumVersion, qgisMaximumVersion)
             elif testLoad:
@@ -595,7 +633,7 @@ class Plugins(QObject):
                     pkg.classFactory(iface)
                 except Exception as e:
                     error = "broken"
-                    errorDetails = unicode(e.args[0])
+                    errorDetails = str(e.args[0])
                 except SystemExit as e:
                     error = "broken"
                     errorDetails = QCoreApplication.translate("QgsPluginInstaller", "The plugin exited with error status: {0}").format(e.args[0])
@@ -645,6 +683,7 @@ class Plugins(QObject):
             "pythonic": True,
             "experimental": pluginMetadata("experimental").strip().upper() in ["TRUE", "YES"],
             "deprecated": pluginMetadata("deprecated").strip().upper() in ["TRUE", "YES"],
+            "trusted": False,
             "version_available": "",
             "zip_repository": "",
             "download_url": path,      # warning: local path as url!
@@ -679,14 +718,15 @@ class Plugins(QObject):
                 pluginDir.setFilter(QDir.AllDirs)
                 for key in pluginDir.entryList():
                     if key not in [".", ".."]:
-                        path = QDir.convertSeparators(pluginsPath + "/" + key)
+                        path = QDir.toNativeSeparators(pluginsPath + "/" + key)
                         # readOnly = not QFileInfo(pluginsPath).isWritable() # On windows testing the writable status isn't reliable.
                         readOnly = isTheSystemDir                            # Assume only the system plugins are not writable.
                         # only test those not yet loaded. Loaded plugins already proved they're o.k.
+                        # failedToLoad = settings.value("/PythonPlugins/watchDog/" + key) is not None
                         testLoadThis = testLoad and key not in qgis.utils.plugins
                         plugin = self.getInstalledPlugin(key, path=path, readOnly=readOnly, testLoad=testLoadThis)
                         self.localCache[key] = plugin
-                        if key in self.localCache.keys() and compareVersions(self.localCache[key]["version_installed"], plugin["version_installed"]) == 1:
+                        if key in list(self.localCache.keys()) and compareVersions(self.localCache[key]["version_installed"], plugin["version_installed"]) == 1:
                             # An obsolete plugin in the "user" location is masking a newer one in the "system" location!
                             self.obsoletePlugins += [key]
             except:
@@ -701,14 +741,14 @@ class Plugins(QObject):
     def rebuild(self):
         """ build or rebuild the mPlugins from the caches """
         self.mPlugins = {}
-        for i in self.localCache.keys():
+        for i in list(self.localCache.keys()):
             self.mPlugins[i] = self.localCache[i].copy()
         settings = QSettings()
         allowExperimental = settings.value(settingsGroup + "/allowExperimental", False, type=bool)
         allowDeprecated = settings.value(settingsGroup + "/allowDeprecated", False, type=bool)
-        for i in self.repoCache.values():
+        for i in list(self.repoCache.values()):
             for j in i:
-                plugin = j.copy() # do not update repoCache elements!
+                plugin = j.copy()  # do not update repoCache elements!
                 key = plugin["id"]
                 # check if the plugin is allowed and if there isn't any better one added already.
                 if (allowExperimental or not plugin["experimental"]) \
@@ -730,7 +770,7 @@ class Plugins(QObject):
                         # other remote metadata is preffered:
                         for attrib in ["name", "plugin_id", "description", "about", "category", "tags", "changelog", "author_name", "author_email", "homepage",
                                        "tracker", "code_repository", "experimental", "deprecated", "version_available", "zip_repository",
-                                       "download_url", "filename", "downloads", "average_vote", "rating_votes"]:
+                                       "download_url", "filename", "downloads", "average_vote", "rating_votes", "trusted"]:
                             if attrib not in translatableAttributes or attrib == "name":  # include name!
                                 if plugin[attrib]:
                                     self.mPlugins[key][attrib] = plugin[attrib]
@@ -766,9 +806,9 @@ class Plugins(QObject):
     def markNews(self):
         """ mark all new plugins as new """
         settings = QSettings()
-        seenPlugins = settings.value(seenPluginGroup, self.mPlugins.keys(), type=unicode)
+        seenPlugins = settings.value(seenPluginGroup, list(self.mPlugins.keys()), type=str)
         if len(seenPlugins) > 0:
-            for i in self.mPlugins.keys():
+            for i in list(self.mPlugins.keys()):
                 if seenPlugins.count(i) == 0 and self.mPlugins[i]["status"] == "not installed":
                     self.mPlugins[i]["status"] = "new"
 
@@ -776,8 +816,8 @@ class Plugins(QObject):
     def updateSeenPluginsList(self):
         """ update the list of all seen plugins """
         settings = QSettings()
-        seenPlugins = settings.value(seenPluginGroup, self.mPlugins.keys(), type=unicode)
-        for i in self.mPlugins.keys():
+        seenPlugins = settings.value(seenPluginGroup, list(self.mPlugins.keys()), type=str)
+        for i in list(self.mPlugins.keys()):
             if seenPlugins.count(i) == 0:
                 seenPlugins += [i]
         settings.setValue(seenPluginGroup, seenPlugins)
@@ -785,7 +825,7 @@ class Plugins(QObject):
     # ----------------------------------------- #
     def isThereAnythingNew(self):
         """ return true if an upgradeable or new plugin detected """
-        for i in self.mPlugins.values():
+        for i in list(self.mPlugins.values()):
             if i["status"] in ["upgradeable", "new"]:
                 return True
         return False

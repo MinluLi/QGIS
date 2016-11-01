@@ -1,29 +1,107 @@
+/***************************************************************************
+    qgslabelingwidget.cpp
+    ---------------------
+    begin                : September 2015
+    copyright            : (C) 2015 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
+
+#include <QDialogButtonBox>
+#include <QDomElement>
+
 #include "qgslabelingwidget.h"
 
 #include "qgslabelengineconfigdialog.h"
 #include "qgslabelinggui.h"
 #include "qgsrulebasedlabelingwidget.h"
+#include "qgsvectorlayer.h"
 #include "qgsvectorlayerlabeling.h"
 #include "qgisapp.h"
 
 QgsLabelingWidget::QgsLabelingWidget( QgsVectorLayer* layer, QgsMapCanvas* canvas, QWidget* parent )
-    : QWidget( parent )
+    : QgsMapLayerConfigWidget( layer, canvas, parent )
     , mLayer( layer )
     , mCanvas( canvas )
-    , mWidget( 0 )
+    , mWidget( nullptr )
 {
   setupUi( this );
 
   connect( mEngineSettingsButton, SIGNAL( clicked() ), this, SLOT( showEngineConfigDialog() ) );
 
   mLabelModeComboBox->setCurrentIndex( -1 );
+  mLabelGui = new QgsLabelingGui( nullptr, mCanvas, nullptr, this );
+  mStackedWidget->addWidget( mLabelGui );
 
   connect( mLabelModeComboBox, SIGNAL( currentIndexChanged( int ) ), this, SLOT( labelModeChanged( int ) ) );
+  connect( mLabelGui, SIGNAL( widgetChanged() ), this, SIGNAL( widgetChanged() ) );
+  setLayer( layer );
+}
+
+void QgsLabelingWidget::resetSettings()
+{
+  if ( mOldSettings.data() )
+  {
+    if ( mOldSettings->type() == QLatin1String( "simple" ) )
+    {
+      mOldPalSettings.writeToLayer( mLayer );
+    }
+    mLayer->setLabeling( mOldSettings.take() );
+  }
+  setLayer( mLayer );
+}
+
+
+void QgsLabelingWidget::setLayer( QgsMapLayer* mapLayer )
+{
+  if ( !mapLayer || mapLayer->type() != QgsMapLayer::VectorLayer )
+  {
+    setEnabled( false );
+    return;
+  }
+  else
+  {
+    setEnabled( true );
+  }
+
+  QgsVectorLayer *layer = qobject_cast<QgsVectorLayer*>( mapLayer );
+  mLayer = layer;
+  if ( mLayer->labeling() )
+  {
+    QDomDocument doc;
+    QDomElement oldSettings = mLayer->labeling()->save( doc );
+    mOldSettings.reset( QgsAbstractVectorLayerLabeling::create( oldSettings ) );
+    mOldPalSettings.readFromLayer( mLayer );
+  }
+  else
+    mOldSettings.reset();
+
+  adaptToLayer();
+}
+
+void QgsLabelingWidget::setDockMode( bool enabled )
+{
+  QgsPanelWidget::setDockMode( enabled );
+  mLabelGui->setDockMode( enabled );
+}
+
+void QgsLabelingWidget::adaptToLayer()
+{
+  if ( !mLayer )
+    return;
+
+  mLabelModeComboBox->setCurrentIndex( -1 );
 
   // pick the right mode of the layer
-  if ( mLayer->labeling() && mLayer->labeling()->type() == "rule-based" )
+  if ( mLayer->labeling() && mLayer->labeling()->type() == QLatin1String( "rule-based" ) )
   {
-    mLabelModeComboBox->setCurrentIndex( 3 );
+    mLabelModeComboBox->setCurrentIndex( 2 );
   }
   else
   {
@@ -38,20 +116,20 @@ QgsLabelingWidget::QgsLabelingWidget( QgsVectorLayer* layer, QgsMapCanvas* canva
     }
     else
     {
-      mLabelModeComboBox->setCurrentIndex( lyr.drawLabels ? 1 : 2 );
+      mLabelModeComboBox->setCurrentIndex( lyr.drawLabels ? 1 : 3 );
     }
   }
 }
 
 void QgsLabelingWidget::writeSettingsToLayer()
 {
-  if ( mLabelModeComboBox->currentIndex() == 3 )
+  if ( mLabelModeComboBox->currentIndex() == 2 )
   {
     qobject_cast<QgsRuleBasedLabelingWidget*>( mWidget )->writeSettingsToLayer();
   }
   else
   {
-    qobject_cast<QgsLabelingGui*>( mWidget )->writeSettingsToLayer();
+    mLabelGui->writeSettingsToLayer();
   }
 }
 
@@ -60,50 +138,47 @@ void QgsLabelingWidget::apply()
   writeSettingsToLayer();
   QgisApp::instance()->markDirty();
   // trigger refresh
-  if ( mCanvas )
-  {
-    mCanvas->refresh();
-  }
+  mLayer->triggerRepaint();
 }
 
 void QgsLabelingWidget::labelModeChanged( int index )
 {
-  if ( index < 3 )
+  if ( index < 0 )
+    return;
+
+  if ( index == 2 )
   {
-    if ( QgsLabelingGui* widgetSimple = qobject_cast<QgsLabelingGui*>( mWidget ) )
-    {
-      // lighter variant - just change the mode of existing widget
-      widgetSimple->setLabelMode(( QgsLabelingGui::LabelMode ) index );
-      return;
-    }
-  }
+    if ( mWidget )
+      mStackedWidget->removeWidget( mWidget );
 
-  // in general case we need to recreate the widget
+    delete mWidget;
+    mWidget = nullptr;
 
-  if ( mWidget )
-    mStackedWidget->removeWidget( mWidget );
-
-  delete mWidget;
-  mWidget = 0;
-
-  if ( index == 3 )
-  {
-    mWidget = new QgsRuleBasedLabelingWidget( mLayer, mCanvas, this );
+    QgsRuleBasedLabelingWidget* ruleWidget = new QgsRuleBasedLabelingWidget( mLayer, mCanvas, this );
+    ruleWidget->setDockMode( dockMode() );
+    connect( ruleWidget, SIGNAL( showPanel( QgsPanelWidget* ) ), this, SLOT( openPanel( QgsPanelWidget* ) ) );
+    connect( ruleWidget, SIGNAL( widgetChanged() ), this, SIGNAL( widgetChanged() ) );
+    mWidget = ruleWidget;
+    mStackedWidget->addWidget( mWidget );
+    mStackedWidget->setCurrentWidget( mWidget );
   }
   else
   {
-    QgsLabelingGui* w = new QgsLabelingGui( mLayer, mCanvas, 0, this );
-    w->setLabelMode(( QgsLabelingGui::LabelMode ) index );
-    w->init();
-    mWidget = w;
-  }
 
-  mStackedWidget->addWidget( mWidget );
-  mStackedWidget->setCurrentWidget( mWidget );
+    if ( index == 3 )
+      mLabelGui->setLabelMode( QgsLabelingGui::ObstaclesOnly );
+    else
+      mLabelGui->setLabelMode( static_cast< QgsLabelingGui::LabelMode >( index ) );
+
+    mLabelGui->setLayer( mLayer );
+    mStackedWidget->setCurrentWidget( mLabelGui );
+  }
+  emit widgetChanged();
 }
 
 void QgsLabelingWidget::showEngineConfigDialog()
 {
   QgsLabelEngineConfigDialog dlg( this );
   dlg.exec();
+  emit widgetChanged();
 }

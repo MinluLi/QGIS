@@ -4,7 +4,7 @@
 ***************************************************************************
     txt2las.py
     ---------------------
-    Date                 : September 2013
+    Date                 : September 2013 and May 2016
     Copyright            : (C) 2013 by Martin Isenburg
     Email                : martin near rapidlasso point com
 ***************************************************************************
@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'September 2013'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterString
@@ -75,7 +78,10 @@ class txt2las(LAStoolsAlgorithm):
         self.addParametersAdditionalGUI()
 
     def processAlgorithm(self, progress):
-        commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "txt2las")]
+        if (LAStoolsUtils.hasWine()):
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "txt2las.exe")]
+        else:
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "txt2las")]
         self.addParametersVerboseCommands(commands)
         commands.append("-i")
         commands.append(self.getParameterValue(txt2las.INPUT))
@@ -86,12 +92,12 @@ class txt2las(LAStoolsAlgorithm):
         skip = self.getParameterValue(txt2las.SKIP)
         if parse_string != 0:
             commands.append("-skip")
-            commands.append(unicode(skip))
+            commands.append(str(skip))
         scale_factor_xy = self.getParameterValue(txt2las.SCALE_FACTOR_XY)
         scale_factor_z = self.getParameterValue(txt2las.SCALE_FACTOR_Z)
         if scale_factor_xy != 0.01 or scale_factor_z != 0.01:
             commands.append("-set_scale")
-            commands.append(unicode(scale_factor_xy) + " " + unicode(scale_factor_xy) + " " + unicode(scale_factor_z))
+            commands.append(str(scale_factor_xy) + " " + str(scale_factor_xy) + " " + str(scale_factor_z))
         projection = self.getParameterValue(txt2las.PROJECTION)
         if projection != 0:
             if projection == 1:
@@ -99,9 +105,9 @@ class txt2las(LAStoolsAlgorithm):
                 if utm_zone != 0:
                     commands.append("-" + txt2las.PROJECTIONS[projection])
                     if utm_zone > 60:
-                        commands.append(unicode(utm_zone - 60) + "M")
+                        commands.append(str(utm_zone - 60) + "M")
                     else:
-                        commands.append(unicode(utm_zone) + "N")
+                        commands.append(str(utm_zone) + "N")
             elif projection < 4:
                 sp_code = self.getParameterValue(txt2las.SP)
                 if sp_code != 0:

@@ -30,10 +30,9 @@
 #ifndef PAL_PROBLEM_H
 #define PAL_PROBLEM_H
 
-#include "pal.h"
-#include "rtree.hpp"
 #include <list>
 #include <QList>
+#include "rtree.hpp"
 
 namespace pal
 {
@@ -43,6 +42,7 @@ namespace pal
 
   /**
    * \class pal::Sol
+   * \ingroup core
    * \note not available in Python bindings
    */
   class Sol
@@ -92,6 +92,7 @@ namespace pal
   } Chain;
 
   /**
+   * \ingroup core
    * \brief Representation of a labeling problem
    * \class pal::Problem
    * \note not available in Python bindings
@@ -136,7 +137,7 @@ namespace pal
        */
       void chain_search();
 
-      std::list<LabelPosition*> * getSolution( bool returnInactive );
+      QList<LabelPosition*> * getSolution( bool returnInactive );
 
       PalStat * getStats();
 
@@ -173,6 +174,9 @@ namespace pal
       static bool compareLabelArea( pal::LabelPosition* l1, pal::LabelPosition* l2 );
 
     private:
+
+      Problem( const Problem& other );
+      Problem& operator=( const Problem& other );
 
       /**
        * How many layers are labelled ?

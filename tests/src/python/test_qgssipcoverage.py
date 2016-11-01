@@ -13,43 +13,32 @@ __copyright__ = 'Copyright 2015, The QGIS Project'
 __revision__ = '$Format:%H$'
 
 import os
-from utilities import (TestCase,
-                       unittest,
-                       printImportant,
-                       DoxygenParser)
+from qgis.testing import unittest
 
-from PyQt4.QtCore import qDebug
+from utilities import printImportant, DoxygenParser
 
-#Import all the things!
-from qgis.analysis import *
-from qgis.core import *
-from qgis.gui import *
-from qgis.networkanalysis import *
+from termcolor import colored
+
+# Import all the things!
+from qgis.analysis import *         # NOQA
+from qgis.core import *             # NOQA
+from qgis.gui import *              # NOQA
+from qgis.networkanalysis import *  # NOQA
 try:
-    from qgis.server import *
+    from qgis.server import *       # NOQA
 except:
     pass
 
-# BINDING THRESHOLD
-#
-# The minimum number of unbound functions in QGIS api
-#
-# DON'T RAISE THIS THRESHOLD!!!
-# (changes which lower this threshold are welcomed though!)
 
-ACCEPTABLE_MISSING_CLASSES = 85
-ACCEPTABLE_MISSING_MEMBERS = 267
-
-
-class TestQgsSipCoverage(TestCase):
+class TestQgsSipCoverage(unittest.TestCase):
 
     def testCoverage(self):
-        print 'CTEST_FULL_OUTPUT'
+        print('CTEST_FULL_OUTPUT')
         prefixPath = os.environ['QGIS_PREFIX_PATH']
         docPath = os.path.join(prefixPath, '..', 'doc', 'api', 'xml')
         parser = DoxygenParser(docPath)
 
-        #first look for objects without any bindings
+        # first look for objects without any bindings
         objects = set([m[0] for m in parser.bindable_members])
         missing_objects = []
         bound_objects = {}
@@ -64,14 +53,17 @@ class TestQgsSipCoverage(TestCase):
 
         missing_objects.sort()
 
-        #next check for individual members
+        # next check for individual members
         parser.bindable_members.sort()
         missing_members = []
         for m in parser.bindable_members:
             if m[0] in bound_objects:
                 obj = bound_objects[m[0]]
+                if "::" in m[0] and m[0].split("::")[1] == m[1]:
+                    # skip constructors of nested classes
+                    continue
 
-                #try two different methods of checking for member existence
+                # try two different methods of checking for member existence
                 try:
                     if hasattr(obj, m[1]):
                         continue
@@ -88,49 +80,47 @@ class TestQgsSipCoverage(TestCase):
 
         missing_members.sort()
 
-        print "---------------------------------"
-        print 'Missing classes:\n {}'.format('\n '.join(missing_objects))
-        print "---------------------------------"
-        print 'Missing members:\n {}'.format('\n '.join(missing_members))
+        if missing_objects:
+            print("---------------------------------")
+            print((colored('Missing classes:', 'yellow')))
+            print(('  ' + '\n  '.join([colored(obj, 'yellow', attrs=['bold']) for obj in missing_objects])))
+        if missing_members:
+            print("---------------------------------")
+            print((colored('Missing members:', 'yellow')))
+            print(('  ' + '\n  '.join([colored(mem, 'yellow', attrs=['bold']) for mem in missing_members])))
 
-        #print summaries
+        # print summaries
         missing_class_count = len(missing_objects)
         present_count = len(objects) - missing_class_count
         coverage = 100.0 * present_count / len(objects)
 
-        print "---------------------------------"
+        print("---------------------------------")
         printImportant("{} total bindable classes".format(len(objects)))
         printImportant("{} total have bindings".format(present_count))
         printImportant("Binding coverage by classes {}%".format(coverage))
         printImportant("---------------------------------")
-        printImportant("{} classes missing bindings, out of {} allowed".format(missing_class_count, ACCEPTABLE_MISSING_CLASSES))
-        print "---------------------------------"
+        printImportant("{} classes missing bindings".format(missing_class_count))
+        print("---------------------------------")
 
         missing_member_count = len(missing_members)
         present_count = len(parser.bindable_members) - missing_member_count
         coverage = 100.0 * present_count / len(parser.bindable_members)
 
-        print "---------------------------------"
+        print("---------------------------------")
         printImportant("{} total bindable members".format(len(parser.bindable_members)))
         printImportant("{} total have bindings".format(present_count))
         printImportant("Binding coverage by members {}%".format(coverage))
         printImportant("---------------------------------")
-        printImportant("{} members missing bindings, out of {} allowed".format(missing_member_count, ACCEPTABLE_MISSING_MEMBERS))
+        printImportant("{} members missing bindings".format(missing_member_count))
 
-        assert missing_class_count <= ACCEPTABLE_MISSING_CLASSES, """\n\nFAIL: new unbound classes have been introduced, please add SIP bindings for these classes
+        self.assertEqual(missing_class_count, 0, """\n\nFAIL: new unbound classes have been introduced, please add SIP bindings for these classes
 If these classes are not suitable for the Python bindings, please add the Doxygen tag
-"@note not available in Python bindings" to the CLASS Doxygen comments"""
+"@note not available in Python bindings" to the CLASS Doxygen comments""")
 
-        assert missing_member_count <= ACCEPTABLE_MISSING_MEMBERS, """\n\nFAIL: new unbound members have been introduced, please add SIP bindings for these members
+        self.assertEqual(missing_member_count, 0, """\n\nFAIL: new unbound members have been introduced, please add SIP bindings for these members
 If these members are not suitable for the Python bindings, please add the Doxygen tag
-"@note not available in Python bindings" to the MEMBER Doxygen comments"""
+"@note not available in Python bindings" to the MEMBER Doxygen comments""")
 
 
 if __name__ == '__main__':
-    if "MISSING_SIP_CLASSES" in os.environ:
-        ACCEPTABLE_MISSING_CLASSES += int(os.environ['MISSING_SIP_CLASSES'])
-
-    if "MISSING_SIP_MEMBERS" in os.environ:
-        ACCEPTABLE_MISSING_MEMBERS += int(os.environ['MISSING_SIP_MEMBERS'])
-
     unittest.main()

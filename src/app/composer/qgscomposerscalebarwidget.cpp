@@ -19,13 +19,16 @@
 #include "qgscomposermap.h"
 #include "qgscomposerscalebar.h"
 #include "qgscomposition.h"
+#include "qgisgui.h"
 #include <QColorDialog>
 #include <QFontDialog>
 #include <QWidget>
 
-QgsComposerScaleBarWidget::QgsComposerScaleBarWidget( QgsComposerScaleBar* scaleBar ): QgsComposerItemBaseWidget( 0, scaleBar ), mComposerScaleBar( scaleBar )
+QgsComposerScaleBarWidget::QgsComposerScaleBarWidget( QgsComposerScaleBar* scaleBar ): QgsComposerItemBaseWidget( nullptr, scaleBar ), mComposerScaleBar( scaleBar )
 {
   setupUi( this );
+  setPanelTitle( tr( "Scalebar properties" ) );
+
   connectUpdateSignal();
 
   //add widget for general composer item properties
@@ -59,25 +62,34 @@ QgsComposerScaleBarWidget::QgsComposerScaleBarWidget( QgsComposerScaleBar* scale
 
   mFillColorButton->setColorDialogTitle( tr( "Select fill color" ) );
   mFillColorButton->setAllowAlpha( true );
-  mFillColorButton->setContext( "composer" );
+  mFillColorButton->setContext( QStringLiteral( "composer" ) );
   mFillColorButton->setNoColorString( tr( "Transparent fill" ) );
   mFillColorButton->setShowNoColor( true );
 
   mFillColor2Button->setColorDialogTitle( tr( "Select alternate fill color" ) );
   mFillColor2Button->setAllowAlpha( true );
-  mFillColor2Button->setContext( "composer" );
+  mFillColor2Button->setContext( QStringLiteral( "composer" ) );
   mFillColor2Button->setNoColorString( tr( "Transparent fill" ) );
   mFillColor2Button->setShowNoColor( true );
 
   mFontColorButton->setColorDialogTitle( tr( "Select font color" ) );
   mFontColorButton->setAllowAlpha( true );
-  mFontColorButton->setContext( "composer" );
+  mFontColorButton->setContext( QStringLiteral( "composer" ) );
 
   mStrokeColorButton->setColorDialogTitle( tr( "Select line color" ) );
   mStrokeColorButton->setAllowAlpha( true );
-  mStrokeColorButton->setContext( "composer" );
+  mStrokeColorButton->setContext( QStringLiteral( "composer" ) );
   mStrokeColorButton->setNoColorString( tr( "Transparent line" ) );
   mStrokeColorButton->setShowNoColor( true );
+
+  QgsComposition* scaleBarComposition = mComposerScaleBar->composition();
+  if ( scaleBarComposition )
+  {
+    mMapItemComboBox->setComposition( scaleBarComposition );
+    mMapItemComboBox->setItemType( QgsComposerItem::ComposerMap );
+  }
+
+  connect( mMapItemComboBox, SIGNAL( itemChanged( QgsComposerItem* ) ), this, SLOT( composerMapChanged( QgsComposerItem* ) ) );
 
   blockMemberSignals( false );
   setGuiElements(); //set the GUI elements to the state of scaleBar
@@ -86,97 +98,6 @@ QgsComposerScaleBarWidget::QgsComposerScaleBarWidget( QgsComposerScaleBar* scale
 QgsComposerScaleBarWidget::~QgsComposerScaleBarWidget()
 {
 
-}
-
-void QgsComposerScaleBarWidget::refreshMapComboBox()
-{
-  //save the current entry in case it is still present after refresh
-  QString saveCurrentComboText = mMapComboBox->currentText();
-
-  mMapComboBox->clear();
-
-  if ( mComposerScaleBar )
-  {
-    //insert available maps into mMapComboBox
-    const QgsComposition* scaleBarComposition = mComposerScaleBar->composition();
-    if ( scaleBarComposition )
-    {
-      QList<const QgsComposerMap*> availableMaps = scaleBarComposition->composerMapItems();
-      QList<const QgsComposerMap*>::const_iterator mapItemIt = availableMaps.constBegin();
-      for ( ; mapItemIt != availableMaps.constEnd(); ++mapItemIt )
-      {
-        mMapComboBox->addItem( tr( "Map %1" ).arg(( *mapItemIt )->id() ) );
-      }
-    }
-
-    if ( saveCurrentComboText.isEmpty() && mComposerScaleBar->composerMap() )
-    {
-      //combo box was not initialised before
-      mMapComboBox->setCurrentIndex( mMapComboBox->findText( tr( "Map %1" ).arg( mComposerScaleBar->composerMap()->id() ) ) );
-    }
-  }
-  if ( mMapComboBox->findText( saveCurrentComboText ) == -1 )
-  {
-    //the former entry is no longer present. Inform the scalebar about the changed composer map
-    on_mMapComboBox_activated( mMapComboBox->currentText() );
-  }
-  else
-  {
-    //the former entry is still present. Make it the current entry again
-    mMapComboBox->setCurrentIndex( mMapComboBox->findText( saveCurrentComboText ) );
-  }
-}
-
-void QgsComposerScaleBarWidget::showEvent( QShowEvent * event )
-{
-  refreshMapComboBox();
-  QWidget::showEvent( event );
-}
-
-void QgsComposerScaleBarWidget::on_mMapComboBox_activated( const QString& text )
-{
-  if ( !mComposerScaleBar || text.isEmpty() )
-  {
-    return;
-  }
-
-  const QgsComposition* comp = mComposerScaleBar->composition();
-  if ( !comp )
-  {
-    return;
-  }
-
-  //extract id
-  int id;
-  bool conversionOk;
-  QStringList textSplit = text.split( ' ' );
-  if ( textSplit.size() < 1 )
-  {
-    return;
-  }
-
-  QString idString = textSplit.at( textSplit.size() - 1 );
-  id = idString.toInt( &conversionOk );
-
-  if ( !conversionOk )
-  {
-    return;
-  }
-
-  //get QgsComposerMap object from composition
-  const QgsComposerMap* composerMap = comp->getComposerMapById( id );
-  if ( !composerMap )
-  {
-    return;
-  }
-
-  //set it to scale bar
-  mComposerScaleBar->beginCommand( tr( "Scalebar map changed" ) );
-  disconnectUpdateSignal();
-  mComposerScaleBar->setComposerMap( composerMap );
-  mComposerScaleBar->update();
-  connectUpdateSignal();
-  mComposerScaleBar->endCommand();
 }
 
 void QgsComposerScaleBarWidget::setGuiElements()
@@ -204,15 +125,7 @@ void QgsComposerScaleBarWidget::setGuiElements()
   mStrokeColorButton->setColor( mComposerScaleBar->pen().color() );
 
   //map combo box
-  if ( mComposerScaleBar->composerMap() )
-  {
-    QString mapText = tr( "Map %1" ).arg( mComposerScaleBar->composerMap()->id() );
-    int itemId = mMapComboBox->findText( mapText );
-    if ( itemId >= 0 )
-    {
-      mMapComboBox->setCurrentIndex( itemId );
-    }
-  }
+  mMapItemComboBox->setItem( mComposerScaleBar->composerMap() );
 
   //style...
   QString style = mComposerScaleBar->style();
@@ -350,7 +263,7 @@ void QgsComposerScaleBarWidget::on_mFontColorButton_colorChanged( const QColor& 
     return;
   }
 
-  mComposerScaleBar->beginCommand( tr( "Scalebar font color changed" ) );
+  mComposerScaleBar->beginCommand( tr( "Scalebar font color changed" ), QgsComposerMergeCommand::ScaleBarFontColor );
   disconnectUpdateSignal();
   mComposerScaleBar->setFontColor( newColor );
   mComposerScaleBar->update();
@@ -365,7 +278,7 @@ void QgsComposerScaleBarWidget::on_mFillColorButton_colorChanged( const QColor& 
     return;
   }
 
-  mComposerScaleBar->beginCommand( tr( "Scalebar color changed" ) );
+  mComposerScaleBar->beginCommand( tr( "Scalebar color changed" ), QgsComposerMergeCommand::ScaleBarFillColor );
   disconnectUpdateSignal();
   QBrush newBrush = mComposerScaleBar->brush();
   newBrush.setColor( newColor );
@@ -382,7 +295,7 @@ void QgsComposerScaleBarWidget::on_mFillColor2Button_colorChanged( const QColor 
     return;
   }
 
-  mComposerScaleBar->beginCommand( tr( "Scalebar secondary color changed" ) );
+  mComposerScaleBar->beginCommand( tr( "Scalebar secondary color changed" ), QgsComposerMergeCommand::ScaleBarFill2Color );
   disconnectUpdateSignal();
   QBrush newBrush = mComposerScaleBar->brush2();
   newBrush.setColor( newColor );
@@ -399,7 +312,7 @@ void QgsComposerScaleBarWidget::on_mStrokeColorButton_colorChanged( const QColor
     return;
   }
 
-  mComposerScaleBar->beginCommand( tr( "Scalebar line color changed" ) );
+  mComposerScaleBar->beginCommand( tr( "Scalebar line color changed" ), QgsComposerMergeCommand::ScaleBarStrokeColor );
   disconnectUpdateSignal();
   QPen newPen = mComposerScaleBar->pen();
   newPen.setColor( newColor );
@@ -451,31 +364,31 @@ void QgsComposerScaleBarWidget::on_mStyleComboBox_currentIndexChanged( const QSt
   QString untranslatedStyleName;
   if ( text == tr( "Single Box" ) )
   {
-    untranslatedStyleName = "Single Box";
+    untranslatedStyleName = QStringLiteral( "Single Box" );
   }
   else if ( text == tr( "Double Box" ) )
   {
-    untranslatedStyleName = "Double Box";
+    untranslatedStyleName = QStringLiteral( "Double Box" );
   }
   else if ( text == tr( "Line Ticks Middle" ) )
   {
-    untranslatedStyleName = "Line Ticks Middle";
+    untranslatedStyleName = QStringLiteral( "Line Ticks Middle" );
   }
   else if ( text == tr( "Line Ticks Middle" ) )
   {
-    untranslatedStyleName = "Line Ticks Middle";
+    untranslatedStyleName = QStringLiteral( "Line Ticks Middle" );
   }
   else if ( text == tr( "Line Ticks Down" ) )
   {
-    untranslatedStyleName = "Line Ticks Down";
+    untranslatedStyleName = QStringLiteral( "Line Ticks Down" );
   }
   else if ( text == tr( "Line Ticks Up" ) )
   {
-    untranslatedStyleName = "Line Ticks Up";
+    untranslatedStyleName = QStringLiteral( "Line Ticks Up" );
   }
   else if ( text == tr( "Numeric" ) )
   {
-    untranslatedStyleName = "Numeric";
+    untranslatedStyleName = QStringLiteral( "Numeric" );
   }
 
   //disable or enable controls which apply to specific scale bar styles
@@ -489,7 +402,7 @@ void QgsComposerScaleBarWidget::on_mStyleComboBox_currentIndexChanged( const QSt
 
 void QgsComposerScaleBarWidget::toggleStyleSpecificControls( const QString& style )
 {
-  if ( style == "Numeric" )
+  if ( style == QLatin1String( "Numeric" ) )
   {
     //Disable controls which don't apply to numeric scale bars
     mGroupBoxUnits->setEnabled( false );
@@ -514,7 +427,7 @@ void QgsComposerScaleBarWidget::toggleStyleSpecificControls( const QString& styl
     mFillColorButton->setEnabled( true );
     mFillColor2Button->setEnabled( true );
     mStrokeColorButton->setEnabled( true );
-    if ( style == "Single Box" || style == "Double Box" )
+    if ( style == QLatin1String( "Single Box" ) || style == QLatin1String( "Double Box" ) )
     {
       mLineJoinStyleCombo->setEnabled( true );
       mLineCapStyleCombo->setEnabled( false );
@@ -634,7 +547,6 @@ void QgsComposerScaleBarWidget::blockMemberSignals( bool block )
   mStyleComboBox->blockSignals( block );
   mUnitLabelLineEdit->blockSignals( block );
   mMapUnitsPerBarUnitSpinBox->blockSignals( block );
-  mMapComboBox->blockSignals( block );
   mHeightSpinBox->blockSignals( block );
   mLineWidthSpinBox->blockSignals( block );
   mLabelBarSpaceSpinBox->blockSignals( block );
@@ -648,6 +560,7 @@ void QgsComposerScaleBarWidget::blockMemberSignals( bool block )
   mFillColor2Button->blockSignals( block );
   mStrokeColorButton->blockSignals( block );
   mSegmentSizeRadioGroup.blockSignals( block );
+  mMapItemComboBox->blockSignals( block );
 }
 
 void QgsComposerScaleBarWidget::connectUpdateSignal()
@@ -715,6 +628,23 @@ void QgsComposerScaleBarWidget::segmentSizeRadioChanged( QAbstractButton* radio 
   {
     mComposerScaleBar->setSegmentSizeMode( QgsComposerScaleBar::SegmentSizeFitWidth );
   }
+  mComposerScaleBar->update();
+  connectUpdateSignal();
+  mComposerScaleBar->endCommand();
+}
+
+void QgsComposerScaleBarWidget::composerMapChanged( QgsComposerItem* item )
+{
+  QgsComposerMap* composerMap = dynamic_cast< QgsComposerMap* >( item );
+  if ( !composerMap )
+  {
+    return;
+  }
+
+  //set it to scale bar
+  mComposerScaleBar->beginCommand( tr( "Scalebar map changed" ) );
+  disconnectUpdateSignal();
+  mComposerScaleBar->setComposerMap( composerMap );
   mComposerScaleBar->update();
   connectUpdateSignal();
   mComposerScaleBar->endCommand();

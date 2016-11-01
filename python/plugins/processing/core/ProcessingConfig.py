@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import object
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -27,13 +29,21 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4.QtCore import QPyNullVariant, QCoreApplication, QSettings
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, QObject, pyqtSignal
+from qgis.PyQt.QtGui import QIcon
+from qgis.core import NULL
 from processing.tools.system import defaultOutputFolder
 import processing.tools.dataobjects
 
 
-class ProcessingConfig:
+class SettingsWatcher(QObject):
+
+    settingsChanged = pyqtSignal()
+
+settingsWatcher = SettingsWatcher()
+
+
+class ProcessingConfig(object):
 
     OUTPUT_FOLDER = 'OUTPUTS_FOLDER'
     RASTER_STYLE = 'RASTER_STYLE'
@@ -50,8 +60,10 @@ class ProcessingConfig:
     POST_EXECUTION_SCRIPT = 'POST_EXECUTION_SCRIPT'
     SHOW_CRS_DEF = 'SHOW_CRS_DEF'
     WARN_UNMATCHING_CRS = 'WARN_UNMATCHING_CRS'
+    WARN_UNMATCHING_EXTENT_CRS = 'WARN_UNMATCHING_EXTENT_CRS'
     DEFAULT_OUTPUT_RASTER_LAYER_EXT = 'DEFAULT_OUTPUT_RASTER_LAYER_EXT'
     DEFAULT_OUTPUT_VECTOR_LAYER_EXT = 'DEFAULT_OUTPUT_VECTOR_LAYER_EXT'
+    SHOW_PROVIDERS_TOOLTIP = "SHOW_PROVIDERS_TOOLTIP"
 
     settings = {}
     settingIcons = {}
@@ -82,6 +94,10 @@ class ProcessingConfig:
             ProcessingConfig.tr('Show recently executed algorithms'), True))
         ProcessingConfig.addSetting(Setting(
             ProcessingConfig.tr('General'),
+            ProcessingConfig.SHOW_PROVIDERS_TOOLTIP,
+            ProcessingConfig.tr('Show tooltip when there are disabled providers'), True))
+        ProcessingConfig.addSetting(Setting(
+            ProcessingConfig.tr('General'),
             ProcessingConfig.OUTPUT_FOLDER,
             ProcessingConfig.tr('Output folder'), defaultOutputFolder(),
             valuetype=Setting.FOLDER))
@@ -93,6 +109,10 @@ class ProcessingConfig:
             ProcessingConfig.tr('General'),
             ProcessingConfig.WARN_UNMATCHING_CRS,
             ProcessingConfig.tr("Warn before executing if layer CRS's do not match"), True))
+        ProcessingConfig.addSetting(Setting(
+            ProcessingConfig.tr('General'),
+            ProcessingConfig.WARN_UNMATCHING_EXTENT_CRS,
+            ProcessingConfig.tr("Warn before executing if extent CRS might not match layers CRS"), True))
         ProcessingConfig.addSetting(Setting(
             ProcessingConfig.tr('General'),
             ProcessingConfig.RASTER_STYLE,
@@ -132,13 +152,13 @@ class ProcessingConfig:
             ProcessingConfig.tr('General'),
             ProcessingConfig.DEFAULT_OUTPUT_VECTOR_LAYER_EXT,
             ProcessingConfig.tr('Default output vector layer extension'), extensions[0],
-                                valuetype=Setting.SELECTION, options=extensions))
+            valuetype=Setting.SELECTION, options=extensions))
         extensions = processing.tools.dataobjects.getSupportedOutputRasterLayerExtensions()
         ProcessingConfig.addSetting(Setting(
             ProcessingConfig.tr('General'),
             ProcessingConfig.DEFAULT_OUTPUT_RASTER_LAYER_EXT,
             ProcessingConfig.tr('Default output raster layer extension'), extensions[0],
-                                valuetype=Setting.SELECTION, options=extensions))
+            valuetype=Setting.SELECTION, options=extensions))
 
     @staticmethod
     def setGroupIcon(group, icon):
@@ -165,7 +185,7 @@ class ProcessingConfig:
     def getSettings():
         '''Return settings as a dict with group names as keys and lists of settings as values'''
         settings = {}
-        for setting in ProcessingConfig.settings.values():
+        for setting in list(ProcessingConfig.settings.values()):
             if setting.group not in settings:
                 group = []
                 settings[setting.group] = group
@@ -176,22 +196,25 @@ class ProcessingConfig:
 
     @staticmethod
     def readSettings():
-        for setting in ProcessingConfig.settings.values():
+        for setting in list(ProcessingConfig.settings.values()):
             setting.read()
 
     @staticmethod
     def getSetting(name):
-        if name in ProcessingConfig.settings.keys():
+        if name in list(ProcessingConfig.settings.keys()):
             v = ProcessingConfig.settings[name].value
-            if isinstance(v, QPyNullVariant):
-                v = None
+            try:
+                if v == NULL:
+                    v = None
+            except:
+                pass
             return v
         else:
             return None
 
     @staticmethod
     def setSettingValue(name, value):
-        if name in ProcessingConfig.settings.keys():
+        if name in list(ProcessingConfig.settings.keys()):
             ProcessingConfig.settings[name].setValue(value)
             ProcessingConfig.settings[name].save()
 
@@ -202,7 +225,7 @@ class ProcessingConfig:
         return QCoreApplication.translate(context, string)
 
 
-class Setting:
+class Setting(object):
 
     """A simple config parameter that will appear on the config dialog.
     """
@@ -212,6 +235,7 @@ class Setting:
     SELECTION = 3
     FLOAT = 4
     INT = 5
+    MULTIPLE_FOLDERS = 6
 
     def __init__(self, group, name, description, default, hidden=False, valuetype=None,
                  validator=None, options=None):
@@ -222,7 +246,7 @@ class Setting:
         self.default = default
         self.hidden = hidden
         if valuetype is None:
-            if isinstance(default, (int, long)):
+            if isinstance(default, int):
                 valuetype = self.INT
             elif isinstance(default, float):
                 valuetype = self.FLOAT
@@ -234,22 +258,30 @@ class Setting:
                     try:
                         float(v)
                     except ValueError:
-                        raise ValueError(self.tr('Wrong parameter value:\n%s') % unicode(v))
+                        raise ValueError(self.tr('Wrong parameter value:\n%s') % str(v))
                 validator = checkFloat
             elif valuetype == self.INT:
                 def checkInt(v):
                     try:
                         int(v)
                     except ValueError:
-                        raise ValueError(self.tr('Wrong parameter value:\n%s') % unicode(v))
+                        raise ValueError(self.tr('Wrong parameter value:\n%s') % str(v))
                 validator = checkInt
             elif valuetype in [self.FILE, self.FOLDER]:
                 def checkFileOrFolder(v):
                     if v and not os.path.exists(v):
-                        raise ValueError(self.tr('Specified path does not exist:\n%s') % unicode(v))
+                        raise ValueError(self.tr('Specified path does not exist:\n%s') % str(v))
                 validator = checkFileOrFolder
+            elif valuetype == self.MULTIPLE_FOLDERS:
+                def checkMultipleFolders(v):
+                    folders = v.split(';')
+                    for f in folders:
+                        if f and not os.path.exists(f):
+                            raise ValueError(self.tr('Specified path does not exist:\n%s') % str(f))
+                validator = checkMultipleFolders
             else:
-                validator = lambda x: True
+                def validator(x):
+                    return True
         self.validator = validator
         self.value = default
 
@@ -262,14 +294,14 @@ class Setting:
         value = qsettings.value(self.qname, None)
         if value is not None:
             if isinstance(self.value, bool):
-                value = unicode(value).lower() == unicode(True).lower()
+                value = str(value).lower() == str(True).lower()
             self.value = value
 
     def save(self):
         QSettings().setValue(self.qname, self.value)
 
     def __str__(self):
-        return self.name + '=' + unicode(self.value)
+        return self.name + '=' + str(self.value)
 
     def tr(self, string, context=''):
         if context == '':

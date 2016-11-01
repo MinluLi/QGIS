@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'October 2014'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2014, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterSelection
 from processing.core.parameters import ParameterNumber
@@ -61,7 +64,7 @@ class lasviewPro(LAStoolsAlgorithm):
         self.addParametersPointInputFolderCommands(commands)
         self.addParametersFilesAreFlightlinesCommands(commands)
         points = self.getParameterValue(lasviewPro.POINTS)
-        commands.append("-points " + unicode(points))
+        commands.append("-points " + str(points))
         self.addParametersAdditionalCommands(commands)
         coloring = self.getParameterValue(lasviewPro.COLORING)
         if coloring != 0:

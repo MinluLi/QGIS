@@ -16,12 +16,15 @@
 #define QGSHEATMAPRENDERERWIDGET_H
 
 #include "ui_qgsheatmaprendererwidgetbase.h"
-#include "qgsheatmaprenderer.h"
-#include "qgsrendererv2widget.h"
+#include "qgsrendererwidget.h"
 
 class QMenu;
+class QgsHeatmapRenderer;
 
-class GUI_EXPORT QgsHeatmapRendererWidget : public QgsRendererV2Widget, private Ui::QgsHeatmapRendererWidgetBase
+/** \ingroup gui
+ * \class QgsHeatmapRendererWidget
+ */
+class GUI_EXPORT QgsHeatmapRendererWidget : public QgsRendererWidget, private Ui::QgsHeatmapRendererWidgetBase, private QgsExpressionContextGenerator
 {
     Q_OBJECT
 
@@ -29,24 +32,26 @@ class GUI_EXPORT QgsHeatmapRendererWidget : public QgsRendererV2Widget, private 
     /** Static creation method
      * @param layer the layer where this renderer is applied
      * @param style
-     * @param renderer the mask renderer (will take ownership)
+     * @param renderer the mask renderer (will not take ownership)
      */
-    static QgsRendererV2Widget* create( QgsVectorLayer* layer, QgsStyleV2* style, QgsFeatureRendererV2* renderer );
+    static QgsRendererWidget* create( QgsVectorLayer* layer, QgsStyle* style, QgsFeatureRenderer* renderer );
 
     /** Constructor
      * @param layer the layer where this renderer is applied
      * @param style
-     * @param renderer the mask renderer (will take ownership)
+     * @param renderer the mask renderer (will not take ownership)
      */
-    QgsHeatmapRendererWidget( QgsVectorLayer* layer, QgsStyleV2* style, QgsFeatureRendererV2* renderer );
+    QgsHeatmapRendererWidget( QgsVectorLayer* layer, QgsStyle* style, QgsFeatureRenderer* renderer );
 
-    /** @returns the current feature renderer */
-    virtual QgsFeatureRendererV2* renderer() override;
+    //! @returns the current feature renderer
+    virtual QgsFeatureRenderer* renderer() override;
 
-    void setMapCanvas( QgsMapCanvas* canvas ) override;
+    virtual void setContext( const QgsSymbolWidgetContext& context ) override;
 
-  protected:
+  private:
     QgsHeatmapRenderer* mRenderer;
+
+    QgsExpressionContext createExpressionContext() const override;
 
   private slots:
 

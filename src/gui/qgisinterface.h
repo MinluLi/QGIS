@@ -28,12 +28,14 @@ class QWidget;
 class QgsAdvancedDigitizingDockWidget;
 class QgsAttributeDialog;
 class QgsComposerView;
+class QgsCustomDropHandler;
 class QgsFeature;
 class QgsLayerTreeMapCanvasBridge;
 class QgsLayerTreeView;
 class QgsLegendInterface;
 class QgsMapCanvas;
 class QgsMapLayer;
+class QgsMapLayerConfigWidgetFactory;
 class QgsMessageBar;
 class QgsPluginManagerInterface;
 class QgsRasterLayer;
@@ -67,13 +69,13 @@ class GUI_EXPORT QgisInterface : public QObject
 
   public:
 
-    /** Constructor */
+    //! Constructor
     QgisInterface();
 
-    /** Virtual destructor */
+    //! Virtual destructor
     virtual ~QgisInterface();
 
-    /** Get pointer to legend interface */
+    //! Get pointer to legend interface
     virtual QgsLegendInterface* legendInterface() = 0;
 
     virtual QgsPluginManagerInterface* pluginManagerInterface() = 0;
@@ -204,7 +206,7 @@ class GUI_EXPORT QgisInterface : public QObject
     //! @note added in 2.3
     virtual void addToolBar( QToolBar* toolbar, Qt::ToolBarArea area = Qt::TopToolBarArea ) = 0;
 
-    /** Return a pointer to the map canvas */
+    //! Return a pointer to the map canvas
     virtual QgsMapCanvas * mapCanvas() = 0;
 
     /**
@@ -214,19 +216,19 @@ class GUI_EXPORT QgisInterface : public QObject
      */
     virtual QgsLayerTreeMapCanvasBridge* layerTreeCanvasBridge() = 0;
 
-    /** Return a pointer to the main window (instance of QgisApp in case of QGIS) */
+    //! Return a pointer to the main window (instance of QgisApp in case of QGIS)
     virtual QWidget * mainWindow() = 0;
 
-    /** Return the message bar of the main app */
+    //! Return the message bar of the main app
     virtual QgsMessageBar * messageBar() = 0;
 
-    /** Open the message log dock widget **/
+    //! Open the message log dock widget *
     virtual void openMessageLog() = 0;
 
-    /** Adds a widget to the user input tool bar.*/
+    //! Adds a widget to the user input tool bar.
     virtual void addUserInputWidget( QWidget* widget ) = 0;
 
-    /** Return mainwindows / composer views of running composer instances (currently only one) */
+    //! Return mainwindows / composer views of running composer instances (currently only one)
     virtual QList<QgsComposerView*> activeComposers() = 0;
 
     /** Create a new composer
@@ -244,10 +246,10 @@ class GUI_EXPORT QgisInterface : public QObject
      */
     virtual QgsComposerView* duplicateComposer( QgsComposerView* composerView, const QString& title = QString() ) = 0;
 
-    /** Deletes parent composer of composer view, after closing composer window */
+    //! Deletes parent composer of composer view, after closing composer window
     virtual void deleteComposer( QgsComposerView* composerView ) = 0;
 
-    /** Return changeable options built from settings and/or defaults */
+    //! Return changeable options built from settings and/or defaults
     virtual QMap<QString, QVariant> defaultStyleSheetOptions() = 0;
 
     /** Generate stylesheet
@@ -255,52 +257,52 @@ class GUI_EXPORT QgisInterface : public QObject
      */
     virtual void buildStyleSheet( const QMap<QString, QVariant>& opts ) = 0;
 
-    /** Save changed default option keys/values to user settings */
+    //! Save changed default option keys/values to user settings
     virtual void saveStyleSheetOptions( const QMap<QString, QVariant>& opts ) = 0;
 
-    /** Get reference font for initial qApp (may not be same as QgisApp) */
+    //! Get reference font for initial qApp (may not be same as QgisApp)
     virtual QFont defaultStyleSheetFont() = 0;
 
-    /** Add action to the plugins menu */
+    //! Add action to the plugins menu
     virtual void addPluginToMenu( const QString& name, QAction* action ) = 0;
 
-    /** Remove action from the plugins menu */
+    //! Remove action from the plugins menu
     virtual void removePluginMenu( const QString& name, QAction* action ) = 0;
 
-    /** Add "add layer" action to layer menu */
+    //! Add "add layer" action to layer menu
     virtual void insertAddLayerAction( QAction *action ) = 0;
 
-    /** Remove "add layer" action from layer menu */
+    //! Remove "add layer" action from layer menu
     virtual void removeAddLayerAction( QAction *action ) = 0;
 
-    /** Add action to the Database menu */
+    //! Add action to the Database menu
     virtual void addPluginToDatabaseMenu( const QString& name, QAction* action ) = 0;
 
-    /** Remove action from the Database menu */
+    //! Remove action from the Database menu
     virtual void removePluginDatabaseMenu( const QString& name, QAction* action ) = 0;
 
-    /** Add action to the Raster menu */
+    //! Add action to the Raster menu
     virtual void addPluginToRasterMenu( const QString& name, QAction* action ) = 0;
 
-    /** Remove action from the Raster menu */
+    //! Remove action from the Raster menu
     virtual void removePluginRasterMenu( const QString& name, QAction* action ) = 0;
 
-    /** Add action to the Vector menu */
+    //! Add action to the Vector menu
     virtual void addPluginToVectorMenu( const QString& name, QAction* action ) = 0;
 
-    /** Remove action from the Vector menu */
+    //! Remove action from the Vector menu
     virtual void removePluginVectorMenu( const QString& name, QAction* action ) = 0;
 
-    /** Add action to the Web menu */
+    //! Add action to the Web menu
     virtual void addPluginToWebMenu( const QString& name, QAction* action ) = 0;
 
-    /** Remove action from the Web menu */
+    //! Remove action from the Web menu
     virtual void removePluginWebMenu( const QString& name, QAction* action ) = 0;
 
-    /** Add a dock widget to the main window */
+    //! Add a dock widget to the main window
     virtual void addDockWidget( Qt::DockWidgetArea area, QDockWidget * dockwidget ) = 0;
 
-    /** Remove specified dock widget from main window (doesn't delete it). */
+    //! Remove specified dock widget from main window (doesn't delete it).
     virtual void removeDockWidget( QDockWidget * dockwidget ) = 0;
 
     /** Advanced digitizing dock widget
@@ -308,10 +310,10 @@ class GUI_EXPORT QgisInterface : public QObject
      */
     virtual QgsAdvancedDigitizingDockWidget* cadDockWidget() = 0;
 
-    /** Open layer properties dialog */
+    //! Open layer properties dialog
     virtual void showLayerProperties( QgsMapLayer *l ) = 0;
 
-    /** Open attribute table dialog */
+    //! Open attribute table dialog
     virtual QDialog* showAttributeTable( QgsVectorLayer *l, const QString& filterExpression = QString() ) = 0;
 
     /** Add window to Window menu. The action title is the window title
@@ -322,11 +324,36 @@ class GUI_EXPORT QgisInterface : public QObject
      * windows which are hidden rather than deleted when closed. */
     virtual void removeWindow( QAction *action ) = 0;
 
-    /** Register action to the shortcuts manager so its shortcut can be changed in GUI */
+    //! Register action to the shortcuts manager so its shortcut can be changed in GUI
     virtual bool registerMainWindowAction( QAction* action, const QString& defaultShortcut ) = 0;
 
-    /** Unregister a previously registered action. (e.g. when plugin is going to be unloaded) */
+    //! Unregister a previously registered action. (e.g. when plugin is going to be unloaded)
     virtual bool unregisterMainWindowAction( QAction* action ) = 0;
+
+    /** Register a new tab in the vector layer properties dialog.
+     * @note added in QGIS 2.16
+     * @note Ownership of the factory is not transferred, and the factory must
+     *       be unregistered when plugin is unloaded.
+     * @see unregisterMapLayerPropertiesFactory() */
+    virtual void registerMapLayerConfigWidgetFactory( QgsMapLayerConfigWidgetFactory* factory ) = 0;
+
+    /** Unregister a previously registered tab in the vector layer properties dialog.
+     * @note added in QGIS 2.16
+     * @see registerMapLayerPropertiesFactory()
+    */
+    virtual void unregisterMapLayerConfigWidgetFactory( QgsMapLayerConfigWidgetFactory* factory ) = 0;
+
+    /** Register a new custom drop handler.
+     * @note added in QGIS 3.0
+     * @note Ownership of the factory is not transferred, and the factory must
+     *       be unregistered when plugin is unloaded.
+     * @see unregisterCustomDropHandler() */
+    virtual void registerCustomDropHandler( QgsCustomDropHandler* handler ) = 0;
+
+    /** Unregister a previously registered custom drop handler.
+     * @note added in QGIS 3.0
+     * @see registerCustomDropHandler() */
+    virtual void unregisterCustomDropHandler( QgsCustomDropHandler* handler ) = 0;
 
     // @todo is this deprecated in favour of QgsContextHelp?
     /** Open a url in the users browser. By default the QGIS doc directory is used
@@ -348,16 +375,12 @@ class GUI_EXPORT QgisInterface : public QObject
      */
 
     // Menus
-#ifndef Q_MOC_RUN
-    Q_DECL_DEPRECATED
-#endif
-    virtual QMenu *fileMenu() = 0;
     virtual QMenu *projectMenu() = 0;
     virtual QMenu *editMenu() = 0;
     virtual QMenu *viewMenu() = 0;
     virtual QMenu *layerMenu() = 0;
     virtual QMenu *newLayerMenu() = 0;
-    /** @note added in 2.5 */
+    //! @note added in 2.5
     virtual QMenu *addLayerMenu() = 0;
     virtual QMenu *settingsMenu() = 0;
     virtual QMenu *pluginMenu() = 0;
@@ -466,6 +489,10 @@ class GUI_EXPORT QgisInterface : public QObject
     virtual QAction *actionAddRasterLayer() = 0;
     virtual QAction *actionAddPgLayer() = 0;
     virtual QAction *actionAddWmsLayer() = 0;
+    //! Get access to the native Add ArcGIS FeatureServer action.
+    virtual QAction *actionAddAfsLayer() = 0;
+    //! Get access to the native Add ArcGIS MapServer action.
+    virtual QAction *actionAddAmsLayer() = 0;
     virtual QAction *actionCopyLayerStyle() = 0;
     virtual QAction *actionPasteLayerStyle() = 0;
     virtual QAction *actionOpenTable() = 0;
@@ -480,12 +507,6 @@ class GUI_EXPORT QgisInterface : public QObject
     virtual QAction *actionCancelEdits() = 0;
     virtual QAction *actionCancelAllEdits() = 0;
     virtual QAction *actionLayerSaveAs() = 0;
-    /** @deprecated in 2.4 - returns null pointer */
-#ifndef Q_MOC_RUN
-    Q_DECL_DEPRECATED
-#endif
-    virtual QAction *actionLayerSelectionSaveAs() = 0;
-    virtual QAction *actionRemoveLayer() = 0;
     virtual QAction *actionDuplicateLayer() = 0;
     virtual QAction *actionLayerProperties() = 0;
     virtual QAction *actionAddToOverview() = 0;
@@ -558,7 +579,7 @@ class GUI_EXPORT QgisInterface : public QObject
      * @returns list of layers in legend order, or empty list */
     virtual QList<QgsMapLayer *> editableLayers( bool modified = false ) const = 0;
 
-    /** Get timeout for timed messages: default of 5 seconds */
+    //! Get timeout for timed messages: default of 5 seconds
     virtual int messageTimeout() = 0;
 
   signals:
@@ -578,7 +599,8 @@ class GUI_EXPORT QgisInterface : public QObject
     void composerWillBeRemoved( QgsComposerView* v );
 
     /** This signal is emitted when a composer instance has been removed
-       @note added in version 2.9 */
+     * @note added in version 2.9
+     */
     void composerRemoved( QgsComposerView* v );
 
     /**
@@ -586,26 +608,26 @@ class GUI_EXPORT QgisInterface : public QObject
      */
     void initializationCompleted();
     /** Emitted when a project file is successfully read
-        @note
-        This is useful for plug-ins that store properties with project files.  A
-        plug-in can connect to this signal.  When it is emitted, the plug-in
-        knows to then check the project properties for any relevant state.
+     * @note
+     * This is useful for plug-ins that store properties with project files.  A
+     * plug-in can connect to this signal.  When it is emitted, the plug-in
+     * knows to then check the project properties for any relevant state.
      */
     void projectRead();
     /** Emitted when starting an entirely new project
-        @note
-        This is similar to projectRead(); plug-ins might want to be notified
-        that they're in a new project.  Yes, projectRead() could have been
-        overloaded to be used in the case of new projects instead.  However,
-        it's probably more semantically correct to have an entirely separate
-        signal for when this happens.
-      */
+     * @note
+     * This is similar to projectRead(); plug-ins might want to be notified
+     * that they're in a new project.  Yes, projectRead() could have been
+     * overloaded to be used in the case of new projects instead.  However,
+     * it's probably more semantically correct to have an entirely separate
+     * signal for when this happens.
+     */
     void newProjectCreated();
 
     /** This signal is emitted when a layer has been saved using save as
-       @note
-       added in version 2.7
-    */
+     * @note
+     * added in version 2.7
+     */
     void layerSavedAs( QgsMapLayer* l, const QString& path );
 };
 

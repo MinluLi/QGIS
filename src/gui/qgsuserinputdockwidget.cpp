@@ -19,10 +19,10 @@
 #include <QBoxLayout>
 
 QgsUserInputDockWidget::QgsUserInputDockWidget( QWidget *parent )
-    : QDockWidget( tr( "User Input Panel" ), parent )
+    : QgsDockWidget( tr( "User Input Panel" ), parent )
     , mLayoutHorizontal( true )
 {
-  QWidget* w = new QWidget( 0 );
+  QWidget* w = new QWidget( nullptr );
   mLayout = new QBoxLayout( QBoxLayout::LeftToRight );
   mLayout->setAlignment( Qt::AlignLeft | Qt::AlignTop );
   w->setLayout( mLayout );
@@ -39,7 +39,7 @@ QgsUserInputDockWidget::~QgsUserInputDockWidget()
 
 void QgsUserInputDockWidget::addUserInputWidget( QWidget *widget )
 {
-  QFrame* line = 0;
+  QFrame* line = nullptr;
   if ( mWidgetList.count() > 0 )
   {
     line = new QFrame( this );
@@ -69,8 +69,7 @@ void QgsUserInputDockWidget::widgetDestroyed( QObject *obj )
       {
         i.value()->deleteLater();
       }
-      mWidgetList.remove( i.key() );
-      ++i;
+      i = mWidgetList.erase( i );
     }
   }
 }
@@ -103,8 +102,8 @@ void QgsUserInputDockWidget::updateLayoutDirection()
 {
   mLayout->setDirection( mLayoutHorizontal ? QBoxLayout::LeftToRight : QBoxLayout::TopToBottom );
 
-  QMap<QWidget*, QFrame*>::iterator i = mWidgetList.begin();
-  while ( i != mWidgetList.end() )
+  QMap<QWidget*, QFrame*>::const_iterator i = mWidgetList.constBegin();
+  while ( i != mWidgetList.constEnd() )
   {
     if ( i.value() )
     {
@@ -124,6 +123,6 @@ void QgsUserInputDockWidget::paintEvent( QPaintEvent * event )
   }
   else
   {
-    QDockWidget::paintEvent( event );
+    QgsDockWidget::paintEvent( event );
   }
 }

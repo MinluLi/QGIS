@@ -30,7 +30,7 @@ class QRectF;
 class QPainter;
 
 /**
- * \ingroup composer
+ * \ingroup core
  * \class QgsComposerMultiFrame
  * Abstract base class for composer items with the ability to distribute the content to several frames
  * (QgsComposerFrame items).
@@ -43,12 +43,12 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
   public:
 
     /** Specifies the behaviour for creating new frames to fit the multiframe's content
-    */
+     */
     enum ResizeMode
     {
-      UseExistingFrames = 0, /*!< don't automatically create new frames, just use existing frames */
-      ExtendToNextPage, /*!< creates new full page frames on the following page(s) until the entire multiframe content is visible */
-      RepeatOnEveryPage, /*!< repeats the same frame on every page */
+      UseExistingFrames = 0, //!< Don't automatically create new frames, just use existing frames
+      ExtendToNextPage, //!< Creates new full page frames on the following page(s) until the entire multiframe content is visible
+      RepeatOnEveryPage, //!< Repeats the same frame on every page
       RepeatUntilFinished /*!< creates new frames with the same position and dimensions as the existing frame on the following page(s),
                               until the entire multiframe content is visible */
     };
@@ -75,7 +75,7 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
      * @note added in version 2.5
      * @see minFrameSize
      * @see recalculateFrameRects
-    */
+     */
     virtual QSizeF fixedFrameSize( const int frameIndex = -1 ) const { Q_UNUSED( frameIndex ); return QSizeF( 0, 0 ); }
 
     /** Returns the minimum size for a frames, if desired. If the minimum
@@ -87,29 +87,22 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
      * @note added in version 2.5
      * @see fixedFrameSize
      * @see recalculateFrameRects
-    */
+     */
     virtual QSizeF minFrameSize( const int frameIndex = -1 ) const { Q_UNUSED( frameIndex ); return QSizeF( 0, 0 ); }
-
-    /** Renders a portion of the multiframe's content into a painter.
-     * @param p destination painter
-     * @param renderExtent visible extent of content to render into the painter.
-     * @deprecated use render( QPainter* painter, const QRectF& renderExtent, const int frameIndex ) instead
-    */
-    Q_DECL_DEPRECATED virtual void render( QPainter* p, const QRectF& renderExtent );
 
     /** Renders a portion of the multiframe's content into a painter.
      * @param painter destination painter
      * @param renderExtent visible extent of content to render into the painter.
      * @param frameIndex frame number for content
      * @note added in version 2.5
-    */
-    virtual void render( QPainter* painter, const QRectF& renderExtent, const int frameIndex );
+     */
+    virtual void render( QPainter* painter, const QRectF& renderExtent, const int frameIndex ) = 0;
 
     /** Adds a frame to the multiframe.
      * @param frame frame to add
      * @param recalcFrameSizes set to true to force recalculation of all existing frame sizes
      * @see removeFrame
-    */
+     */
     virtual void addFrame( QgsComposerFrame* frame, bool recalcFrameSizes = true ) = 0;
 
     /** Finds the optimal position to break a frame at.
@@ -117,7 +110,7 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
      * @returns the optimal breakable position which occurs in the multi frame close
      * to and before the specified yPos
      * @note added in version 2.3
-    */
+     */
     virtual double findNearbyPageBreak( double yPos ) { return yPos; }
 
     /** Removes a frame from the multiframe. This method automatically removes the frame from the
@@ -126,61 +119,61 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
      * @param removeEmptyPages set to true to remove pages which are empty after the frame is removed
      * @see addFrame
      * @see deleteFrames
-    */
+     */
     void removeFrame( int i, const bool removeEmptyPages = false );
 
     /** Removes and deletes all child frames.
      * @see removeFrame
-    */
+     */
     void deleteFrames();
 
     /** Sets the resize mode for the multiframe, and recalculates frame sizes to match.
      * @param mode resize mode
      * @see resizeMode
-    */
+     */
     void setResizeMode( ResizeMode mode );
 
     /** Returns the resize mode for the multiframe.
      * @returns resize mode
      * @see setResizeMode
-    */
+     */
     ResizeMode resizeMode() const { return mResizeMode; }
 
-    /** Stores state information about multiframe in DOM element. Implementations of writeXML
+    /** Stores state information about multiframe in DOM element. Implementations of writeXml
      * should also call the _writeXML method to save general multiframe properties.
      * @param elem is DOM element
      * @param doc is the DOM document
      * @param ignoreFrames set to false to avoid writing state information about child frames into DOM
      * @see _writeXML
      */
-    virtual bool writeXML( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const = 0;
+    virtual bool writeXml( QDomElement& elem, QDomDocument & doc, bool ignoreFrames = false ) const = 0;
 
-    /** Stores state information about base multiframe object in DOM element. Implementations of writeXML
+    /** Stores state information about base multiframe object in DOM element. Implementations of writeXml
      * should call this method.
      * @param elem is DOM element
      * @param doc is the DOM document
      * @param ignoreFrames set to false to avoid writing state information about child frames into DOM
-     * @see writeXML
+     * @see writeXml
      */
-    bool _writeXML( QDomElement& elem, QDomDocument& doc, bool ignoreFrames = false ) const;
+    bool _writeXml( QDomElement& elem, QDomDocument& doc, bool ignoreFrames = false ) const;
 
-    /** Reads multiframe state information from a DOM element. Implementations of readXML
+    /** Reads multiframe state information from a DOM element. Implementations of readXml
      * should also call the _readXML method to restore general multiframe properties.
      * @param itemElem is DOM element
      * @param doc is the DOM document
      * @param ignoreFrames set to false to avoid read state information about child frames from DOM
      * @see _readXML
      */
-    virtual bool readXML( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) = 0;
+    virtual bool readXml( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false ) = 0;
 
-    /** Restores state information about base multiframe object from a DOM element. Implementations of readXML
+    /** Restores state information about base multiframe object from a DOM element. Implementations of readXml
      * should call this method.
      * @param itemElem is DOM element
      * @param doc is the DOM document
      * @param ignoreFrames set to false to avoid reading state information about child frames from DOM
-     * @see readXML
+     * @see readXml
      */
-    bool _readXML( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false );
+    bool _readXml( const QDomElement& itemElem, const QDomDocument& doc, bool ignoreFrames = false );
 
     /** Returns the parent composition for the multiframe.
      * @returns composition
@@ -232,7 +225,7 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
     /** Get multiframe display name.
      * @returns display name for item
      * @note added in version 2.5
-    */
+     */
     virtual QString displayName() const;
 
   public slots:
@@ -263,12 +256,12 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
 
     /** Emitted when the properties of a multi frame have changed, and the GUI item widget
      * must be updated.
-    */
+     */
     void changed();
 
     /** Emitted when the contents of the multi frame have changed and the frames
      * must be redrawn.
-    */
+     */
     void contentsChanged();
 
   protected:
@@ -277,7 +270,7 @@ class CORE_EXPORT QgsComposerMultiFrame: public QgsComposerObject
 
     ResizeMode mResizeMode;
 
-    /** True: creates QgsMultiFrameCommands on internal changes (e.g. changing frames )*/
+    //! True: creates QgsMultiFrameCommands on internal changes (e.g. changing frames )
     bool mCreateUndoCommands;
 
   protected slots:

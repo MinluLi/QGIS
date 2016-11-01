@@ -19,13 +19,11 @@
 #define QGSMAPTOOLPINLABELS_H
 
 #include "qgsmaptoollabel.h"
-#include "qgsrectangle.h"
-#include "qgscoordinatetransform.h"
 
 class QgsRubberBand;
 class QgsLabelPosition;
 
-/** A map tool for pinning (writing to attribute table) and unpinning labelpositions and rotation*/
+//! A map tool for pinning (writing to attribute table) and unpinning labelpositions and rotation
 class APP_EXPORT QgsMapToolPinLabels: public QgsMapToolLabel
 {
     Q_OBJECT
@@ -86,10 +84,14 @@ class APP_EXPORT QgsMapToolPinLabels: public QgsMapToolLabel
     //! Select valid labels to pin or unpin
     void pinUnpinLabels( const QgsRectangle& ext, QMouseEvent * e );
 
-    //! Pin or unpin label relative to whether its editable
-    bool pinUnpinLabel( QgsVectorLayer* vlayer,
-                        const QgsLabelPosition& labelpos,
-                        bool pin );
+    //! Pin or unpin current label relative to whether its editable
+    bool pinUnpinCurrentLabel( bool pin );
+
+    //! Pin or unpin diagram relative to whether its editable
+    bool pinUnpinCurrentDiagram( bool pin );
+
+    //! Pin or unpin current feature (diagram or label)
+    bool pinUnpinCurrentFeature( bool pin );
 };
 
 #endif // QGSMAPTOOLPINLABELS_H

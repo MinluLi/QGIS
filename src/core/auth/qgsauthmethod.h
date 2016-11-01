@@ -24,8 +24,7 @@
 #include <QStringList>
 #include <QUrl>
 
-#include "qgsauthconfig.h"
-
+class QgsAuthMethodConfig;
 
 /** \ingroup core
  * Abstract base class for authentication method plugins
@@ -48,24 +47,24 @@ class CORE_EXPORT QgsAuthMethod : public QObject
       // TODO: Figure out all different authentication expansions current layer providers use
       NetworkRequest       = 0x1,
       NetworkReply         = 0x2,
-      DataSourceURI        = 0x4,
-      GenericDataSourceURI = 0x8,
-      All = NetworkRequest | NetworkReply | DataSourceURI | GenericDataSourceURI
+      DataSourceUri        = 0x4,
+      GenericDataSourceUri = 0x8,
+      All = NetworkRequest | NetworkReply | DataSourceUri | GenericDataSourceUri
     };
     Q_DECLARE_FLAGS( Expansions, Expansion )
 
     virtual ~QgsAuthMethod() {}
 
-    /** A non-translated short name representing the auth method */
+    //! A non-translated short name representing the auth method
     virtual QString key() const = 0;
 
-    /** A non-translated short description representing the auth method for use in debug output and About dialog */
+    //! A non-translated short description representing the auth method for use in debug output and About dialog
     virtual QString description() const = 0;
 
-    /** Translatable display version of the 'description()' */
+    //! Translatable display version of the 'description()'
     virtual QString displayDescription() const = 0;
 
-    /** Increment this if method is significantly updated, allow updater code to be written for previously stored authcfg */
+    //! Increment this if method is significantly updated, allow updater code to be written for previously stored authcfg
     int version() const { return mVersion; }
 
     /** Flags that represent the update points (where authentication configurations are expanded)
@@ -76,7 +75,7 @@ class CORE_EXPORT QgsAuthMethod : public QObject
 
     /** The data providers that the method supports, allowing for filtering out authcfgs that are not
      * applicable to a given provider, or where the updating code is not currently implemented.
-    */
+     */
     QStringList supportedDataProviders() const { return mDataProviders; }
 
     /** Update a network request with authentication components
@@ -112,7 +111,7 @@ class CORE_EXPORT QgsAuthMethod : public QObject
     }
 
     /** Update data source connection items with authentication components
-     * @param connectionItems QStringlist of 'key=value' pairs, as utilized in QgsDataSourceURI::connectionInfo()
+     * @param connectionItems QStringlist of 'key=value' pairs, as utilized in QgsDataSourceUri::connectionInfo()
      * @param authcfg Authentication configuration ID
      * @param dataprovider Textual key for a data provider, e.g. 'postgres', that allows
      * for custom updater code specific to the provider
@@ -145,20 +144,20 @@ class CORE_EXPORT QgsAuthMethod : public QObject
      * @note Non-public since this is an abstract base class
      */
     explicit QgsAuthMethod()
-        : mExpansions( QgsAuthMethod::Expansions( 0 ) )
+        : mExpansions( QgsAuthMethod::Expansions( nullptr ) )
         , mDataProviders( QStringList() )
         , mVersion( 0 )
     {}
 
-    /** Tag signifying that this is an authentcation method (e.g. for use as title in message log panel output) */
+    //! Tag signifying that this is an authentcation method (e.g. for use as title in message log panel output)
     static QString authMethodTag() { return QObject::tr( "Authentication method" ); }
 
-    /** Set the version of the auth method (useful for future upgrading) */
+    //! Set the version of the auth method (useful for future upgrading)
     void setVersion( int version ) { mVersion = version; }
 
-    /** Set the support expansions (points in providers where the authentication is injected) of the auth method */
-    void setExpansions( const QgsAuthMethod::Expansions& expansions ) { mExpansions = expansions; }
-    /** Set list of data providers this auth method supports */
+    //! Set the support expansions (points in providers where the authentication is injected) of the auth method
+    void setExpansions( QgsAuthMethod::Expansions expansions ) { mExpansions = expansions; }
+    //! Set list of data providers this auth method supports
     void setDataProviders( const QStringList& dataproviders ) { mDataProviders = dataproviders; }
 
     QgsAuthMethod::Expansions mExpansions;

@@ -24,7 +24,7 @@ MACRO (PLUGIN_INSTALL plugin subdir )
     ADD_DEPENDENCIES(zzz-${plugin}-stageinstall zzz-${plugin}-depend)
 
     ADD_CUSTOM_COMMAND(TARGET zzz-${plugin}-stageinstall
-	COMMAND ${CMAKE_COMMAND} -P ${_cmake}
+      COMMAND ${CMAKE_COMMAND} -P ${_cmake}
     )
 
     ADD_CUSTOM_TARGET(clean-staged-${plugin}
@@ -49,7 +49,6 @@ MACRO (PLUGIN_INSTALL plugin subdir )
   ENDFOREACH(file)
 ENDMACRO (PLUGIN_INSTALL)
 
-ADD_SUBDIRECTORY(fTools)
 ADD_SUBDIRECTORY(GdalTools)
 ADD_SUBDIRECTORY(db_manager)
 ADD_SUBDIRECTORY(processing)

@@ -3,6 +3,13 @@
  *  -------------------                                                    *
  *  copyright            : (C) 2014 by Sandro Mani / Sourcepole AG         *
  *  email                : smani@sourcepole.ch                             *
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
  ***************************************************************************/
 
 #ifndef QGS_GEOMETRY_CHECK_FACTORY_H
@@ -20,7 +27,7 @@ class QgsGeometryCheckFactory
   public:
     virtual ~QgsGeometryCheckFactory() {}
     virtual void restorePrevious( Ui::QgsGeometryCheckerSetupTab& /*ui*/ ) const = 0;
-    virtual bool checkApplicability( Ui::QgsGeometryCheckerSetupTab& /*ui*/, QGis::GeometryType /*geomType*/ ) const = 0;
+    virtual bool checkApplicability( Ui::QgsGeometryCheckerSetupTab& /*ui*/, QgsWkbTypes::GeometryType /*geomType*/ ) const = 0;
     virtual QgsGeometryCheck* createInstance( QgsFeaturePool* featurePool, const Ui::QgsGeometryCheckerSetupTab& ui, double mapToLayerUnits ) const = 0;
 
   protected:
@@ -31,7 +38,7 @@ template<class T>
 class QgsGeometryCheckFactoryT : public QgsGeometryCheckFactory
 {
     void restorePrevious( Ui::QgsGeometryCheckerSetupTab& /*ui*/ ) const override;
-    bool checkApplicability( Ui::QgsGeometryCheckerSetupTab& ui, QGis::GeometryType geomType ) const override;
+    bool checkApplicability( Ui::QgsGeometryCheckerSetupTab& ui, QgsWkbTypes::GeometryType geomType ) const override;
     QgsGeometryCheck* createInstance( QgsFeaturePool* featurePool, const Ui::QgsGeometryCheckerSetupTab& ui, double mapToLayerUnits ) const override;
 };
 

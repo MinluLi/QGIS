@@ -1,3 +1,17 @@
+/***************************************************************************
+    qgsxmlutils.cpp
+    ---------------------
+    begin                : December 2013
+    copyright            : (C) 2013 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 #include "qgsxmlutils.h"
 
 #include <QDomElement>
@@ -6,32 +20,16 @@
 #include "qgsrectangle.h"
 
 
-QGis::UnitType QgsXmlUtils::readMapUnits( const QDomElement& element )
+QgsUnitTypes::DistanceUnit QgsXmlUtils::readMapUnits( const QDomElement& element )
 {
-  if ( "meters" == element.text() )
+  if ( "unknown" == element.text() )
   {
-    return QGis::Meters;
-  }
-  else if ( "feet" == element.text() )
-  {
-    return QGis::Feet;
-  }
-  else if ( "nautical miles" == element.text() )
-  {
-    return QGis::NauticalMiles;
-  }
-  else if ( "degrees" == element.text() )
-  {
-    return QGis::Degrees;
-  }
-  else if ( "unknown" == element.text() )
-  {
-    return QGis::UnknownUnit;
+    return QgsUnitTypes::DistanceUnknownUnit;
   }
   else
   {
-    QgsDebugMsg( "Unknown map unit type " + element.text() );
-    return QGis::Degrees;
+    QgsUnitTypes::DistanceUnit unit = QgsUnitTypes::decodeDistanceUnit( element.text() );
+    return unit == QgsUnitTypes::DistanceUnknownUnit ? QgsUnitTypes::DistanceDegrees : unit;
   }
 }
 
@@ -39,10 +37,10 @@ QgsRectangle QgsXmlUtils::readRectangle( const QDomElement& element )
 {
   QgsRectangle aoi;
 
-  QDomNode xminNode = element.namedItem( "xmin" );
-  QDomNode yminNode = element.namedItem( "ymin" );
-  QDomNode xmaxNode = element.namedItem( "xmax" );
-  QDomNode ymaxNode = element.namedItem( "ymax" );
+  QDomNode xminNode = element.namedItem( QStringLiteral( "xmin" ) );
+  QDomNode yminNode = element.namedItem( QStringLiteral( "ymin" ) );
+  QDomNode xmaxNode = element.namedItem( QStringLiteral( "xmax" ) );
+  QDomNode ymaxNode = element.namedItem( QStringLiteral( "ymax" ) );
 
   QDomElement exElement = xminNode.toElement();
   double xmin = exElement.text().toDouble();
@@ -65,40 +63,24 @@ QgsRectangle QgsXmlUtils::readRectangle( const QDomElement& element )
 
 
 
-QDomElement QgsXmlUtils::writeMapUnits( QGis::UnitType units, QDomDocument& doc )
+QDomElement QgsXmlUtils::writeMapUnits( QgsUnitTypes::DistanceUnit units, QDomDocument& doc )
 {
-  QString unitsString;
-  switch ( units )
-  {
-    case QGis::Meters:
-      unitsString = "meters";
-      break;
-    case QGis::Feet:
-      unitsString = "feet";
-      break;
-    case QGis::NauticalMiles:
-      unitsString = "nautical miles";
-      break;
-    case QGis::Degrees:
-      unitsString = "degrees";
-      break;
-    case QGis::UnknownUnit:
-    default:
-      unitsString = "unknown";
-      break;
-  }
+  QString unitsString = QgsUnitTypes::encodeUnit( units );
+  // maintain compatibility with old projects
+  if ( units == QgsUnitTypes::DistanceUnknownUnit )
+    unitsString = QStringLiteral( "unknown" );
 
-  QDomElement unitsNode = doc.createElement( "units" );
+  QDomElement unitsNode = doc.createElement( QStringLiteral( "units" ) );
   unitsNode.appendChild( doc.createTextNode( unitsString ) );
   return unitsNode;
 }
 
 QDomElement QgsXmlUtils::writeRectangle( const QgsRectangle& rect, QDomDocument& doc )
 {
-  QDomElement xMin = doc.createElement( "xmin" );
-  QDomElement yMin = doc.createElement( "ymin" );
-  QDomElement xMax = doc.createElement( "xmax" );
-  QDomElement yMax = doc.createElement( "ymax" );
+  QDomElement xMin = doc.createElement( QStringLiteral( "xmin" ) );
+  QDomElement yMin = doc.createElement( QStringLiteral( "ymin" ) );
+  QDomElement xMax = doc.createElement( QStringLiteral( "xmax" ) );
+  QDomElement yMax = doc.createElement( QStringLiteral( "ymax" ) );
 
   QDomText xMinText = doc.createTextNode( qgsDoubleToString( rect.xMinimum() ) );
   QDomText yMinText = doc.createTextNode( qgsDoubleToString( rect.yMinimum() ) );
@@ -110,7 +92,7 @@ QDomElement QgsXmlUtils::writeRectangle( const QgsRectangle& rect, QDomDocument&
   xMax.appendChild( xMaxText );
   yMax.appendChild( yMaxText );
 
-  QDomElement extentNode = doc.createElement( "extent" );
+  QDomElement extentNode = doc.createElement( QStringLiteral( "extent" ) );
   extentNode.appendChild( xMin );
   extentNode.appendChild( yMin );
   extentNode.appendChild( xMax );

@@ -38,7 +38,7 @@ const QDomDocument* QgsCapabilitiesCache::searchCapabilitiesDocument( const QStr
   }
   else
   {
-    return 0;
+    return nullptr;
   }
 }
 
@@ -59,6 +59,12 @@ void QgsCapabilitiesCache::insertCapabilitiesDocument( const QString& configFile
   }
 
   mCachedCapabilities[ configFilePath ].insert( key, doc->cloneNode().toDocument() );
+}
+
+void QgsCapabilitiesCache::removeCapabilitiesDocument( const QString& path )
+{
+  mCachedCapabilities.remove( path );
+  mFileSystemWatcher.removePath( path );
 }
 
 void QgsCapabilitiesCache::removeChangedEntry( const QString& path )

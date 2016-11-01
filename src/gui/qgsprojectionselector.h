@@ -29,7 +29,7 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
 {
     Q_OBJECT
   public:
-    QgsProjectionSelector( QWidget* parent, const char *name = "", const Qt::WindowFlags& fl = 0 );
+    QgsProjectionSelector( QWidget* parent, const char *name = "", Qt::WindowFlags fl = 0 );
 
     ~QgsProjectionSelector();
 
@@ -42,7 +42,7 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
      *
      * \todo Should this be public?
      */
-    void loadUserCrsList( QSet<QString> *crsFilter = 0 );
+    void loadUserCrsList( QSet<QString> *crsFilter = nullptr );
 
     /**
      * \brief Populate the proj tree view with system projection names...
@@ -53,7 +53,7 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
      *
      * \todo Should this be public?
      */
-    void loadCrsList( QSet<QString> *crsFilter = 0 );
+    void loadCrsList( QSet<QString> *crsFilter = nullptr );
 
     /*!
      * \brief Make the string safe for use in SQL statements.
@@ -108,10 +108,10 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
     void pushProjectionToFront();
 
   protected:
-    /** Used to ensure the projection list view is actually populated */
+    //! Used to ensure the projection list view is actually populated
     void showEvent( QShowEvent * theEvent ) override;
 
-    /** Used to manage column sizes */
+    //! Used to manage column sizes
     void resizeEvent( QResizeEvent * theEvent ) override;
 
   private:
@@ -147,7 +147,7 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
        */
     QString getSelectedExpression( const QString& e );
 
-    /** Show the user a warning if the srs database could not be found */
+    //! Show the user a warning if the srs database could not be found
     void showDBMissingWarning( const QString& theFileName );
     // List view nodes for the tree view of projections
     //! User defined projections node
@@ -165,7 +165,7 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
     /**
      * Utility method used in conjunction with name based searching tool
      */
-    long getLargestCRSIDMatch( const QString& theSql );
+    long getLargestCrsIdMatch( const QString& theSql );
 
     //! add recently used CRS
     void insertRecent( long theCrsId );
@@ -192,12 +192,16 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
     //! Most recently used projections (trimmed at 25 entries)
     QStringList mRecentProjections;
 
-    //! hide deprecated CRSes
+    //! Hide deprecated CRSes
     void hideDeprecated( QTreeWidgetItem *item );
 
   private slots:
     //! get list of authorities
     QStringList authorities();
+
+    //! Apply projection on double click
+    void on_lstCoordinateSystems_itemDoubleClicked( QTreeWidgetItem *current, int column );
+    void on_lstRecent_itemDoubleClicked( QTreeWidgetItem *current, int column );
 
   signals:
     void sridSelected( const QString& theSRID );
@@ -208,6 +212,9 @@ class GUI_EXPORT QgsProjectionSelector : public QWidget, private Ui::QgsProjecti
     //! Notify others that the widget is now fully initialized, including deferred selection of projection
     //! @note added in 2.4
     void initialized();
+    //! Apply projection on double click
+    //! @note added in 2.14
+    void projectionDoubleClicked();
 };
 
 #endif

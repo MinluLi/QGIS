@@ -14,12 +14,12 @@
  ***************************************************************************/
 
 #include "qgsmaptooladdcircularstring.h"
-#include "qgscircularstringv2.h"
-#include "qgscompoundcurvev2.h"
-#include "qgscurvepolygonv2.h"
+#include "qgscircularstring.h"
+#include "qgscompoundcurve.h"
+#include "qgscurvepolygon.h"
 #include "qgsgeometryrubberband.h"
 #include "qgsgeometryutils.h"
-#include "qgslinestringv2.h"
+#include "qgslinestring.h"
 #include "qgsmapcanvas.h"
 #include "qgspointv2.h"
 #include "qgisapp.h"
@@ -27,9 +27,10 @@
 QgsMapToolAddCircularString::QgsMapToolAddCircularString( QgsMapToolCapture* parentTool, QgsMapCanvas* canvas, CaptureMode mode )
     : QgsMapToolCapture( canvas, QgisApp::instance()->cadDockWidget(), mode )
     , mParentTool( parentTool )
-    , mRubberBand( 0 )
+    , mRubberBand( nullptr )
+    , mTempRubberBand( nullptr )
     , mShowCenterPointRubberBand( false )
-    , mCenterPointRubberBand( 0 )
+    , mCenterPointRubberBand( nullptr )
 {
   if ( mCanvas )
   {
@@ -39,10 +40,11 @@ QgsMapToolAddCircularString::QgsMapToolAddCircularString( QgsMapToolCapture* par
 
 QgsMapToolAddCircularString::QgsMapToolAddCircularString( QgsMapCanvas* canvas )
     : QgsMapToolCapture( canvas, QgisApp::instance()->cadDockWidget() )
-    , mParentTool( 0 )
-    , mRubberBand( 0 )
+    , mParentTool( nullptr )
+    , mRubberBand( nullptr )
+    , mTempRubberBand( nullptr )
     , mShowCenterPointRubberBand( false )
-    , mCenterPointRubberBand( 0 )
+    , mCenterPointRubberBand( nullptr )
 {
   if ( mCanvas )
   {
@@ -53,6 +55,7 @@ QgsMapToolAddCircularString::QgsMapToolAddCircularString( QgsMapCanvas* canvas )
 QgsMapToolAddCircularString::~QgsMapToolAddCircularString()
 {
   delete mRubberBand;
+  delete mTempRubberBand;
   removeCenterPointRubberBand();
 }
 
@@ -80,8 +83,19 @@ void QgsMapToolAddCircularString::keyPressEvent( QKeyEvent* e )
   if ( e && e->key() == Qt::Key_R )
   {
     mShowCenterPointRubberBand = true;
-
     createCenterPointRubberBand();
+  }
+
+  if ( e && e->key() == Qt::Key_Escape )
+  {
+    mPoints.clear();
+    delete mRubberBand;
+    mRubberBand = nullptr;
+    delete mTempRubberBand;
+    mTempRubberBand = nullptr;
+    removeCenterPointRubberBand();
+    if ( mParentTool )
+      mParentTool->keyPressEvent( e );
   }
 }
 
@@ -111,11 +125,14 @@ void QgsMapToolAddCircularString::deactivate()
     mPoints.removeLast();
   }
 
-  QgsCircularStringV2* c = new QgsCircularStringV2();
+  QgsCircularString* c = new QgsCircularString();
   c->setPoints( mPoints );
   mParentTool->addCurve( c );
   mPoints.clear();
-  delete mRubberBand; mRubberBand = 0;
+  delete mRubberBand;
+  mRubberBand = nullptr;
+  delete mTempRubberBand;
+  mTempRubberBand = nullptr;
   removeCenterPointRubberBand();
   QgsMapToolCapture::deactivate();
 }
@@ -125,6 +142,32 @@ void QgsMapToolAddCircularString::activate()
   if ( mParentTool )
   {
     mParentTool->deleteTempRubberBand();
+    if ( mPoints.isEmpty() )
+    {
+      // if the parent tool has a curve, use its last point as the first point in this curve
+      const QgsCompoundCurve* compoundCurve = mParentTool->captureCurve();
+      if ( compoundCurve && compoundCurve->nCurves() > 0 )
+      {
+        const QgsCurve* curve = compoundCurve->curveAt( compoundCurve->nCurves() - 1 );
+        if ( curve )
+        {
+          //mParentTool->captureCurve() is in layer coordinates, but we need map coordinates
+          QgsPointV2 endPointLayerCoord = curve->endPoint();
+          QgsPoint mapPoint = toMapCoordinates( mCanvas->currentLayer(), QgsPoint( endPointLayerCoord.x(), endPointLayerCoord.y() ) );
+          mPoints.append( QgsPointV2( mapPoint ) );
+          if ( !mTempRubberBand )
+          {
+            mTempRubberBand = createGeometryRubberBand(( mode() == CapturePolygon ) ? QgsWkbTypes::PolygonGeometry : QgsWkbTypes::LineGeometry, true );
+            mTempRubberBand->show();
+          }
+          QgsCircularString* c = new QgsCircularString();
+          QgsPointSequence rubberBandPoints = mPoints;
+          rubberBandPoints.append( QgsPointV2( mapPoint ) );
+          c->setPoints( rubberBandPoints );
+          mTempRubberBand->setGeometry( c );
+        }
+      }
+    }
   }
   QgsMapToolCapture::activate();
 }
@@ -136,15 +179,15 @@ void QgsMapToolAddCircularString::createCenterPointRubberBand()
     return;
   }
 
-  mCenterPointRubberBand = createGeometryRubberBand( QGis::Polygon );
+  mCenterPointRubberBand = createGeometryRubberBand( QgsWkbTypes::PolygonGeometry );
   mCenterPointRubberBand->show();
 
-  if ( mRubberBand )
+  if ( mTempRubberBand )
   {
-    const QgsAbstractGeometryV2* rubberBandGeom = mRubberBand->geometry();
+    const QgsAbstractGeometry* rubberBandGeom = mTempRubberBand->geometry();
     if ( rubberBandGeom )
     {
-      QgsVertexId idx; idx.part = 0; idx.ring = 0; idx.vertex = mPoints.size();
+      QgsVertexId idx( 0, 0, 2 );
       QgsPointV2 pt = rubberBandGeom->vertexAt( idx );
       updateCenterPointRubberBand( pt );
     }
@@ -164,31 +207,31 @@ void QgsMapToolAddCircularString::updateCenterPointRubberBand( const QgsPointV2&
   }
 
   //create circular string
-  QgsCircularStringV2* cs = new QgsCircularStringV2();
-  QList< QgsPointV2 > csPoints;
+  QgsCircularString* cs = new QgsCircularString();
+  QgsPointSequence csPoints;
   csPoints.append( mPoints.at( mPoints.size() - 2 ) );
   csPoints.append( mPoints.at( mPoints.size() - 1 ) );
   csPoints.append( pt );
   cs->setPoints( csPoints );
 
-  double centerX, centerY;
+  QgsPointV2 center;
   double radius;
-  QgsGeometryUtils::circleCenterRadius( csPoints.at( 0 ), csPoints.at( 1 ), csPoints.at( 2 ), radius, centerX, centerY );
+  QgsGeometryUtils::circleCenterRadius( csPoints.at( 0 ), csPoints.at( 1 ), csPoints.at( 2 ), radius, center.rx(), center.ry() );
 
-  QgsLineStringV2* segment1 = new QgsLineStringV2();
-  segment1->addVertex( QgsPointV2( centerX, centerY ) );
+  QgsLineString* segment1 = new QgsLineString();
+  segment1->addVertex( center );
   segment1->addVertex( csPoints.at( 0 ) );
 
-  QgsLineStringV2* segment2 = new QgsLineStringV2();
+  QgsLineString* segment2 = new QgsLineString();
   segment2->addVertex( csPoints.at( 2 ) );
-  segment2->addVertex( QgsPointV2( centerX, centerY ) );
+  segment2->addVertex( center );
 
-  QgsCompoundCurveV2* cc = new QgsCompoundCurveV2();
+  QgsCompoundCurve* cc = new QgsCompoundCurve();
   cc->addCurve( segment1 );
   cc->addCurve( cs );
   cc->addCurve( segment2 );
 
-  QgsCurvePolygonV2* cp = new QgsCurvePolygonV2();
+  QgsCurvePolygon* cp = new QgsCurvePolygon();
   cp->setExteriorRing( cc );
   mCenterPointRubberBand->setGeometry( cp );
   mCenterPointRubberBand->show();
@@ -196,5 +239,6 @@ void QgsMapToolAddCircularString::updateCenterPointRubberBand( const QgsPointV2&
 
 void QgsMapToolAddCircularString::removeCenterPointRubberBand()
 {
-  delete mCenterPointRubberBand; mCenterPointRubberBand = 0;
+  delete mCenterPointRubberBand;
+  mCenterPointRubberBand = nullptr;
 }

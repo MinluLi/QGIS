@@ -51,8 +51,8 @@ class GUI_EXPORT QgsGenericProjectionSelector : public QDialog, private Ui::QgsG
     /**
      * Constructor
      */
-    QgsGenericProjectionSelector( QWidget *parent = 0,
-                                  const Qt::WindowFlags& fl = QgisGui::ModalDialogFlags );
+    QgsGenericProjectionSelector( QWidget *parent = nullptr,
+                                  Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
 
     //! Destructor
     ~QgsGenericProjectionSelector();
@@ -61,7 +61,7 @@ class GUI_EXPORT QgsGenericProjectionSelector : public QDialog, private Ui::QgsG
     /** If no parameter is passed, the message will be a generic
      * 'define the CRS for this layer'.
      */
-    void setMessage( QString theMessage = "" );
+    void setMessage( QString theMessage = QStringLiteral( "" ) );
     long selectedCrsId();
     QString selectedAuthId();
 

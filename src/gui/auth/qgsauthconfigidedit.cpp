@@ -54,7 +54,7 @@ bool QgsAuthConfigIdEdit::validate()
 {
   QString authcfg( leAuthCfg->text() );
   bool curvalid = (( authcfg == mAuthCfgOrig && authcfg.size() == 7 )
-                   || ( mAllowEmpty && authcfg.size() == 0 ) );
+                   || ( mAllowEmpty && authcfg.isEmpty() ) );
 
   if ( !QgsAuthManager::instance()->isDisabled() && !curvalid && authcfg.size() == 7 && isAlphaNumeric( authcfg ) )
   {
@@ -94,9 +94,9 @@ void QgsAuthConfigIdEdit::clear()
 
 void QgsAuthConfigIdEdit::updateValidityStyle( bool valid )
 {
-  QString ss( "QLineEdit{" );
-  ss += valid ? "" : QString( "color: %1;" ).arg( QgsAuthGuiUtils::redColor().name() );
-  ss += !btnLock->isChecked() ? "" : QString( "background-color: %1;" ).arg( QgsAuthGuiUtils::yellowColor().name() );
+  QString ss( QStringLiteral( "QLineEdit{" ) );
+  ss += valid ? QLatin1String( "" ) : QStringLiteral( "color: %1;" ).arg( QgsAuthGuiUtils::redColor().name() );
+  ss += !btnLock->isChecked() ? QLatin1String( "" ) : QStringLiteral( "background-color: %1;" ).arg( QgsAuthGuiUtils::yellowColor().name() );
   ss += '}';
 
   leAuthCfg->setStyleSheet( ss );

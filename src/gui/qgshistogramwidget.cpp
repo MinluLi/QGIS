@@ -63,8 +63,8 @@ QgsHistogramWidget::QgsHistogramWidget( QWidget *parent, QgsVectorLayer* layer, 
 #endif
 
   QSettings settings;
-  mMeanCheckBox->setChecked( settings.value( "/HistogramWidget/showMean", false ).toBool() );
-  mStdevCheckBox->setChecked( settings.value( "/HistogramWidget/showStdev", false ).toBool() );
+  mMeanCheckBox->setChecked( settings.value( QStringLiteral( "/HistogramWidget/showMean" ), false ).toBool() );
+  mStdevCheckBox->setChecked( settings.value( QStringLiteral( "/HistogramWidget/showStdev" ), false ).toBool() );
 
   connect( mBinsSpinBox, SIGNAL( valueChanged( int ) ), this, SLOT( refresh() ) );
   connect( mMeanCheckBox, SIGNAL( toggled( bool ) ), this, SLOT( refresh() ) );
@@ -86,11 +86,11 @@ QgsHistogramWidget::QgsHistogramWidget( QWidget *parent, QgsVectorLayer* layer, 
 QgsHistogramWidget::~QgsHistogramWidget()
 {
   QSettings settings;
-  settings.setValue( "/HistogramWidget/showMean", mMeanCheckBox->isChecked() );
-  settings.setValue( "/HistogramWidget/showStdev", mStdevCheckBox->isChecked() );
+  settings.setValue( QStringLiteral( "/HistogramWidget/showMean" ), mMeanCheckBox->isChecked() );
+  settings.setValue( QStringLiteral( "/HistogramWidget/showStdev" ), mStdevCheckBox->isChecked() );
 }
 
-static bool _rangesByLower( const QgsRendererRangeV2& a, const QgsRendererRangeV2& b )
+static bool _rangesByLower( const QgsRendererRange& a, const QgsRendererRange& b )
 {
   return a.lowerValue() < b.lowerValue() ? -1 : 0;
 }
@@ -208,32 +208,26 @@ void QgsHistogramWidget::drawHistogram()
 
   // make colors list
   mHistoColors.clear();
-  Q_FOREACH ( const QgsRendererRangeV2& range, mRanges )
+  Q_FOREACH ( const QgsRendererRange& range, mRanges )
   {
     mHistoColors << ( range.symbol() ? range.symbol()->color() : Qt::black );
   }
 
   //draw histogram
 #if defined(QWT_VERSION) && QWT_VERSION>=0x060000
-  QwtPlotHistogram * plotHistogram = 0;
-  plotHistogram = createPlotHistogram( mRanges.count() > 0 ? mRanges.at( 0 ).label() : QString(),
-                                       mRanges.count() > 0 ? QBrush( mHistoColors.at( 0 ) ) : mBrush,
-                                       mRanges.count() > 0 ? Qt::NoPen : mPen );
-#else
-  HistogramItem *plotHistogramItem = 0;
-  plotHistogramItem = createHistoItem( mRanges.count() > 0 ? mRanges.at( 0 ).label() : QString(),
-                                       mRanges.count() > 0 ? QBrush( mHistoColors.at( 0 ) ) : mBrush,
-                                       mRanges.count() > 0 ? Qt::NoPen : mPen );
-#endif
-
-#if defined(QWT_VERSION) && QWT_VERSION>=0x060000
+  QwtPlotHistogram *plotHistogram = nullptr;
+  plotHistogram = createPlotHistogram( !mRanges.isEmpty() ? mRanges.at( 0 ).label() : QString(),
+                                       !mRanges.isEmpty() ? QBrush( mHistoColors.at( 0 ) ) : mBrush,
+                                       !mRanges.isEmpty() ? Qt::NoPen : mPen );
   QVector<QwtIntervalSample> dataHisto;
 #else
-
+  HistogramItem *plotHistogramItem = nullptr;
+  plotHistogramItem = createHistoItem( !mRanges.isEmpty() ? mRanges.at( 0 ).label() : QString(),
+                                       !mRanges.isEmpty() ? QBrush( mHistoColors.at( 0 ) ) : mBrush,
+                                       !mRanges.isEmpty() ? Qt::NoPen : mPen );
   // we safely assume that QT>=4.0 (min version is 4.7), therefore QwtArray is a QVector, so don't set size here
   QwtArray<QwtDoubleInterval> intervalsHisto;
   QwtArray<double> valuesHisto;
-
 #endif
 
   int bins = mBinsSpinBox->value();
@@ -269,7 +263,7 @@ void QgsHistogramWidget::drawHistogram()
 #endif
     }
 
-    double upperEdge = mRanges.count() > 0 ? qMin( edges.at( bin + 1 ), mRanges.at( rangeIndex ).upperValue() )
+    double upperEdge = !mRanges.isEmpty() ? qMin( edges.at( bin + 1 ), mRanges.at( rangeIndex ).upperValue() )
                        : edges.at( bin + 1 );
 
 #if defined(QWT_VERSION) && QWT_VERSION>=0x060000
@@ -291,7 +285,7 @@ void QgsHistogramWidget::drawHistogram()
 #endif
 
   mRangeMarkers.clear();
-  Q_FOREACH ( const QgsRendererRangeV2& range, mRanges )
+  Q_FOREACH ( const QgsRendererRange& range, mRanges )
   {
     QwtPlotMarker* rangeMarker = new QwtPlotMarker();
     rangeMarker->attach( mpPlot );

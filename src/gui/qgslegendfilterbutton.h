@@ -20,9 +20,9 @@
 class QgsVectorLayer;
 
 /** \ingroup gui
- * \class QgsFilterLegendButton
- * A tool button that allows to enable or disable legend filter by contents of the map.
- * An additional pop down menu allows to define a boolean expression to refine the filtering.
+ * \class QgsLegendFilterButton
+ * A tool button that allows enabling or disabling legend filter by contents of the map.
+ * An additional pop down menu allows defining a boolean expression to refine the filtering.
  * @note added in 2.14
  */
 
@@ -36,7 +36,7 @@ class GUI_EXPORT QgsLegendFilterButton: public QToolButton
      *
      * @param parent The parent QWidget
      */
-    QgsLegendFilterButton( QWidget* parent = 0 );
+    QgsLegendFilterButton( QWidget* parent = nullptr );
     ~QgsLegendFilterButton();
 
     /**

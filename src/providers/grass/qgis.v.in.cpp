@@ -149,14 +149,14 @@ int main( int argc, char **argv )
   // global finalName, tmpName are used by checkStream()
   finalName = QString( mapOption->answer );
   QDateTime now = QDateTime::currentDateTime();
-  tmpName = QString( "qgis_import_tmp_%1_%2" ).arg( mapOption->answer, now.toString( "yyyyMMddhhmmss" ) );
+  tmpName = QStringLiteral( "qgis_import_tmp_%1_%2" ).arg( mapOption->answer, now.toString( QStringLiteral( "yyyyMMddhhmmss" ) ) );
 
   qint32 typeQint32;
   stdinStream >> typeQint32;
   checkStream( stdinStream );
-  QGis::WkbType wkbType = ( QGis::WkbType )typeQint32;
-  QGis::WkbType wkbFlatType = QGis::flatType( wkbType );
-  bool isPolygon = QGis::singleType( wkbFlatType ) == QGis::WKBPolygon;
+  QgsWkbTypes::Type wkbType = ( QgsWkbTypes::Type )typeQint32;
+  QgsWkbTypes::Type wkbFlatType = QgsWkbTypes::flatType( wkbType );
+  bool isPolygon = QgsWkbTypes::singleType( wkbFlatType ) == QgsWkbTypes::Polygon;
 
   finalMap = QgsGrass::vectNewMapStruct();
   Vect_open_new( finalMap, mapOption->answer, 0 );
@@ -178,7 +178,7 @@ int main( int argc, char **argv )
   QString key;
   while ( true )
   {
-    key = "cat" + ( keyNum == 1 ? "" : QString::number( keyNum ) );
+    key = "cat" + ( keyNum == 1 ? QLatin1String( "" ) : QString::number( keyNum ) );
     if ( srcFields.indexFromName( key ) == -1 )
     {
       break;
@@ -190,8 +190,8 @@ int main( int argc, char **argv )
   fields.append( QgsField( key, QVariant::Int ) );
   fields.extend( srcFields );
 
-  struct field_info *fieldInfo = Vect_default_field_info( finalMap, 1, NULL, GV_1TABLE );
-  if ( Vect_map_add_dblink( finalMap, 1, NULL, fieldInfo->table, key.toLatin1().data(),
+  struct field_info *fieldInfo = Vect_default_field_info( finalMap, 1, nullptr, GV_1TABLE );
+  if ( Vect_map_add_dblink( finalMap, 1, nullptr, fieldInfo->table, key.toLatin1().data(),
                             fieldInfo->database, fieldInfo->driver ) != 0 )
   {
     G_fatal_error( "Cannot add link" );
@@ -245,54 +245,54 @@ int main( int argc, char **argv )
       break;
     }
 
-    QgsGeometry* geometry = feature.geometry();
-    if ( geometry )
+    QgsGeometry geometry = feature.geometry();
+    if ( !geometry.isEmpty() )
     {
       // geometry type may be probably different from provider type (e.g. multi x single)
-      QGis::WkbType geometryType = QGis::flatType( geometry->wkbType() );
+      QgsWkbTypes::Type geometryType = QgsWkbTypes::flatType( geometry.wkbType() );
       if ( !isPolygon )
       {
         Vect_reset_cats( cats );
         Vect_cat_set( cats, 1, ( int )feature.id() + fidToCatPlus );
       }
 
-      if ( geometryType == QGis::WKBPoint )
+      if ( geometryType == QgsWkbTypes::Point )
       {
-        QgsPoint point = geometry->asPoint();
+        QgsPoint point = geometry.asPoint();
         writePoint( map, GV_POINT, point, cats );
       }
-      else if ( geometryType == QGis::WKBMultiPoint )
+      else if ( geometryType == QgsWkbTypes::MultiPoint )
       {
-        QgsMultiPoint multiPoint = geometry->asMultiPoint();
+        QgsMultiPoint multiPoint = geometry.asMultiPoint();
         Q_FOREACH ( const QgsPoint& point, multiPoint )
         {
           writePoint( map, GV_POINT, point, cats );
         }
       }
-      else if ( geometryType == QGis::WKBLineString )
+      else if ( geometryType == QgsWkbTypes::LineString )
       {
-        QgsPolyline polyline = geometry->asPolyline();
+        QgsPolyline polyline = geometry.asPolyline();
         writePolyline( map, GV_LINE, polyline, cats );
       }
-      else if ( geometryType == QGis::WKBMultiLineString )
+      else if ( geometryType == QgsWkbTypes::MultiLineString )
       {
-        QgsMultiPolyline multiPolyline = geometry->asMultiPolyline();
+        QgsMultiPolyline multiPolyline = geometry.asMultiPolyline();
         Q_FOREACH ( const QgsPolyline& polyline, multiPolyline )
         {
           writePolyline( map, GV_LINE, polyline, cats );
         }
       }
-      else if ( geometryType == QGis::WKBPolygon )
+      else if ( geometryType == QgsWkbTypes::Polygon )
       {
-        QgsPolygon polygon = geometry->asPolygon();
+        QgsPolygon polygon = geometry.asPolygon();
         Q_FOREACH ( const QgsPolyline& polyline, polygon )
         {
           writePolyline( map, GV_BOUNDARY, polyline, cats );
         }
       }
-      else if ( geometryType == QGis::WKBMultiPolygon )
+      else if ( geometryType == QgsWkbTypes::MultiPolygon )
       {
-        QgsMultiPolygon multiPolygon = geometry->asMultiPolygon();
+        QgsMultiPolygon multiPolygon = geometry.asMultiPolygon();
         Q_FOREACH ( const QgsPolygon& polygon, multiPolygon )
         {
           Q_FOREACH ( const QgsPolyline& polyline, polygon )
@@ -326,26 +326,29 @@ int main( int argc, char **argv )
 
   if ( isPolygon )
   {
-    double snapTreshold = 0;
     G_message( "Building partial topology" );
     Vect_build_partial( map, GV_BUILD_BASE );
 
-    if ( snapTreshold > 0 )
+#if 0
+    double snapThreshold = 0.0;
+    if ( snapThreshold > 0.0 )
     {
-      Vect_snap_lines( map, GV_BOUNDARY, snapTreshold, NULL );
+      Vect_snap_lines( map, GV_BOUNDARY, snapThreshold, nullptr );
     }
+#endif
+
     G_message( "Breaking polygons" );
-    Vect_break_polygons( map, GV_BOUNDARY, NULL );
+    Vect_break_polygons( map, GV_BOUNDARY, nullptr );
     G_message( "Removing duplicates" );
-    Vect_remove_duplicates( map, GV_BOUNDARY | GV_CENTROID, NULL );
+    Vect_remove_duplicates( map, GV_BOUNDARY | GV_CENTROID, nullptr );
     for ( int i = 0; i < 3; i++ )
     {
       G_message( "Breaking lines" );
-      Vect_break_lines( map, GV_BOUNDARY, NULL );
+      Vect_break_lines( map, GV_BOUNDARY, nullptr );
       G_message( "Removing duplicates" );
-      Vect_remove_duplicates( map, GV_BOUNDARY, NULL );
+      Vect_remove_duplicates( map, GV_BOUNDARY, nullptr );
       G_message( "Cleaning small dangles at nodes" );
-      if ( Vect_clean_small_angles_at_nodes( map, GV_BOUNDARY, NULL ) == 0 )
+      if ( Vect_clean_small_angles_at_nodes( map, GV_BOUNDARY, nullptr ) == 0 )
       {
         break;
       }
@@ -361,7 +364,7 @@ int main( int argc, char **argv )
         continue;
       }
 
-      int type = Vect_read_line( map, line, NULL, i );
+      int type = Vect_read_line( map, line, nullptr, i );
       if ( !( type & GV_BOUNDARY ) )
       {
         continue;
@@ -374,13 +377,13 @@ int main( int argc, char **argv )
     }
 
     G_message( "Merging lines" );
-    Vect_merge_lines( map, GV_BOUNDARY, NULL, NULL );
+    Vect_merge_lines( map, GV_BOUNDARY, nullptr, nullptr );
     G_message( "Removing bridges" );
 #if GRASS_VERSION_MAJOR < 7
-    Vect_remove_bridges( map, NULL );
+    Vect_remove_bridges( map, nullptr );
 #else
     int linesRemoved, bridgesRemoved;
-    Vect_remove_bridges( map, NULL, &linesRemoved, &bridgesRemoved );
+    Vect_remove_bridges( map, nullptr, &linesRemoved, &bridgesRemoved );
 #endif
     G_message( "Attaching islands" );
     Vect_build_partial( map, GV_BUILD_ATTACH_ISLES );
@@ -423,16 +426,16 @@ int main( int argc, char **argv )
       {
         break;
       }
-      if ( !feature.geometry() )
+      if ( !feature.hasGeometry() )
       {
         continue;
       }
 
-      QList<QgsFeatureId> idList = spatialIndex.intersects( feature.geometry()->boundingBox() );
+      QList<QgsFeatureId> idList = spatialIndex.intersects( feature.geometry().boundingBox() );
       Q_FOREACH ( QgsFeatureId id, idList )
       {
         QgsFeature& centroid = centroids[id];
-        if ( feature.geometry()->contains( centroid.geometry() ) )
+        if ( feature.geometry().contains( centroid.geometry() ) )
         {
           QgsAttributes attr = centroid.attributes();
           attr.append(( int )feature.id() + fidToCatPlus );
@@ -450,9 +453,9 @@ int main( int argc, char **argv )
 
     int centroidsCount = centroids.size();
     count = 0;
-    Q_FOREACH ( QgsFeature centroid, centroids.values() )
+    Q_FOREACH ( const QgsFeature& centroid, centroids.values() )
     {
-      QgsPoint point = centroid.geometry()->asPoint();
+      QgsPoint point = centroid.geometry().asPoint();
 
       if ( centroid.attributes().size() > 0 )
       {

@@ -29,14 +29,17 @@
 class CORE_EXPORT QgsErrorMessage
 {
   public:
-    /** Format */
+    //! Format
     enum Format
     {
       Text, // Plain text
       Html
     };
 
-    QgsErrorMessage() : mLine( 0 ), mFormat( Text ) {}
+    QgsErrorMessage()
+        : mLine( 0 )
+        , mFormat( Text )
+    {}
 
     /** Constructor.
      *  @param theMessage error message string
@@ -54,18 +57,18 @@ class CORE_EXPORT QgsErrorMessage
     int line() const { return mLine; }
 
   private:
-    /** Error messages */
+    //! Error messages
     QString mMessage;
 
-    /** Short description */
+    //! Short description
     QString mTag;
 
-    /** Detailed debug info */
+    //! Detailed debug info
     QString mFile;
     QString mFunction;
     int mLine;
 
-    /** Message format */
+    //! Message format
     Format mFormat;
 };
 
@@ -113,11 +116,11 @@ class CORE_EXPORT QgsError
      */
     QString summary() const;
 
-    /** Clear error messages */
+    //! Clear error messages
     void clear() { mMessageList.clear(); }
 
   private:
-    /** List of messages */
+    //! List of messages
     QList<QgsErrorMessage> mMessageList;
 };
 

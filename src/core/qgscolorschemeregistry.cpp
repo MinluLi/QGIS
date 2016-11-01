@@ -24,10 +24,10 @@
 //
 // Static calls to enforce singleton behaviour
 //
-QgsColorSchemeRegistry *QgsColorSchemeRegistry::mInstance = 0;
+QgsColorSchemeRegistry *QgsColorSchemeRegistry::mInstance = nullptr;
 QgsColorSchemeRegistry *QgsColorSchemeRegistry::instance()
 {
-  if ( mInstance == 0 )
+  if ( !mInstance )
   {
     mInstance = new QgsColorSchemeRegistry();
 
@@ -86,7 +86,7 @@ void QgsColorSchemeRegistry::addUserSchemes()
     return;
   }
 
-  QFileInfoList fileInfoList = QDir( palettesDir ).entryInfoList( QStringList( "*.gpl" ), QDir::Files );
+  QFileInfoList fileInfoList = QDir( palettesDir ).entryInfoList( QStringList( QStringLiteral( "*.gpl" ) ), QDir::Files );
   QFileInfoList::const_iterator infoIt = fileInfoList.constBegin();
   for ( ; infoIt != fileInfoList.constEnd(); ++infoIt )
   {

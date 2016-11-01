@@ -4,7 +4,7 @@
 ***************************************************************************
     las2lasPro_project.py
     ---------------------
-    Date                 : October 2014
+    Date                 : October 2014 and May 2016
     Copyright            : (C) 2014 by Martin Isenburg
     Email                : martin near rapidlasso point com
 ***************************************************************************
@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'October 2014'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2014, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterSelection
 
@@ -70,7 +73,10 @@ class las2lasPro_project(LAStoolsAlgorithm):
         self.addParametersVerboseGUI()
 
     def processAlgorithm(self, progress):
-        commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "las2las")]
+        if (LAStoolsUtils.hasWine()):
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "las2las.exe")]
+        else:
+            commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "las2las")]
         self.addParametersVerboseCommands(commands)
         self.addParametersPointInputFolderCommands(commands)
         source_projection = self.getParameterValue(las2lasPro_project.SOURCE_PROJECTION)
@@ -80,9 +86,9 @@ class las2lasPro_project(LAStoolsAlgorithm):
                 if source_utm_zone != 0:
                     commands.append("-" + las2lasPro_project.PROJECTIONS[source_projection])
                     if source_utm_zone > 60:
-                        commands.append(unicode(source_utm_zone - 60) + "M")
+                        commands.append(str(source_utm_zone - 60) + "M")
                     else:
-                        commands.append(unicode(source_utm_zone) + "N")
+                        commands.append(str(source_utm_zone) + "N")
             elif source_projection < 4:
                 source_sp_code = self.getParameterValue(las2lasPro_project.SOURCE_SP)
                 if source_sp_code != 0:
@@ -97,9 +103,9 @@ class las2lasPro_project(LAStoolsAlgorithm):
                 if target_utm_zone != 0:
                     commands.append("-target_" + las2lasPro_project.PROJECTIONS[target_projection])
                     if target_utm_zone > 60:
-                        commands.append(unicode(target_utm_zone - 60) + "M")
+                        commands.append(str(target_utm_zone - 60) + "M")
                     else:
-                        commands.append(unicode(target_utm_zone) + "N")
+                        commands.append(str(target_utm_zone) + "N")
             elif target_projection < 4:
                 target_sp_code = self.getParameterValue(las2lasPro_project.TARGET_SP)
                 if target_sp_code != 0:

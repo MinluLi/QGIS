@@ -20,7 +20,8 @@
 
 #include "qgseditorconfigwidget.h"
 
-/** \class QgsUniqueValuesConfigDlg
+/** \ingroup gui
+ * \class QgsUniqueValuesConfigDlg
  * \note not available in Python bindings
  */
 
@@ -29,7 +30,7 @@ class GUI_EXPORT QgsUniqueValuesConfigDlg : public QgsEditorConfigWidget, privat
     Q_OBJECT
 
   public:
-    explicit QgsUniqueValuesConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget *parent = 0 );
+    explicit QgsUniqueValuesConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget *parent = nullptr );
 
     // QgsEditorConfigWidget interface
   public:

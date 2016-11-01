@@ -5,7 +5,7 @@
     SelectByExpression.py
     ---------------------
     Date                 : July 2014
-    Copyright            : (C) 2014 by Micha�l Douchin
+    Copyright            : (C) 2014 by Michael Douchin
 ***************************************************************************
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
@@ -24,14 +24,14 @@ __copyright__ = '(C) 2014, Michael Douchin'
 
 __revision__ = '$Format:%H$'
 
-import processing
-from qgis.core import QgsExpression, QgsFeatureRequest
+from qgis.core import QgsExpression, QgsVectorLayer
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterSelection
 from processing.core.outputs import OutputVector
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterString
+from processing.tools import dataobjects
 
 
 class SelectByExpression(GeoAlgorithm):
@@ -47,10 +47,11 @@ class SelectByExpression(GeoAlgorithm):
 
         self.methods = [self.tr('creating new selection'),
                         self.tr('adding to current selection'),
-                        self.tr('removing from current selection')]
+                        self.tr('removing from current selection'),
+                        self.tr('selecting within current selection')]
 
         self.addParameter(ParameterVector(self.LAYERNAME,
-                                          self.tr('Input Layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input Layer')))
         self.addParameter(ParameterString(self.EXPRESSION,
                                           self.tr("Expression")))
         self.addParameter(ParameterSelection(self.METHOD,
@@ -59,25 +60,23 @@ class SelectByExpression(GeoAlgorithm):
 
     def processAlgorithm(self, progress):
         filename = self.getParameterValue(self.LAYERNAME)
-        layer = processing.getObject(filename)
+        layer = dataobjects.getObjectFromUri(filename)
         oldSelection = set(layer.selectedFeaturesIds())
         method = self.getParameterValue(self.METHOD)
 
-        # Build QGIS request with expression
+        if method == 0:
+            behaviour = QgsVectorLayer.SetSelection
+        elif method == 1:
+            behaviour = QgsVectorLayer.AddToSelection
+        elif method == 2:
+            behavior = QgsVectorLayer.RemoveFromSelection
+        elif method == 3:
+            behaviour = QgsVectorLayer.IntersectSelection
+
         expression = self.getParameterValue(self.EXPRESSION)
         qExp = QgsExpression(expression)
-        if not qExp.hasParserError():
-            qReq = QgsFeatureRequest(qExp)
-        else:
+        if qExp.hasParserError():
             raise GeoAlgorithmExecutionException(qExp.parserErrorString())
-        selected = [f.id() for f in layer.getFeatures(qReq)]
 
-        if method == 1:
-            selected = list(oldSelection.union(selected))
-        elif method == 2:
-            selected = list(oldSelection.difference(selected))
-
-        # Set the selection
-        layer.setSelectedFeatures(selected)
-
+        layer.selectByExpression(expression, behaviour)
         self.setOutputValue(self.RESULT, filename)

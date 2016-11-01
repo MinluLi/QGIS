@@ -25,7 +25,7 @@ __copyright__ = '(C) 2015, Nyall Dawson'
 
 __revision__ = '$Format:%H$'
 
-from qgis.core import QGis, QgsGeometry, QgsFeature
+from qgis.core import QgsFeature
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
 from processing.core.parameters import ParameterVector, ParameterNumber
@@ -38,6 +38,7 @@ class Smooth(GeoAlgorithm):
     INPUT_LAYER = 'INPUT_LAYER'
     OUTPUT_LAYER = 'OUTPUT_LAYER'
     ITERATIONS = 'ITERATIONS'
+    MAX_ANGLE = 'MAX_ANGLE'
     OFFSET = 'OFFSET'
 
     def defineCharacteristics(self):
@@ -45,45 +46,42 @@ class Smooth(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector geometry tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_POLYGON, ParameterVector.VECTOR_TYPE_LINE]))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_LINE]))
         self.addParameter(ParameterNumber(self.ITERATIONS,
                                           self.tr('Iterations'), default=1, minValue=1, maxValue=10))
         self.addParameter(ParameterNumber(self.OFFSET,
                                           self.tr('Offset'), default=0.25, minValue=0.0, maxValue=0.5))
+        self.addParameter(ParameterNumber(self.MAX_ANGLE,
+                                          self.tr('Maximum node angle to smooth'), default=180.0, minValue=0.0, maxValue=180.0))
         self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Smoothed')))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
             self.getParameterValue(self.INPUT_LAYER))
-        provider = layer.dataProvider()
         iterations = self.getParameterValue(self.ITERATIONS)
         offset = self.getParameterValue(self.OFFSET)
+        max_angle = self.getParameterValue(self.MAX_ANGLE)
 
         writer = self.getOutputFromName(
             self.OUTPUT_LAYER).getVectorWriter(
                 layer.fields().toList(),
-                provider.geometryType(),
+                layer.wkbType(),
                 layer.crs())
 
-        outFeat = QgsFeature()
-
         features = vector.features(layer)
-        total = 100.0 / float(len(features))
-        current = 0
+        total = 100.0 / len(features)
 
-        for inFeat in features:
-            inGeom = inFeat.constGeometry()
-            attrs = inFeat.attributes()
+        for current, input_feature in enumerate(features):
+            output_feature = input_feature
+            if input_feature.geometry():
+                output_geometry = input_feature.geometry().smooth(iterations, offset, -1, max_angle)
+                if not output_geometry:
+                    raise GeoAlgorithmExecutionException(
+                        self.tr('Error smoothing geometry'))
 
-            outGeom = inGeom.smooth(iterations, offset)
-            if outGeom is None:
-                raise GeoAlgorithmExecutionException(
-                    self.tr('Error smoothing geometry'))
+                output_feature.setGeometry(output_geometry)
 
-            outFeat.setGeometry(outGeom)
-            outFeat.setAttributes(attrs)
-            writer.addFeature(outFeat)
-            current += 1
+            writer.addFeature(output_feature)
             progress.setPercentage(int(current * total))
 
         del writer

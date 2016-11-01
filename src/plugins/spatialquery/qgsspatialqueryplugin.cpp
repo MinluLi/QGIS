@@ -45,7 +45,7 @@ static const QString description_ = QObject::tr( "A plugin that makes spatial qu
 static const QString category_ = QObject::tr( "Vector" );
 static const QString version_ = QObject::tr( "Version 0.1" );
 static const QgisPlugin::PLUGINTYPE type_ = QgisPlugin::UI;
-static const QString icon_ = ":/icons/spatialquery.png";
+static const QString icon_ = QStringLiteral( ":/icons/spatialquery.png" );
 
 /**
 * Constructor for the plugin. The plugin is passed a pointer to the main app
@@ -55,9 +55,9 @@ static const QString icon_ = ":/icons/spatialquery.png";
 */
 QgsSpatialQueryPlugin::QgsSpatialQueryPlugin( QgisInterface* iface )
     : QgisPlugin( name_, description_, category_, version_, type_ )
-    , mDialog( 0 )
+    , mDialog( nullptr )
     , mIface( iface )
-    , mSpatialQueryAction( 0 )
+    , mSpatialQueryAction( nullptr )
 {
 }
 
@@ -74,12 +74,12 @@ void QgsSpatialQueryPlugin::initGui()
 
   // Create the action for tool
   mSpatialQueryAction = new QAction( QIcon(), tr( "&Spatial Query" ), this );
-  mSpatialQueryAction->setObjectName( "mSpatialQueryAction" );
+  mSpatialQueryAction->setObjectName( QStringLiteral( "mSpatialQueryAction" ) );
 
   // Connect the action to the spatialQuery slot
   connect( mSpatialQueryAction, SIGNAL( triggered() ), this, SLOT( run() ) );
 
-  setCurrentTheme( "" );
+  setCurrentTheme( QLatin1String( "" ) );
   // this is called when the icon theme is changed
   connect( mIface, SIGNAL( currentThemeChanged( QString ) ), this, SLOT( setCurrentTheme( QString ) ) );
 
@@ -97,9 +97,9 @@ void QgsSpatialQueryPlugin::unload()
   mIface->removePluginVectorMenu( tr( "&Spatial Query" ), mSpatialQueryAction );
 
   delete mSpatialQueryAction;
-  mSpatialQueryAction = 0;
+  mSpatialQueryAction = nullptr;
   delete mDialog;
-  mDialog = NULL;
+  mDialog = nullptr;
 }
 
 void QgsSpatialQueryPlugin::run()
@@ -121,7 +121,7 @@ void QgsSpatialQueryPlugin::run()
     if ( !mDialog->isVisible() )
     {
       delete mDialog;
-      mDialog = NULL;
+      mDialog = nullptr;
       run();
     }
     else
@@ -136,7 +136,7 @@ void QgsSpatialQueryPlugin::run()
 void QgsSpatialQueryPlugin::setCurrentTheme( const QString& )
 {
   if ( mSpatialQueryAction )
-    mSpatialQueryAction->setIcon( getThemeIcon( "/spatialquery.png" ) );
+    mSpatialQueryAction->setIcon( getThemeIcon( QStringLiteral( "/spatialquery.png" ) ) );
 }
 
 QIcon QgsSpatialQueryPlugin::getThemeIcon( const QString &theName )
@@ -155,9 +155,9 @@ QIcon QgsSpatialQueryPlugin::getThemeIcon( const QString &theName )
   }
 }
 
-void QgsSpatialQueryPlugin::MsgDEBUG( QString sMSg )
+void QgsSpatialQueryPlugin::MsgDEBUG( const QString& sMSg )
 {
-  QMessageBox::warning( 0, tr( "DEBUG" ), sMSg, QMessageBox::Ok );
+  QMessageBox::warning( nullptr, tr( "DEBUG" ), sMSg, QMessageBox::Ok );
 }
 
 

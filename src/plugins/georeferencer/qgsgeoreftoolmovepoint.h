@@ -36,15 +36,15 @@ class QgsGeorefToolMovePoint : public QgsMapTool
     bool isCanvas( QgsMapCanvas * );
 
   signals:
-    void pointPressed( const QPoint &p );
-    void pointMoved( const QPoint &p );
-    void pointReleased( const QPoint &p );
+    void pointPressed( QPoint p );
+    void pointMoved( QPoint p );
+    void pointReleased( QPoint p );
 
   private:
-    /** Start point of the move in map coordinates*/
+    //! Start point of the move in map coordinates
     QPoint mStartPointMapCoords;
 
-    /** Rubberband that shows the feature being moved*/
+    //! Rubberband that shows the feature being moved
     QRubberBand *mRubberBand;
 };
 

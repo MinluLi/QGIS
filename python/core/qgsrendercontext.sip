@@ -1,4 +1,3 @@
-
 class QgsRenderContext
 {
 
@@ -8,26 +7,44 @@ class QgsRenderContext
 
   public:
     QgsRenderContext();
+    QgsRenderContext( const QgsRenderContext& rh );
     ~QgsRenderContext();
 
-    //! Enumeration of flags that affect rendering operations
+    /** Enumeration of flags that affect rendering operations.
+     * @note added in QGIS 2.14
+     */
     enum Flag
     {
-      DrawEditingInfo,  //!< Enable drawing of vertex markers for layers in editing mode
-      ForceVectorOutput,  //!< Vector graphics should not be cached and drawn as raster images
-      UseAdvancedEffects,  //!< Enable layer transparency and blending effects
+      DrawEditingInfo,          //!< Enable drawing of vertex markers for layers in editing mode
+      ForceVectorOutput,        //!< Vector graphics should not be cached and drawn as raster images
+      UseAdvancedEffects,       //!< Enable layer transparency and blending effects
       UseRenderingOptimization, //!< Enable vector simplification and other rendering optimizations
-      DrawSelection,  //!< Whether vector selections should be shown in the rendered map
+      DrawSelection,            //!< Whether vector selections should be shown in the rendered map
+      DrawSymbolBounds,         //!< Draw bounds of symbols (for debugging/testing)
+      RenderMapTile,            //!< Draw map such that there are no problems between adjacent tiles
+      Antialiasing,             //!< Use antialiasing while drawing
+      RenderPartialOutput,      //!< Whether to make extra effort to update map image with partially rendered layers (better for interactive map canvas). Added in QGIS 3.0
     };
     typedef QFlags<QgsRenderContext::Flag> Flags;
 
-    //! Set combination of flags that will be used for rendering
-    void setFlags( const QgsRenderContext::Flags& flags );
-    //! Enable or disable a particular flag (other flags are not affected)
+    /** Set combination of flags that will be used for rendering.
+     * @note added in QGIS 2.14
+     */
+    void setFlags( QgsRenderContext::Flags flags );
+
+    /** Enable or disable a particular flag (other flags are not affected)
+     * @note added in QGIS 2.14
+     */
     void setFlag( Flag flag, bool on = true );
-    //! Return combination of flags used for rendering
+
+    /** Return combination of flags used for rendering.
+     * @note added in QGIS 2.14
+     */
     Flags flags() const;
-    //! Check whether a particular flag is enabled
+
+    /** Check whether a particular flag is enabled.
+     * @note added in QGIS 2.14
+     */
     bool testFlag( Flag flag ) const;
 
     //! create initialized QgsRenderContext instance from given QgsMapSettings
@@ -39,7 +56,10 @@ class QgsRenderContext
     QPainter* painter();
     const QPainter* constPainter() const;
 
-    const QgsCoordinateTransform* coordinateTransform() const;
+    /** Returns the current coordinate transform for the context, or an invalid
+     * transform is no coordinate transformation is required.
+     */
+    QgsCoordinateTransform coordinateTransform() const;
 
     const QgsRectangle& extent() const;
 
@@ -53,10 +73,12 @@ class QgsRenderContext
 
     bool forceVectorOutput() const;
 
-    /** Returns true if advanced effects such as blend modes such be used */
+    /** Returns true if advanced effects such as blend modes such be used
+     */
     bool useAdvancedEffects() const;
 
-    /** Used to enable or disable advanced effects such as blend modes */
+    /** Used to enable or disable advanced effects such as blend modes
+     */
     void setUseAdvancedEffects( bool enabled );
 
     bool drawEditingInformation() const;
@@ -65,6 +87,10 @@ class QgsRenderContext
 
     QgsLabelingEngineInterface* labelingEngine();
 
+    //! Get access to new labeling engine (may be nullptr)
+    //! @note not available in Python bindings
+    // QgsLabelingEngine* labelingEngineV2() const { return mLabelingEngine2; }
+
     QColor selectionColor() const;
 
     /** Returns true if vector selections should be shown in the rendered map
@@ -72,13 +98,14 @@ class QgsRenderContext
      * @see setShowSelection
      * @see selectionColor
      * @note Added in QGIS v2.4
-    */
+     */
     bool showSelection() const;
 
     //setters
 
-    /** Sets coordinate transformation. QgsRenderContext does not take ownership*/
-    void setCoordinateTransform( const QgsCoordinateTransform* t );
+    /** Sets coordinate transformation.*/
+    void setCoordinateTransform( const QgsCoordinateTransform& t );
+
     void setMapToPixel( const QgsMapToPixel& mtp );
     void setExtent( const QgsRectangle& extent );
 
@@ -93,6 +120,9 @@ class QgsRenderContext
     void setForceVectorOutput( bool force );
 
     void setLabelingEngine( QgsLabelingEngineInterface* iface );
+    //! Assign new labeling engine
+    //! @note not available in Python bindings
+    // void setLabelingEngineV2( QgsLabelingEngine* engine2 ) { mLabelingEngine2 = engine2; }
     void setSelectionColor( const QColor& color );
 
     /** Sets whether vector selections should be shown in the rendered map
@@ -100,10 +130,11 @@ class QgsRenderContext
      * @see showSelection
      * @see setSelectionColor
      * @note Added in QGIS v2.4
-    */
+     */
     void setShowSelection( const bool showSelection );
 
-    /** Returns true if the rendering optimization (geometry simplification) can be executed*/
+    /** Returns true if the rendering optimization (geometry simplification) can be executed
+     */
     bool useRenderingOptimization() const;
 
     void setUseRenderingOptimization( bool enabled );
@@ -134,10 +165,34 @@ class QgsRenderContext
      */
     //const QgsExpressionContext& expressionContext() const;
 
-    /** Returns pointer to the unsegmentized geometry
-        @return the geometry*/
-    const QgsAbstractGeometryV2* geometry() const;
-    /** Sets pointer to original (unsegmentized) geometry
-        @geometry the geometry*/
-    void setGeometry( const QgsAbstractGeometryV2* geometry );
+    /** Returns pointer to the unsegmentized geometry*/
+    const QgsAbstractGeometry* geometry() const;
+    /** Sets pointer to original (unsegmentized) geometry*/
+    void setGeometry( const QgsAbstractGeometry* geometry );
+
+    /** Set a filter feature provider used for additional filtering of rendered features.
+     * @param ffp the filter feature provider
+     * @note added in QGIS 2.14
+     * @see featureFilterProvider()
+     */
+    void setFeatureFilterProvider( const QgsFeatureFilterProvider* ffp );
+
+    /** Get the filter feature provider used for additional filtering of rendered features.
+     * @return the filter feature provider
+     * @note added in QGIS 2.14
+     * @see setFeatureFilterProvider()
+     */
+    const QgsFeatureFilterProvider* featureFilterProvider() const;
+
+    /** Sets the segmentation tolerance applied when rendering curved geometries
+    @param tolerance the segmentation tolerance*/
+    void setSegmentationTolerance( double tolerance );
+    /** Gets the segmentation tolerance applied when rendering curved geometries*/
+    double segmentationTolerance() const;
+
+    /** Sets segmentation tolerance type (maximum angle or maximum difference between curve and approximation)
+    @param type the segmentation tolerance typename*/
+    void setSegmentationToleranceType( QgsAbstractGeometry::SegmentationToleranceType type );
+    /** Gets segmentation tolerance type (maximum angle or maximum difference between curve and approximation)*/
+    QgsAbstractGeometry::SegmentationToleranceType segmentationToleranceType() const;
 };

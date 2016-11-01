@@ -41,14 +41,14 @@ class GUI_EXPORT QgsProjectionSelectionWidget : public QWidget
      */
     enum CrsOption
     {
-      LayerCrs, /*!< optional layer CRS */
-      ProjectCrs, /*!< current project CRS (if OTF reprojection enabled) */
-      CurrentCrs, /*!< current user selected CRS */
-      DefaultCrs, /*!< global default QGIS CRS */
-      RecentCrs /*!< recently used CRS */
+      LayerCrs, //!< Optional layer CRS
+      ProjectCrs, //!< Current project CRS (if OTF reprojection enabled)
+      CurrentCrs, //!< Current user selected CRS
+      DefaultCrs, //!< Global default QGIS CRS
+      RecentCrs //!< Recently used CRS
     };
 
-    explicit QgsProjectionSelectionWidget( QWidget *parent = 0 );
+    explicit QgsProjectionSelectionWidget( QWidget *parent = nullptr );
 
     /** Returns a pointer to the projection selector dialog used by the widget.
      * Can be used to modify how the projection selector dialog behaves.

@@ -4,7 +4,7 @@
 ***************************************************************************
     lasheight.py
     ---------------------
-    Date                 : September 2013
+    Date                 : September 2013 and May 2016
     Copyright            : (C) 2013 by Martin Isenburg
     Email                : martin near rapidlasso point com
 ***************************************************************************
@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Martin Isenburg'
 __date__ = 'September 2013'
@@ -24,8 +27,8 @@ __copyright__ = '(C) 2013, Martin Isenburg'
 __revision__ = '$Format:%H$'
 
 import os
-from LAStoolsUtils import LAStoolsUtils
-from LAStoolsAlgorithm import LAStoolsAlgorithm
+from .LAStoolsUtils import LAStoolsUtils
+from .LAStoolsAlgorithm import LAStoolsAlgorithm
 
 from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterNumber
@@ -44,16 +47,18 @@ class lasheight(LAStoolsAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('LAStools')
         self.addParametersVerboseGUI()
         self.addParametersPointInputGUI()
+        self.addParametersIgnoreClass1GUI()
+        self.addParametersIgnoreClass2GUI()
         self.addParameter(ParameterBoolean(lasheight.REPLACE_Z,
                                            self.tr("replace z"), False))
         self.addParameter(ParameterBoolean(lasheight.DROP_ABOVE,
                                            self.tr("drop above"), False))
         self.addParameter(ParameterNumber(lasheight.DROP_ABOVE_HEIGHT,
-                                          self.tr("drop above height"), 0, None, 100.0))
+                                          self.tr("drop above height"), None, None, 100.0))
         self.addParameter(ParameterBoolean(lasheight.DROP_BELOW,
                                            self.tr("drop below"), False))
         self.addParameter(ParameterNumber(lasheight.DROP_BELOW_HEIGHT,
-                                          self.tr("drop below height"), 0, None, -2.0))
+                                          self.tr("drop below height"), None, None, -2.0))
         self.addParametersPointOutputGUI()
         self.addParametersAdditionalGUI()
 
@@ -61,14 +66,16 @@ class lasheight(LAStoolsAlgorithm):
         commands = [os.path.join(LAStoolsUtils.LAStoolsPath(), "bin", "lasheight")]
         self.addParametersVerboseCommands(commands)
         self.addParametersPointInputCommands(commands)
+        self.addParametersIgnoreClass1Commands(commands)
+        self.addParametersIgnoreClass2Commands(commands)
         if self.getParameterValue(lasheight.REPLACE_Z):
             commands.append("-replace_z")
         if self.getParameterValue(lasheight.DROP_ABOVE):
             commands.append("-drop_above")
-            commands.append(unicode(self.getParameterValue(lasheight.DROP_ABOVE_HEIGHT)))
+            commands.append(str(self.getParameterValue(lasheight.DROP_ABOVE_HEIGHT)))
         if self.getParameterValue(lasheight.DROP_BELOW):
             commands.append("-drop_below")
-            commands.append(unicode(self.getParameterValue(lasheight.DROP_BELOW_HEIGHT)))
+            commands.append(str(self.getParameterValue(lasheight.DROP_BELOW_HEIGHT)))
         self.addParametersPointOutputCommands(commands)
         self.addParametersAdditionalCommands(commands)
 

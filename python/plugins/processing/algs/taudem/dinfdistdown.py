@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2012'
@@ -27,7 +30,7 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from PyQt4.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
@@ -38,7 +41,7 @@ from processing.core.parameters import ParameterBoolean
 from processing.core.parameters import ParameterSelection
 from processing.core.outputs import OutputRaster
 
-from TauDEMUtils import TauDEMUtils
+from .TauDEMUtils import TauDEMUtils
 
 
 class DinfDistDown(GeoAlgorithm):
@@ -65,7 +68,7 @@ class DinfDistDown(GeoAlgorithm):
     }
 
     def getIcon(self):
-        return QIcon(os.path.dirname(__file__) + '/../../images/taudem.png')
+        return QIcon(os.path.dirname(__file__) + '/../../images/taudem.svg')
 
     def defineCharacteristics(self):
         self.name, self.i18n_name = self.trAlgorithm('D-Infinity Distance Down')
@@ -101,7 +104,7 @@ class DinfDistDown(GeoAlgorithm):
                         'correct number before running TauDEM algorithms.'))
 
         commands.append('-n')
-        commands.append(unicode(processNum))
+        commands.append(str(processNum))
         commands.append(os.path.join(TauDEMUtils.taudemPath(), self.cmdName))
         commands.append('-ang')
         commands.append(self.getParameterValue(self.DINF_FLOW_DIR_GRID))
@@ -114,9 +117,9 @@ class DinfDistDown(GeoAlgorithm):
             commands.append('-wg')
             commands.append(self.getParameterValue(self.WEIGHT_PATH_GRID))
         commands.append('-m')
-        commands.append(unicode(self.STAT_DICT[self.getParameterValue(
+        commands.append(str(self.STAT_DICT[self.getParameterValue(
             self.STAT_METHOD)]))
-        commands.append(unicode(self.DIST_DICT[self.getParameterValue(
+        commands.append(str(self.DIST_DICT[self.getParameterValue(
             self.DIST_METHOD)]))
         if not self.getParameterValue(self.EDGE_CONTAM):
             commands.append('-nc')

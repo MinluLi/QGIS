@@ -19,6 +19,12 @@
 #include "ui_qgsdummyconfigdlgbase.h"
 #include "qgseditorconfigwidget.h"
 
+
+/** \ingroup gui
+ * \class QgsDummyConfigDlg
+ * \note not available in Python bindings
+ */
+
 class GUI_EXPORT QgsDummyConfigDlg : public QgsEditorConfigWidget, private Ui::QgsDummyConfigDlgBase
 {
     Q_OBJECT

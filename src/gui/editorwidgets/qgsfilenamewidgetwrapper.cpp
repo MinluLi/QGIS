@@ -24,19 +24,19 @@
 
 QgsFileNameWidgetWrapper::QgsFileNameWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
     : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
-    , mLineEdit( NULL )
-    , mPushButton( NULL )
-    , mLabel( NULL )
+    , mLineEdit( nullptr )
+    , mPushButton( nullptr )
+    , mLabel( nullptr )
 {
 }
 
-QVariant QgsFileNameWidgetWrapper::value()
+QVariant QgsFileNameWidgetWrapper::value() const
 {
   QVariant value;
 
   if ( mLineEdit )
   {
-    if ( mLineEdit->text() == QSettings().value( "qgis/nullValue", "NULL" ).toString() )
+    if ( mLineEdit->text() == QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() )
       value = QVariant( field().type() );
     else
       value = mLineEdit->text();
@@ -48,9 +48,20 @@ QVariant QgsFileNameWidgetWrapper::value()
   return value;
 }
 
-bool QgsFileNameWidgetWrapper::valid()
+bool QgsFileNameWidgetWrapper::valid() const
 {
   return mLineEdit || mLabel;
+}
+
+void QgsFileNameWidgetWrapper::showIndeterminateState()
+{
+  if ( mLineEdit )
+  {
+    whileBlocking( mLineEdit )->clear();
+  }
+
+  if ( mLabel )
+    mLabel->clear();
 }
 
 QWidget* QgsFileNameWidgetWrapper::createWidget( QWidget* parent )
@@ -59,8 +70,8 @@ QWidget* QgsFileNameWidgetWrapper::createWidget( QWidget* parent )
   container->setBackgroundRole( QPalette::Window );
   container->setAutoFillBackground( true );
 
-  QLineEdit* le = new QgsFilterLineEdit( container );
-  QPushButton* pbn = new QPushButton( tr( "..." ), container );
+  QLineEdit* le = new QgsFilterLineEdit();
+  QPushButton* pbn = new QPushButton( tr( "..." ) );
   QGridLayout* layout = new QGridLayout();
 
   layout->setMargin( 0 );
@@ -92,7 +103,7 @@ void QgsFileNameWidgetWrapper::initWidget( QWidget* editor )
     QgsFilterLineEdit* fle = qobject_cast<QgsFilterLineEdit*>( editor );
     if ( fle )
     {
-      fle->setNullValue( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      fle->setNullValue( QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() );
     }
 
     connect( mLineEdit, SIGNAL( textChanged( QString ) ), this, SLOT( valueChanged( QString ) ) );
@@ -104,7 +115,7 @@ void QgsFileNameWidgetWrapper::setValue( const QVariant& value )
   if ( mLineEdit )
   {
     if ( value.isNull() )
-      mLineEdit->setText( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      mLineEdit->setText( QSettings().value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString() );
     else
       mLineEdit->setText( value.toString() );
   }
@@ -139,4 +150,17 @@ void QgsFileNameWidgetWrapper::selectFileName()
 
   if ( mLabel )
     mLineEdit->setText( fileName );
+}
+
+void QgsFileNameWidgetWrapper::updateConstraintWidgetStatus( bool constraintValid )
+{
+  if ( mLineEdit )
+  {
+    if ( constraintValid )
+      mLineEdit->setStyleSheet( QString() );
+    else
+    {
+      mLineEdit->setStyleSheet( QStringLiteral( "QgsFilterLineEdit { background-color: #dd7777; }" ) );
+    }
+  }
 }

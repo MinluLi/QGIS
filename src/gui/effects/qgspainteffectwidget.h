@@ -39,7 +39,7 @@ class GUI_EXPORT QgsPaintEffectWidget : public QWidget
     Q_OBJECT
 
   public:
-    QgsPaintEffectWidget( QWidget* parent = NULL ) : QWidget( parent ) {}
+    QgsPaintEffectWidget( QWidget* parent = nullptr ) : QWidget( parent ) {}
     virtual ~QgsPaintEffectWidget() {}
 
     /**
@@ -61,12 +61,15 @@ class GUI_EXPORT QgsPaintEffectWidget : public QWidget
 
 #include "ui_widget_drawsource.h"
 
+/** \ingroup gui
+ * \class QgsDrawSourceWidget
+ */
 class GUI_EXPORT QgsDrawSourceWidget : public QgsPaintEffectWidget, private Ui::WidgetDrawSource
 {
     Q_OBJECT
 
   public:
-    QgsDrawSourceWidget( QWidget* parent = NULL );
+    QgsDrawSourceWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsDrawSourceWidget(); }
 
@@ -91,12 +94,15 @@ class GUI_EXPORT QgsDrawSourceWidget : public QgsPaintEffectWidget, private Ui::
 
 #include "ui_widget_blur.h"
 
+/** \ingroup gui
+ * \class QgsBlurWidget
+ */
 class GUI_EXPORT QgsBlurWidget : public QgsPaintEffectWidget, private Ui::WidgetBlur
 {
     Q_OBJECT
 
   public:
-    QgsBlurWidget( QWidget* parent = NULL );
+    QgsBlurWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsBlurWidget(); }
 
@@ -123,12 +129,15 @@ class GUI_EXPORT QgsBlurWidget : public QgsPaintEffectWidget, private Ui::Widget
 
 #include "ui_widget_shadoweffect.h"
 
+/** \ingroup gui
+ * \class QgsShadowEffectWidget
+ */
 class GUI_EXPORT QgsShadowEffectWidget : public QgsPaintEffectWidget, private Ui::WidgetShadowEffect
 {
     Q_OBJECT
 
   public:
-    QgsShadowEffectWidget( QWidget* parent = NULL );
+    QgsShadowEffectWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsShadowEffectWidget(); }
 
@@ -156,12 +165,15 @@ class GUI_EXPORT QgsShadowEffectWidget : public QgsPaintEffectWidget, private Ui
 
 #include "ui_widget_glow.h"
 
+/** \ingroup gui
+ * \class QgsGlowWidget
+ */
 class GUI_EXPORT QgsGlowWidget : public QgsPaintEffectWidget, private Ui::WidgetGlow
 {
     Q_OBJECT
 
   public:
-    QgsGlowWidget( QWidget* parent = NULL );
+    QgsGlowWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsGlowWidget(); }
 
@@ -189,12 +201,15 @@ class GUI_EXPORT QgsGlowWidget : public QgsPaintEffectWidget, private Ui::Widget
 
 #include "ui_widget_transform.h"
 
+/** \ingroup gui
+ * \class QgsTransformWidget
+ */
 class GUI_EXPORT QgsTransformWidget : public QgsPaintEffectWidget, private Ui::WidgetTransform
 {
     Q_OBJECT
 
   public:
-    QgsTransformWidget( QWidget* parent = NULL );
+    QgsTransformWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsTransformWidget(); }
 
@@ -225,12 +240,15 @@ class GUI_EXPORT QgsTransformWidget : public QgsPaintEffectWidget, private Ui::W
 
 #include "ui_widget_coloreffects.h"
 
+/** \ingroup gui
+ * \class QgsColorEffectWidget
+ */
 class GUI_EXPORT QgsColorEffectWidget : public QgsPaintEffectWidget, private Ui::WidgetColorEffect
 {
     Q_OBJECT
 
   public:
-    QgsColorEffectWidget( QWidget* parent = NULL );
+    QgsColorEffectWidget( QWidget* parent = nullptr );
 
     static QgsPaintEffectWidget* create() { return new QgsColorEffectWidget(); }
 

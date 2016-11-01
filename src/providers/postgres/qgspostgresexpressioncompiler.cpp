@@ -1,6 +1,6 @@
 /***************************************************************************
-
-               ----------------------------------------------------
+              qgspostgresexpressioncompiler.cpp
+              ----------------------------------------------------
               date                 : 22.4.2015
               copyright            : (C) 2015 by Matthias Kuhn
               email                : matthias (at) opengis.ch
@@ -26,8 +26,9 @@ QString QgsPostgresExpressionCompiler::quotedIdentifier( const QString& identifi
   return QgsPostgresConn::quotedIdentifier( identifier );
 }
 
-QString QgsPostgresExpressionCompiler::quotedValue( const QVariant& value )
+QString QgsPostgresExpressionCompiler::quotedValue( const QVariant& value, bool& ok )
 {
+  ok = true;
   return QgsPostgresConn::quotedValue( value );
 }
 

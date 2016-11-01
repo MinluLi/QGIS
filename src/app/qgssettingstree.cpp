@@ -61,7 +61,7 @@ QgsSettingsTree::QgsSettingsTree( QWidget *parent )
   header()->resizeSection( 1, 100 );
   header()->resizeSection( 2, 100 );
 
-  settings = 0;
+  settings = nullptr;
   refreshTimer.setInterval( 2000 );
   autoRefresh = false;
 
@@ -154,7 +154,7 @@ void QgsSettingsTree::refresh()
     }
   }
 
-  updateChildItems( 0 );
+  updateChildItems( nullptr );
 
   connect( this, SIGNAL( itemChanged( QTreeWidgetItem*, int ) ),
            this, SLOT( updateSetting( QTreeWidgetItem* ) ) );
@@ -192,8 +192,8 @@ void QgsSettingsTree::updateChildItems( QTreeWidgetItem *parent )
     if ( childIndex != -1 )
     {
       child = childAt( parent, childIndex );
-      child->setText( 1, "" );
-      child->setText( 2, "" );
+      child->setText( 1, QLatin1String( "" ) );
+      child->setText( 2, QLatin1String( "" ) );
       child->setData( 2, Qt::UserRole, QVariant() );
       moveItemForward( parent, childIndex, dividerIndex );
     }
@@ -238,7 +238,7 @@ void QgsSettingsTree::updateChildItems( QTreeWidgetItem *parent )
     QVariant value = settings->value( key );
     if ( value.type() == QVariant::Invalid )
     {
-      child->setText( 1, "Invalid" );
+      child->setText( 1, QStringLiteral( "Invalid" ) );
     }
     else
     {
@@ -255,7 +255,7 @@ void QgsSettingsTree::updateChildItems( QTreeWidgetItem *parent )
 QTreeWidgetItem *QgsSettingsTree::createItem( const QString &text,
     QTreeWidgetItem *parent, int index )
 {
-  QTreeWidgetItem *after = 0;
+  QTreeWidgetItem *after = nullptr;
   if ( index != 0 )
     after = childAt( parent, index - 1 );
 

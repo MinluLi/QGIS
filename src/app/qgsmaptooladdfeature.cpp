@@ -17,14 +17,15 @@
 #include "qgsapplication.h"
 #include "qgsattributedialog.h"
 #include "qgscsexception.h"
-#include "qgscurvepolygonv2.h"
-#include "qgsfield.h"
+#include "qgscurvepolygon.h"
+#include "qgsfields.h"
 #include "qgsgeometry.h"
-#include "qgslinestringv2.h"
+#include "qgslinestring.h"
+#include "qgsmultipoint.h"
 #include "qgsmapcanvas.h"
 #include "qgsmaplayerregistry.h"
 #include "qgsmapmouseevent.h"
-#include "qgspolygonv2.h"
+#include "qgspolygon.h"
 #include "qgsproject.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
@@ -58,7 +59,7 @@ bool QgsMapToolAddFeature::addFeature( QgsVectorLayer *vlayer, QgsFeature *f, bo
 void QgsMapToolAddFeature::activate()
 {
   QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mCanvas->currentLayer() );
-  if ( vlayer && vlayer->geometryType() == QGis::NoGeometry )
+  if ( vlayer && vlayer->geometryType() == QgsWkbTypes::NullGeometry )
   {
     QgsFeature f;
     addFeature( vlayer, &f, false );
@@ -78,7 +79,7 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
     return;
   }
 
-  QGis::WkbType layerWKBType = vlayer->wkbType();
+  QgsWkbTypes::Type layerWKBType = vlayer->wkbType();
 
   QgsVectorDataProvider* provider = vlayer->dataProvider();
 
@@ -101,7 +102,7 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
       return;
 
     //check we only use this tool for point/multipoint layers
-    if ( vlayer->geometryType() != QGis::Point && mCheckGeometryType )
+    if ( vlayer->geometryType() != QgsWkbTypes::PointGeometry && mCheckGeometryType )
     {
       emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture point' tool on this vector layer" ), QgsMessageBar::WARNING );
       return;
@@ -112,7 +113,17 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
     QgsPoint savePoint; //point in layer coordinates
     try
     {
-      savePoint = toLayerCoordinates( vlayer, e->mapPoint() );
+      QgsPointV2 fetchPoint;
+      int res;
+      res = fetchLayerPoint( e->mapPointMatch(), fetchPoint );
+      if ( res == 0 )
+      {
+        savePoint = QgsPoint( fetchPoint.x(), fetchPoint.y() );
+      }
+      else
+      {
+        savePoint = toLayerCoordinates( vlayer, e->mapPoint() );
+      }
       QgsDebugMsg( "savePoint = " + savePoint.toString() );
     }
     catch ( QgsCsException &cse )
@@ -129,14 +140,24 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
     {
       QgsFeature f( vlayer->fields(), 0 );
 
-      QgsGeometry *g = 0;
-      if ( layerWKBType == QGis::WKBPoint || layerWKBType == QGis::WKBPoint25D )
+      QgsGeometry g;
+      if ( layerWKBType == QgsWkbTypes::Point )
       {
         g = QgsGeometry::fromPoint( savePoint );
       }
-      else if ( layerWKBType == QGis::WKBMultiPoint || layerWKBType == QGis::WKBMultiPoint25D )
+      else if ( layerWKBType == QgsWkbTypes::Point25D )
+      {
+        g = QgsGeometry( new QgsPointV2( QgsWkbTypes::PointZ, savePoint.x(), savePoint.y(), 0.0 ) );
+      }
+      else if ( layerWKBType == QgsWkbTypes::MultiPoint )
       {
         g = QgsGeometry::fromMultiPoint( QgsMultiPoint() << savePoint );
+      }
+      else if ( layerWKBType == QgsWkbTypes::MultiPoint25D )
+      {
+        QgsMultiPointV2* mp = new QgsMultiPointV2();
+        mp->addGeometry( new QgsPointV2( QgsWkbTypes::PointZ, savePoint.x(), savePoint.y(), 0.0 ) );
+        g = QgsGeometry( mp );
       }
       else
       {
@@ -149,7 +170,7 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
 
       addFeature( vlayer, &f, false );
 
-      mCanvas->refresh();
+      vlayer->triggerRepaint();
     }
   }
 
@@ -157,14 +178,14 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
   else if ( mode() == CaptureLine || mode() == CapturePolygon )
   {
     //check we only use the line tool for line/multiline layers
-    if ( mode() == CaptureLine && vlayer->geometryType() != QGis::Line && mCheckGeometryType )
+    if ( mode() == CaptureLine && vlayer->geometryType() != QgsWkbTypes::LineGeometry && mCheckGeometryType )
     {
       emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture line' tool on this vector layer" ), QgsMessageBar::WARNING );
       return;
     }
 
     //check we only use the polygon tool for polygon/multipolygon layers
-    if ( mode() == CapturePolygon && vlayer->geometryType() != QGis::Polygon && mCheckGeometryType )
+    if ( mode() == CapturePolygon && vlayer->geometryType() != QgsWkbTypes::PolygonGeometry && mCheckGeometryType )
     {
       emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture polygon' tool on this vector layer" ), QgsMessageBar::WARNING );
       return;
@@ -173,7 +194,7 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
     //add point to list and to rubber band
     if ( e->button() == Qt::LeftButton )
     {
-      int error = addVertex( e->mapPoint() );
+      int error = addVertex( e->mapPoint(), e->mapPointMatch() );
       if ( error == 1 )
       {
         //current layer is not a vector layer
@@ -220,7 +241,7 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
       bool hasCurvedSegments = captureCurve()->hasCurvedSegments();
       bool providerSupportsCurvedSegments = vlayer->dataProvider()->capabilities() & QgsVectorDataProvider::CircularGeometries;
 
-      QgsCurveV2* curveToAdd = 0;
+      QgsCurve* curveToAdd = nullptr;
       if ( hasCurvedSegments && providerSupportsCurvedSegments )
       {
         curveToAdd = captureCurve()->clone();
@@ -232,53 +253,36 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
 
       if ( mode() == CaptureLine )
       {
-        f->setGeometry( new QgsGeometry( curveToAdd ) );
+        QgsGeometry* g = new QgsGeometry( curveToAdd );
+        f->setGeometry( *g );
+        delete g;
       }
       else
       {
-        QgsCurvePolygonV2* poly = 0;
+        QgsCurvePolygon* poly = nullptr;
         if ( hasCurvedSegments && providerSupportsCurvedSegments )
         {
-          poly = new QgsCurvePolygonV2();
+          poly = new QgsCurvePolygon();
         }
         else
         {
           poly = new QgsPolygonV2();
         }
         poly->setExteriorRing( curveToAdd );
-        f->setGeometry( new QgsGeometry( poly ) );
+        QgsGeometry* g = new QgsGeometry( poly );
+        f->setGeometry( *g );
+        delete g;
 
-        int avoidIntersectionsReturn = f->geometry()->avoidIntersections();
+        QgsGeometry featGeom = f->geometry();
+        int avoidIntersectionsReturn = featGeom.avoidIntersections();
+        f->setGeometry( featGeom );
         if ( avoidIntersectionsReturn == 1 )
         {
           //not a polygon type. Impossible to get there
         }
-#if 0
-        else if ( avoidIntersectionsReturn == 2 ) //MH120131: disable this error message until there is a better way to cope with the single type / multi type problem
+        if ( f->geometry().isGeosEmpty() ) //avoid intersection might have removed the whole geometry
         {
-          //bail out...
-          emit messageEmitted( tr( "The feature could not be added because removing the polygon intersections would change the geometry type" ), QgsMessageBar::CRITICAL );
-          stopCapturing();
-          return;
-        }
-#endif
-        else if ( avoidIntersectionsReturn == 3 )
-        {
-          emit messageEmitted( tr( "An error was reported during intersection removal" ), QgsMessageBar::CRITICAL );
-        }
-
-        if ( !f->constGeometry()->asWkb() ) //avoid intersection might have removed the whole geometry
-        {
-          QString reason;
-          if ( avoidIntersectionsReturn != 2 )
-          {
-            reason = tr( "The feature cannot be added because it's geometry is empty" );
-          }
-          else
-          {
-            reason = tr( "The feature cannot be added because it's geometry collapsed due to intersection avoidance" );
-          }
-          emit messageEmitted( reason, QgsMessageBar::CRITICAL );
+          emit messageEmitted( tr( "The feature cannot be added because it's geometry collapsed due to intersection avoidance" ), QgsMessageBar::CRITICAL );
           stopCapturing();
           return;
         }
@@ -288,11 +292,11 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
       if ( addFeature( vlayer, f.data(), false ) )
       {
         //add points to other features to keep topology up-to-date
-        int topologicalEditing = QgsProject::instance()->readNumEntry( "Digitizing", "/TopologicalEditing", 0 );
+        bool topologicalEditing = QgsProject::instance()->topologicalEditing();
 
         //use always topological editing for avoidIntersection.
         //Otherwise, no way to guarantee the geometries don't have a small gap in between.
-        QStringList intersectionLayers = QgsProject::instance()->readListEntry( "Digitizing", "/AvoidIntersectionsList" );
+        QStringList intersectionLayers = QgsProject::instance()->avoidIntersectionsList();
         bool avoidIntersection = !intersectionLayers.isEmpty();
         if ( avoidIntersection ) //try to add topological points also to background layers
         {
@@ -302,15 +306,15 @@ void QgsMapToolAddFeature::cadCanvasReleaseEvent( QgsMapMouseEvent* e )
             QgsMapLayer* ml = QgsMapLayerRegistry::instance()->mapLayer( *lIt );
             QgsVectorLayer* vl = qobject_cast<QgsVectorLayer*>( ml );
             //can only add topological points if background layer is editable...
-            if ( vl && vl->geometryType() == QGis::Polygon && vl->isEditable() )
+            if ( vl && vl->geometryType() == QgsWkbTypes::PolygonGeometry && vl->isEditable() )
             {
-              vl->addTopologicalPoints( f->constGeometry() );
+              vl->addTopologicalPoints( f->geometry() );
             }
           }
         }
         else if ( topologicalEditing )
         {
-          vlayer->addTopologicalPoints( f->constGeometry() );
+          vlayer->addTopologicalPoints( f->geometry() );
         }
       }
 

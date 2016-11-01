@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -23,13 +24,12 @@ __copyright__ = '(C) 2010, Giuseppe Sucameli'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import SIGNAL
-from PyQt4.QtGui import QWidget
-from qgis.core import QGis
+from qgis.PyQt.QtWidgets import QWidget
+from qgis.core import Qgis, QgsWkbTypes
 
-from ui_widgetClipper import Ui_GdalToolsWidget as Ui_Widget
-from widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
-import GdalTools_utils as Utils
+from .ui_widgetClipper import Ui_GdalToolsWidget as Ui_Widget
+from .widgetPluginBase import GdalToolsBasePluginWidget as BasePluginWidget
+from . import GdalTools_utils as Utils
 
 
 class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
@@ -51,25 +51,25 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         self.yRes.setValue(12.5)
 
         self.setParamsStatus([
-            (self.inSelector, SIGNAL("filenameChanged()")),
-            (self.outSelector, SIGNAL("filenameChanged()")),
-            (self.noDataSpin, SIGNAL("valueChanged(int)"), self.noDataCheck, 1700),
-            (self.maskSelector, SIGNAL("filenameChanged()"), self.maskModeRadio, 1600),
-            (self.alphaBandCheck, SIGNAL("stateChanged(int)")),
-            (self.cropToCutlineCheck, SIGNAL("stateChanged(int)")),
-            ([self.xRes, self.yRes], SIGNAL("valueChanged(double)"), self.setResolutionRadio),
-            (self.extentSelector, [SIGNAL("selectionStarted()"), SIGNAL("newExtentDefined()")], self.extentModeRadio),
-            (self.modeStackedWidget, SIGNAL("currentIndexChanged(int)"))
+            (self.inSelector, "filenameChanged"),
+            (self.outSelector, "filenameChanged"),
+            (self.noDataSpin, "valueChanged", self.noDataCheck, 1700),
+            (self.maskSelector, "filenameChanged", self.maskModeRadio, 1600),
+            (self.alphaBandCheck, "stateChanged"),
+            (self.cropToCutlineCheck, "stateChanged"),
+            ([self.xRes, self.yRes], "valueChanged", self.setResolutionRadio),
+            (self.extentSelector, ["selectionStarted", "newExtentDefined"], self.extentModeRadio),
+            (self.modeStackedWidget, "currentChanged")
         ])
 
-        self.connect(self.inSelector, SIGNAL("selectClicked()"), self.fillInputFileEdit)
-        self.connect(self.outSelector, SIGNAL("selectClicked()"), self.fillOutputFileEdit)
-        self.connect(self.maskSelector, SIGNAL("selectClicked()"), self.fillMaskFileEdit)
-        self.connect(self.extentSelector, SIGNAL("newExtentDefined()"), self.extentChanged)
-        self.connect(self.extentSelector, SIGNAL("selectionStarted()"), self.checkRun)
+        self.inSelector.selectClicked.connect(self.fillInputFileEdit)
+        self.outSelector.selectClicked.connect(self.fillOutputFileEdit)
+        self.maskSelector.selectClicked.connect(self.fillMaskFileEdit)
+        self.extentSelector.newExtentDefined.connect(self.extentChanged)
+        self.extentSelector.selectionStarted.connect(self.checkRun)
 
-        self.connect(self.extentModeRadio, SIGNAL("toggled(bool)"), self.switchClippingMode)
-        self.connect(self.keepResolutionRadio, SIGNAL("toggled(bool)"), self.switchResolutionMode)
+        self.extentModeRadio.toggled.connect(self.switchClippingMode)
+        self.keepResolutionRadio.toggled.connect(self.switchResolutionMode)
 
     def show_(self):
         self.switchClippingMode()
@@ -110,7 +110,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
 
     def onLayersChanged(self):
         self.inSelector.setLayers(Utils.LayerRegistry.instance().getRasterLayers())
-        self.maskSelector.setLayers(filter(lambda x: x.geometryType() == QGis.Polygon, Utils.LayerRegistry.instance().getVectorLayers()))
+        self.maskSelector.setLayers([x for x in Utils.LayerRegistry.instance().getVectorLayers() if x.geometryType() == QgsWkbTypes.PolygonGeometry])
         self.checkRun()
 
     def fillInputFileEdit(self):
@@ -153,15 +153,15 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         arguments = []
         if self.noDataCheck.isChecked():
             arguments.append("-a_nodata")
-            arguments.append(unicode(self.noDataSpin.value()))
+            arguments.append(str(self.noDataSpin.value()))
         if self.extentModeRadio.isChecked() and self.extentSelector.isCoordsValid():
             rect = self.extentSelector.getExtent()
             if rect is not None and not inputFn == '':
                 arguments.append("-projwin")
-                arguments.append(unicode(rect.xMinimum()))
-                arguments.append(unicode(rect.yMaximum()))
-                arguments.append(unicode(rect.xMaximum()))
-                arguments.append(unicode(rect.yMinimum()))
+                arguments.append(str(rect.xMinimum()))
+                arguments.append(str(rect.yMaximum()))
+                arguments.append(str(rect.xMaximum()))
+                arguments.append(str(rect.yMinimum()))
         outputFn = self.getOutputFileName()
         if not outputFn == '':
             arguments.append("-of")
@@ -176,7 +176,7 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
         arguments = []
         if self.noDataCheck.isChecked():
             arguments.append("-dstnodata")
-            arguments.append(unicode(self.noDataSpin.value()))
+            arguments.append(str(self.noDataSpin.value()))
         if self.maskModeRadio.isChecked():
             mask = self.maskSelector.filename()
             if not mask == '' and not inputFn == '':
@@ -196,8 +196,8 @@ class GdalToolsDialog(QWidget, Ui_Widget, BasePluginWidget):
                         arguments.append(resolution[1])
                 else:
                     arguments.append("-tr")
-                    arguments.append(unicode(self.xRes.value()))
-                    arguments.append(unicode(self.yRes.value()))
+                    arguments.append(str(self.xRes.value()))
+                    arguments.append(str(self.yRes.value()))
         outputFn = self.getOutputFileName()
         if not outputFn == '':
             arguments.append("-of")

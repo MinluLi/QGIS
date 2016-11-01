@@ -19,17 +19,22 @@
 #include "qgscomposition.h"
 #include "qgscomposermap.h"
 #include "qgscomposeritem.h"
-#include "qgsstylev2.h"
-#include "qgssymbolv2selectordialog.h"
-#include "qgssymbollayerv2utils.h"
+#include "qgsstyle.h"
+#include "qgssymbolselectordialog.h"
+#include "qgssymbollayerutils.h"
 #include "qgsexpressioncontext.h"
+#include "qgsproject.h"
 #include <QColorDialog>
 #include <QWidget>
 #include <QPrinter> //for screen resolution
 
-QgsCompositionWidget::QgsCompositionWidget( QWidget* parent, QgsComposition* c ): QWidget( parent ), mComposition( c )
+QgsCompositionWidget::QgsCompositionWidget( QWidget* parent, QgsComposition* c )\
+:
+QgsPanelWidget( parent )
+, mComposition( c )
 {
   setupUi( this );
+  setPanelTitle( tr( "Composition properties" ) );
   blockSignals( true );
   createPaperEntries();
 
@@ -45,13 +50,15 @@ QgsCompositionWidget::QgsCompositionWidget( QWidget* parent, QgsComposition* c )
   //read with/height from composition and find suitable entries to display
   displayCompositionWidthHeight();
 
-  mVariableEditor->context()->appendScope( QgsExpressionContextUtils::globalScope() );
-  mVariableEditor->context()->appendScope( QgsExpressionContextUtils::projectScope() );
-  mVariableEditor->context()->appendScope( QgsExpressionContextUtils::compositionScope( mComposition ) );
-  mVariableEditor->reloadContext();
-  mVariableEditor->setEditableScopeIndex( 2 );
-
+  updateVariables();
   connect( mVariableEditor, SIGNAL( scopeChanged() ), this, SLOT( variablesChanged() ) );
+  // listen out for variable edits
+  QgsApplication* app = qobject_cast<QgsApplication*>( QgsApplication::instance() );
+  if ( app )
+  {
+    connect( app, SIGNAL( settingsChanged() ), this, SLOT( updateVariables() ) );
+  }
+  connect( QgsProject::instance(), SIGNAL( variablesChanged() ), this, SLOT( updateVariables() ) );
 
   if ( mComposition )
   {
@@ -80,23 +87,9 @@ QgsCompositionWidget::QgsCompositionWidget( QWidget* parent, QgsComposition* c )
     mGenerateWorldFileCheckBox->setChecked( mComposition->generateWorldFile() );
 
     // populate the map list
-    mWorldFileMapComboBox->clear();
-    QList<const QgsComposerMap*> availableMaps = mComposition->composerMapItems();
-    QList<const QgsComposerMap*>::const_iterator mapItemIt = availableMaps.constBegin();
-    for ( ; mapItemIt != availableMaps.constEnd(); ++mapItemIt )
-    {
-      mWorldFileMapComboBox->addItem( tr( "Map %1" ).arg(( *mapItemIt )->id() ), qVariantFromValue(( void* )*mapItemIt ) );
-    }
-
-    int idx = mWorldFileMapComboBox->findData( qVariantFromValue(( void* )mComposition->worldFileMap() ) );
-    if ( idx != -1 )
-    {
-      mWorldFileMapComboBox->setCurrentIndex( idx );
-    }
-
-    // Connect to addition / removal of maps
-    connect( mComposition, SIGNAL( composerMapAdded( QgsComposerMap* ) ), this, SLOT( onComposerMapAdded( QgsComposerMap* ) ) );
-    connect( mComposition, SIGNAL( itemRemoved( QgsComposerItem* ) ), this, SLOT( onItemRemoved( QgsComposerItem* ) ) );
+    mWorldFileMapComboBox->setComposition( mComposition );
+    mWorldFileMapComboBox->setItemType( QgsComposerItem::ComposerMap );
+    mWorldFileMapComboBox->setItem( mComposition->worldFileMap() );
 
     mSnapToleranceSpinBox->setValue( mComposition->snapTolerance() );
 
@@ -136,13 +129,17 @@ QgsCompositionWidget::QgsCompositionWidget( QWidget* parent, QgsComposition* c )
   connect( mPaperOrientationDDBtn, SIGNAL( dataDefinedActivated( bool ) ), this, SLOT( updateDataDefinedProperty() ) );
   connect( mPaperOrientationDDBtn, SIGNAL( dataDefinedActivated( bool ) ), mPaperOrientationComboBox, SLOT( setDisabled( bool ) ) );
 
+  connect( mWorldFileMapComboBox, SIGNAL( itemChanged( QgsComposerItem* ) ), this, SLOT( worldFileMapChanged( QgsComposerItem* ) ) );
+
   //initialize data defined buttons
   populateDataDefinedButtons();
 
   blockSignals( false );
 }
 
-QgsCompositionWidget::QgsCompositionWidget(): QWidget( 0 ), mComposition( 0 )
+QgsCompositionWidget::QgsCompositionWidget()
+    : QgsPanelWidget( nullptr )
+    , mComposition( nullptr )
 {
   setupUi( this );
 }
@@ -152,18 +149,6 @@ QgsCompositionWidget::~QgsCompositionWidget()
 
 }
 
-static QgsExpressionContext _getExpressionContext( const void* context )
-{
-  const QgsComposition* composition = ( const QgsComposition* ) context;
-  if ( !composition )
-  {
-    return QgsExpressionContext();
-  }
-
-  QScopedPointer< QgsExpressionContext > expContext( composition->createExpressionContext() );
-  return QgsExpressionContext( *expContext );
-}
-
 void QgsCompositionWidget::populateDataDefinedButtons()
 {
   if ( !mComposition )
@@ -171,7 +156,7 @@ void QgsCompositionWidget::populateDataDefinedButtons()
     return;
   }
 
-  QgsVectorLayer* vl = 0;
+  QgsVectorLayer* vl = nullptr;
   QgsAtlasComposition* atlas = &mComposition->atlasComposition();
 
   if ( atlas && atlas->enabled() )
@@ -182,7 +167,7 @@ void QgsCompositionWidget::populateDataDefinedButtons()
   Q_FOREACH ( QgsDataDefinedButton* button, findChildren< QgsDataDefinedButton* >() )
   {
     button->blockSignals( true );
-    button->registerGetExpressionContextCallback( &_getExpressionContext, mComposition );
+    button->registerExpressionContextGenerator( mComposition );
   }
 
   mPaperSizeDDBtn->init( vl, mComposition->dataDefinedProperty( QgsComposerObject::PresetPaperSize ),
@@ -221,6 +206,16 @@ void QgsCompositionWidget::resizeMarginsChanged()
       mLeftMarginSpinBox->value() );
 }
 
+void QgsCompositionWidget::updateVariables()
+{
+  QgsExpressionContext context;
+  context << QgsExpressionContextUtils::globalScope()
+  << QgsExpressionContextUtils::projectScope()
+  << QgsExpressionContextUtils::compositionScope( mComposition );
+  mVariableEditor->setContext( &context );
+  mVariableEditor->setEditableScopeIndex( 2 );
+}
+
 void QgsCompositionWidget::setDataDefinedProperty( const QgsDataDefinedButton* ddBtn, QgsComposerObject::DataDefinedProperty property )
 {
   if ( !mComposition )
@@ -229,7 +224,7 @@ void QgsCompositionWidget::setDataDefinedProperty( const QgsDataDefinedButton* d
   }
 
   const QMap< QString, QString >& map = ddBtn->definedProperty();
-  mComposition->setDataDefinedProperty( property, map.value( "active" ).toInt(), map.value( "useexpr" ).toInt(), map.value( "expression" ), map.value( "field" ) );
+  mComposition->setDataDefinedProperty( property, map.value( QStringLiteral( "active" ) ).toInt(), map.value( QStringLiteral( "useexpr" ) ).toInt(), map.value( QStringLiteral( "expression" ) ), map.value( QStringLiteral( "field" ) ) );
 }
 
 QgsComposerObject::DataDefinedProperty QgsCompositionWidget::ddPropertyForWidget( QgsDataDefinedButton *widget )
@@ -256,6 +251,23 @@ QgsComposerObject::DataDefinedProperty QgsCompositionWidget::ddPropertyForWidget
   }
 
   return QgsComposerObject::NoProperty;
+}
+
+void QgsCompositionWidget::updateStyleFromWidget()
+{
+  QgsSymbolSelectorWidget* w = qobject_cast<QgsSymbolSelectorWidget*>( sender() );
+  mComposition->setPageStyleSymbol( dynamic_cast< QgsFillSymbol* >( w->symbol() ) );
+  mComposition->update();
+}
+
+void QgsCompositionWidget::cleanUpStyleSelector( QgsPanelWidget* container )
+{
+  QgsSymbolSelectorWidget* w = qobject_cast<QgsSymbolSelectorWidget*>( container );
+  if ( !w )
+    return;
+
+  delete w->symbol();
+  updatePageStyle();
 }
 
 void QgsCompositionWidget::updateDataDefinedProperty()
@@ -460,8 +472,8 @@ void QgsCompositionWidget::applyCurrentPaperSettings()
   if ( mComposition )
   {
     //find entry in mPaper map to set width and height
-    QMap<QString, QgsCompositionPaper>::iterator it = mPaperMap.find( mPaperSizeComboBox->currentText() );
-    if ( it == mPaperMap.end() )
+    QMap<QString, QgsCompositionPaper>::const_iterator it = mPaperMap.constFind( mPaperSizeComboBox->currentText() );
+    if ( it == mPaperMap.constEnd() )
     {
       return;
     }
@@ -570,27 +582,28 @@ void QgsCompositionWidget::on_mPageStyleButton_clicked()
     return;
   }
 
-  QgsVectorLayer* coverageLayer = 0;
+  QgsVectorLayer* coverageLayer = nullptr;
   // use the atlas coverage layer, if any
   if ( mComposition->atlasComposition().enabled() )
   {
     coverageLayer = mComposition->atlasComposition().coverageLayer();
   }
 
-  QgsFillSymbolV2* newSymbol = mComposition->pageStyleSymbol()->clone();
+  QgsFillSymbol* newSymbol = mComposition->pageStyleSymbol()->clone();
   if ( !newSymbol )
   {
-    newSymbol = new QgsFillSymbolV2();
+    newSymbol = new QgsFillSymbol();
   }
-  QgsSymbolV2SelectorDialog d( newSymbol, QgsStyleV2::defaultStyle(), coverageLayer, this );
-  d.setExpressionContext( mComposition->createExpressionContext() );
+  QgsExpressionContext context = mComposition->createExpressionContext();
 
-  if ( d.exec() == QDialog::Accepted )
-  {
-    mComposition->setPageStyleSymbol( newSymbol );
-    updatePageStyle();
-  }
-  delete newSymbol;
+  QgsSymbolSelectorWidget* d = new QgsSymbolSelectorWidget( newSymbol, QgsStyle::defaultStyle(), coverageLayer, nullptr );
+  QgsSymbolWidgetContext symbolContext;
+  symbolContext.setExpressionContext( &context );
+  d->setContext( symbolContext );
+
+  connect( d, SIGNAL( widgetChanged() ), this, SLOT( updateStyleFromWidget() ) );
+  connect( d, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( cleanUpStyleSelector( QgsPanelWidget* ) ) );
+  openPanel( d );
 }
 
 void QgsCompositionWidget::on_mResizePageButton_clicked()
@@ -610,7 +623,7 @@ void QgsCompositionWidget::updatePageStyle()
 {
   if ( mComposition )
   {
-    QIcon icon = QgsSymbolLayerV2Utils::symbolPreviewIcon( mComposition->pageStyleSymbol(), mPageStyleButton->iconSize() );
+    QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( mComposition->pageStyleSymbol(), mPageStyleButton->iconSize() );
     mPageStyleButton->setIcon( icon );
   }
 }
@@ -669,60 +682,17 @@ void QgsCompositionWidget::on_mGenerateWorldFileCheckBox_toggled( bool state )
   }
 
   mComposition->setGenerateWorldFile( state );
-  mWorldFileMapComboBox->setEnabled( state );
 }
 
-void QgsCompositionWidget::onComposerMapAdded( QgsComposerMap* map )
+void QgsCompositionWidget::worldFileMapChanged( QgsComposerItem* item )
 {
   if ( !mComposition )
   {
     return;
   }
 
-  mWorldFileMapComboBox->addItem( tr( "Map %1" ).arg( map->id() ), qVariantFromValue(( void* )map ) );
-  if ( mWorldFileMapComboBox->count() == 1 )
-  {
-    mComposition->setWorldFileMap( map );
-  }
-}
-
-void QgsCompositionWidget::onItemRemoved( QgsComposerItem* item )
-{
-  if ( !mComposition )
-  {
-    return;
-  }
-
-  QgsComposerMap* map = dynamic_cast<QgsComposerMap*>( item );
-  if ( map )
-  {
-    int idx = mWorldFileMapComboBox->findData( qVariantFromValue(( void* )map ) );
-    if ( idx != -1 )
-    {
-      mWorldFileMapComboBox->removeItem( idx );
-    }
-  }
-  if ( mWorldFileMapComboBox->count() == 0 )
-  {
-    mComposition->setWorldFileMap( 0 );
-  }
-}
-
-void QgsCompositionWidget::on_mWorldFileMapComboBox_currentIndexChanged( int index )
-{
-  if ( !mComposition )
-  {
-    return;
-  }
-  if ( index == -1 )
-  {
-    mComposition->setWorldFileMap( 0 );
-  }
-  else
-  {
-    QgsComposerMap* map = reinterpret_cast<QgsComposerMap*>( mWorldFileMapComboBox->itemData( index ).value<void*>() );
-    mComposition->setWorldFileMap( map );
-  }
+  QgsComposerMap* map = dynamic_cast< QgsComposerMap* >( item );
+  mComposition->setWorldFileMap( map );
 }
 
 void QgsCompositionWidget::on_mGridResolutionSpinBox_valueChanged( double d )
@@ -772,5 +742,7 @@ void QgsCompositionWidget::blockSignals( bool block )
   mOffsetXSpinBox->blockSignals( block );
   mOffsetYSpinBox->blockSignals( block );
   mSnapToleranceSpinBox->blockSignals( block );
+  mGenerateWorldFileCheckBox->blockSignals( block );
+  mWorldFileMapComboBox->blockSignals( block );
 }
 

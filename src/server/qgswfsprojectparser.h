@@ -26,16 +26,16 @@ class QgsAccessControl;
 #endif
 
 
-class SERVER_EXPORT QgsWFSProjectParser
+class SERVER_EXPORT QgsWfsProjectParser
 {
   public:
-    QgsWFSProjectParser(
+    QgsWfsProjectParser(
       const QString& filePath
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
       , const QgsAccessControl* ac
 #endif
     );
-    ~QgsWFSProjectParser();
+    ~QgsWfsProjectParser();
 
     void serviceCapabilities( QDomElement& parentElement, QDomDocument& doc ) const;
     QString serviceUrl() const;
@@ -59,6 +59,9 @@ class SERVER_EXPORT QgsWFSProjectParser
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
     const QgsAccessControl* mAccessControl;
 #endif
+
+    QgsWfsProjectParser( const QgsWfsProjectParser& rh );
+    QgsWfsProjectParser& operator=( const QgsWfsProjectParser& rh );
 };
 
 #endif // QGSWFSPROJECTPARSER_H
