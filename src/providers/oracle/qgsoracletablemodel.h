@@ -23,7 +23,8 @@
 
 class QIcon;
 
-/** A model that holds the tables of a database in a hierarchy where the
+/**
+ * A model that holds the tables of a database in a hierarchy where the
 schemas are the root elements that contain the individual tables as children.
 The tables have the following columns: Type, Owner, Tablename, Geometry Column, Sql*/
 class QgsOracleTableModel : public QStandardItemModel
@@ -31,31 +32,30 @@ class QgsOracleTableModel : public QStandardItemModel
     Q_OBJECT
   public:
     QgsOracleTableModel();
-    ~QgsOracleTableModel();
 
     //! Adds entry for one database table to the model
     void addTableEntry( const QgsOracleLayerProperty &property );
 
     //! Sets an sql statement that belongs to a cell specified by a model index
-    void setSql( const QModelIndex& index, const QString& sql );
+    void setSql( const QModelIndex &index, const QString &sql );
 
     //! Returns the number of tables in the model
     int tableCount() const { return mTableCount; }
 
-    enum columns
+    enum Columns
     {
-      dbtmOwner = 0,
-      dbtmTable,
-      dbtmType,
-      dbtmGeomCol,
-      dbtmSrid,
-      dbtmPkCol,
-      dbtmSelectAtId,
-      dbtmSql,
-      dbtmColumns
+      DbtmOwner = 0,
+      DbtmTable,
+      DbtmType,
+      DbtmGeomCol,
+      DbtmSrid,
+      DbtmPkCol,
+      DbtmSelectAtId,
+      DbtmSql,
+      DbtmColumns
     };
 
-    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole );
+    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole ) override;
 
     QString layerURI( const QModelIndex &index, const QgsDataSourceUri &connInfo );
 
@@ -63,7 +63,7 @@ class QgsOracleTableModel : public QStandardItemModel
 
   private:
     //! Number of tables in the model
-    int mTableCount;
+    int mTableCount = 0;
 };
 
 #endif // QGSORACLETABLEMODEL_H

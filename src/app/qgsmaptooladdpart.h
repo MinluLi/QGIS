@@ -14,16 +14,17 @@
  ***************************************************************************/
 
 #include "qgsmaptoolcapture.h"
+#include "qgis_app.h"
 
 //! A map tool that adds new parts to multipart features
 class APP_EXPORT QgsMapToolAddPart : public QgsMapToolCapture
 {
     Q_OBJECT
   public:
-    QgsMapToolAddPart( QgsMapCanvas* canvas );
-    virtual ~QgsMapToolAddPart();
-    void canvasReleaseEvent( QgsMapMouseEvent * e ) override;
-    void cadCanvasReleaseEvent( QgsMapMouseEvent * e ) override;
+    QgsMapToolAddPart( QgsMapCanvas *canvas );
+
+    void canvasReleaseEvent( QgsMapMouseEvent *e ) override;
+    void cadCanvasReleaseEvent( QgsMapMouseEvent *e ) override;
 
     void activate() override;
 

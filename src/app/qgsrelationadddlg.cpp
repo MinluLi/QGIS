@@ -16,53 +16,52 @@
 
 #include "qgsrelationadddlg.h"
 #include "qgsvectorlayer.h"
+#include "qgsmaplayerproxymodel.h"
 
 #include <QPushButton>
 
 QgsRelationAddDlg::QgsRelationAddDlg( QWidget *parent )
-    : QDialog( parent )
+  : QDialog( parent )
 {
   setupUi( this );
+
+  connect( mCbxReferencingLayer, &QgsMapLayerComboBox::layerChanged, mCbxReferencingField, &QgsFieldComboBox::setLayer );
+  connect( mCbxReferencedLayer, &QgsMapLayerComboBox::layerChanged, mCbxReferencedField, &QgsFieldComboBox::setLayer );
+
+  mCbxReferencingLayer->setFilters( QgsMapLayerProxyModel::VectorLayer );
+  mCbxReferencingField->setLayer( mCbxReferencingLayer->currentLayer() );
+  mCbxReferencedLayer->setFilters( QgsMapLayerProxyModel::VectorLayer );
+  mCbxReferencedField->setLayer( mCbxReferencedLayer->currentLayer() );
+
+  mCbxRelationStrength->addItem( "Association", QVariant::fromValue( QgsRelation::RelationStrength::Association ) );
+  mCbxRelationStrength->addItem( "Composition", QVariant::fromValue( QgsRelation::RelationStrength::Composition ) );
+  mCbxRelationStrength->setToolTip( QStringLiteral( "On composition, the child features will be duplicated too.\nDuplications are made by the feature duplication action.\nThe default actions are activated in the Action section of the layer properties." ) );
 
   mTxtRelationId->setPlaceholderText( tr( "[Generated automatically]" ) );
   checkDefinitionValid();
 
-  connect( mCbxReferencingLayer, SIGNAL( currentIndexChanged( int ) ), this, SLOT( checkDefinitionValid() ) );
-  connect( mCbxReferencingField, SIGNAL( currentIndexChanged( int ) ), this, SLOT( checkDefinitionValid() ) );
-  connect( mCbxReferencedLayer, SIGNAL( currentIndexChanged( int ) ), this, SLOT( checkDefinitionValid() ) );
-  connect( mCbxReferencedField, SIGNAL( currentIndexChanged( int ) ), this, SLOT( checkDefinitionValid() ) );
-}
-
-void QgsRelationAddDlg::addLayers( const QList< QgsVectorLayer* >& layers )
-{
-  mCbxReferencingLayer->addItem( QLatin1String( "" ), "" );
-  mCbxReferencedLayer->addItem( QLatin1String( "" ), "" );
-
-  Q_FOREACH ( QgsVectorLayer* layer, layers )
-  {
-    mCbxReferencingLayer->addItem( layer->name(), layer->id() );
-    mCbxReferencedLayer->addItem( layer->name(), layer->id() );
-
-    mLayers.insert( layer->id(), layer );
-  }
+  connect( mCbxReferencingLayer, &QgsMapLayerComboBox::layerChanged, this, &QgsRelationAddDlg::checkDefinitionValid );
+  connect( mCbxReferencingField, &QgsFieldComboBox::fieldChanged, this, &QgsRelationAddDlg::checkDefinitionValid );
+  connect( mCbxReferencedLayer, &QgsMapLayerComboBox::layerChanged, this, &QgsRelationAddDlg::checkDefinitionValid );
+  connect( mCbxReferencedField, &QgsFieldComboBox::fieldChanged, this, &QgsRelationAddDlg::checkDefinitionValid );
 }
 
 QString QgsRelationAddDlg::referencingLayerId()
 {
-  return mCbxReferencingLayer->currentData().toString();
+  return mCbxReferencingLayer->currentLayer()->id();
 }
 
 QString QgsRelationAddDlg::referencedLayerId()
 {
-  return mCbxReferencedLayer->currentData().toString();
+  return mCbxReferencedLayer->currentLayer()->id();
 }
 
 QList< QPair< QString, QString > > QgsRelationAddDlg::references()
 {
   QList< QPair< QString, QString > > references;
 
-  QString referencingField = mCbxReferencingField->currentData().toString();
-  QString referencedField = mCbxReferencedField->currentData().toString();
+  QString referencingField = mCbxReferencingField->currentField();
+  QString referencedField = mCbxReferencedField->currentField();
 
   references.append( QPair<QString, QString> ( referencingField, referencedField ) );
 
@@ -79,14 +78,15 @@ QString QgsRelationAddDlg::relationName()
   return mTxtRelationName->text();
 }
 
-void QgsRelationAddDlg::on_mCbxReferencingLayer_currentIndexChanged( int index )
+QgsRelation::RelationStrength QgsRelationAddDlg::relationStrength()
 {
-  loadLayerAttributes( mCbxReferencingField, mLayers[mCbxReferencingLayer->itemData( index ).toString()] );
-}
-
-void QgsRelationAddDlg::on_mCbxReferencedLayer_currentIndexChanged( int index )
-{
-  loadLayerAttributes( mCbxReferencedField, mLayers[mCbxReferencedLayer->itemData( index ).toString()] );
+#if QT_VERSION <= 0x050601
+  // in Qt 5.6.1 and former, QVariant does not correctly convert enum using value
+  // see https://bugreports.qt.io/browse/QTBUG-53384
+  return static_cast<QgsRelation::RelationStrength>( mCbxRelationStrength->currentData().toInt() );
+#else
+  return mCbxRelationStrength->currentData().value<QgsRelation::RelationStrength>();
+#endif
 }
 
 void QgsRelationAddDlg::checkDefinitionValid()
@@ -95,19 +95,4 @@ void QgsRelationAddDlg::checkDefinitionValid()
       && mCbxReferencedField->currentIndex() != -1
       && mCbxReferencingLayer->currentIndex() != -1
       && mCbxReferencingField->currentIndex() != -1 );
-}
-
-void QgsRelationAddDlg::loadLayerAttributes( QComboBox* cbx, QgsVectorLayer* layer )
-{
-  cbx->clear();
-
-  if ( !layer )
-  {
-    return;
-  }
-
-  Q_FOREACH ( const QgsField& fld, layer->fields().toList() )
-  {
-    cbx->addItem( fld.name(), fld.name() );
-  }
 }

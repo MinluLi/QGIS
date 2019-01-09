@@ -17,33 +17,52 @@
 #define QGSMAPTOOLMOVEFEATURE_H
 
 #include "qgsmaptooladvanceddigitizing.h"
+#include "qgis_app.h"
+#include "qgspointxy.h"
+#include "qgsfeatureid.h"
+
+class QgsSnapIndicator;
 
 //! Map tool for translating feature position by mouse drag
 class APP_EXPORT QgsMapToolMoveFeature: public QgsMapToolAdvancedDigitizing
 {
     Q_OBJECT
   public:
-    QgsMapToolMoveFeature( QgsMapCanvas* canvas );
-    virtual ~QgsMapToolMoveFeature();
+    //! Mode for moving features
+    enum MoveMode
+    {
+      Move, //!< Move feature
+      CopyMove  //!< Copy and move feature
+    };
 
-    virtual void cadCanvasMoveEvent( QgsMapMouseEvent* e ) override;
+    QgsMapToolMoveFeature( QgsMapCanvas *canvas, MoveMode mode = Move );
+    ~QgsMapToolMoveFeature() override;
 
-    virtual void cadCanvasReleaseEvent( QgsMapMouseEvent* e ) override;
+    void cadCanvasMoveEvent( QgsMapMouseEvent *e ) override;
 
-    //! called when map tool is being deactivated
+    void cadCanvasReleaseEvent( QgsMapMouseEvent *e ) override;
+
     void deactivate() override;
+
+    //! catch escape when active to action
+    void keyReleaseEvent( QKeyEvent *e ) override;
 
   private:
     //! Start point of the move in map coordinates
-    QgsPoint mStartPointMapCoords;
+    QgsPointXY mStartPointMapCoords;
 
     //! Rubberband that shows the feature being moved
-    QgsRubberBand* mRubberBand;
+    QgsRubberBand *mRubberBand = nullptr;
+
+    //! Snapping indicators
+    std::unique_ptr<QgsSnapIndicator> mSnapIndicator;
 
     //! Id of moved feature
     QgsFeatureIds mMovedFeatures;
 
     QPoint mPressPos;
+
+    MoveMode mMode;
 
 };
 

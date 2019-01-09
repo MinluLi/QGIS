@@ -17,9 +17,8 @@
 #define QGSGLOBEFEATURECURSOR_H
 
 #include <osgEarthFeatures/FeatureCursor>
-#include <qgsfeature.h>
-#include <qgsfeatureiterator.h>
-#include <qgsvectorlayer.h>
+#include "qgsfeature.h"
+#include "qgsfeatureiterator.h"
 
 #include "qgsglobefeatureutils.h"
 
@@ -27,9 +26,9 @@
 class QgsGlobeFeatureCursor : public osgEarth::Features::FeatureCursor
 {
   public:
-    QgsGlobeFeatureCursor( QgsVectorLayer* layer, const QgsFeatureIterator& iterator )
-        : mIterator( iterator )
-        , mLayer( layer )
+    QgsGlobeFeatureCursor( QgsVectorLayer *layer, const QgsFeatureIterator &iterator )
+      : mIterator( iterator )
+      , mLayer( layer )
     {
       mIterator.nextFeature( mFeature );
     }
@@ -39,7 +38,7 @@ class QgsGlobeFeatureCursor : public osgEarth::Features::FeatureCursor
       return mFeature.isValid();
     }
 
-    osgEarth::Features::Feature* nextFeature() override
+    osgEarth::Features::Feature *nextFeature() override
     {
       if ( mFeature.isValid() )
       {
@@ -49,14 +48,14 @@ class QgsGlobeFeatureCursor : public osgEarth::Features::FeatureCursor
       }
       else
       {
-        QgsDebugMsg( "WARNING: Returning NULL feature to osgEarth" );
+        QgsDebugMsg( QStringLiteral( "WARNING: Returning NULL feature to osgEarth" ) );
         return NULL;
       }
     }
 
   private:
     QgsFeatureIterator mIterator;
-    QgsVectorLayer* mLayer;
+    QgsVectorLayer *mLayer = nullptr;
     // Cached feature which will be returned next.
     // Always contains the next feature which will be returned
     // (Because hasMore() needs to know if we are able to return a next feature)

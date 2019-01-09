@@ -13,8 +13,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include <QtTest/QtTest>
-#include <qgisgui.h>
+#include "qgstest.h"
+#include "qgsguiutils.h"
 
 class TestQgsGui : public QObject
 {
@@ -28,7 +28,7 @@ class TestQgsGui : public QObject
 void TestQgsGui::createFileFilterForFormat()
 {
   QString expected = QStringLiteral( "FOO format (*.foo *.FOO)" );
-  QString actual = QgisGui::createFileFilter_( QStringLiteral( "foo" ) );
+  QString actual = QgsGuiUtils::createFileFilter_( QStringLiteral( "foo" ) );
 
   QCOMPARE( actual, expected );
 }
@@ -36,10 +36,10 @@ void TestQgsGui::createFileFilterForFormat()
 void TestQgsGui::createFileFilter()
 {
   QString expected = QStringLiteral( "My Description (my_regex MY_REGEX)" );
-  QString actual = QgisGui::createFileFilter_( QStringLiteral( "My Description" ), QStringLiteral( "my_regex" ) );
+  QString actual = QgsGuiUtils::createFileFilter_( QStringLiteral( "My Description" ), QStringLiteral( "my_regex" ) );
 
   QCOMPARE( actual, expected );
 }
 
-QTEST_MAIN( TestQgsGui )
+QGSTEST_MAIN( TestQgsGui )
 #include "testqgsgui.moc"

@@ -21,8 +21,8 @@ import os
 from qgis.testing import unittest, start_app
 from qgis.core import QgsNetworkContentFetcher
 from utilities import unitTestDataPath
-from qgis.PyQt.QtCore import QUrl, QCoreApplication
-from qgis.PyQt.QtNetwork import QNetworkReply
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 import socketserver
 import threading
 import http.server
@@ -90,6 +90,21 @@ class TestQgsNetworkContentFetcher(unittest.TestCase):
         html = fetcher.contentAsString()
         assert 'QGIS' in html
 
+    def testFetchRequestContent(self):
+        fetcher = QgsNetworkContentFetcher()
+        self.loaded = False
+        request = QNetworkRequest(QUrl('http://localhost:' + str(TestQgsNetworkContentFetcher.port) + '/qgis_local_server/index.html'))
+        fetcher.fetchContent(request)
+        fetcher.finished.connect(self.contentLoaded)
+        while not self.loaded:
+            app.processEvents()
+
+        r = fetcher.reply()
+        assert r.error() == QNetworkReply.NoError, r.error()
+
+        html = fetcher.contentAsString()
+        assert 'QGIS' in html
+
     def testDoubleFetch(self):
         fetcher = QgsNetworkContentFetcher()
         self.loaded = False
@@ -119,6 +134,7 @@ class TestQgsNetworkContentFetcher(unittest.TestCase):
 
         html = fetcher.contentAsString()
         assert chr(6040) in html
+
 
 if __name__ == "__main__":
     unittest.main()

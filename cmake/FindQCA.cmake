@@ -31,21 +31,20 @@ else(QCA_INCLUDE_DIR AND QCA_LIBRARY)
       /usr/local/lib
   )
 
-  if(APPLE)
-    if(QCA_LIBRARY AND QCA_LIBRARY MATCHES "qca(2)?\\.framework")
-      set(QCA_LIBRARY "${QCA_LIBRARY}" CACHE FILEPATH "QCA framework" FORCE)
-      set(QCA_INCLUDE_DIR "${QCA_LIBRARY}/Headers" CACHE FILEPATH "QCA framework headers" FORCE)
-    endif()
-  endif(APPLE)
+  set(_qca_fw)
+  if(QCA_LIBRARY MATCHES "/qca.*\\.framework")
+    string(REGEX REPLACE "^(.*/qca.*\\.framework).*$" "\\1" _qca_fw "${QCA_LIBRARY}")
+  endif()
 
   find_path(QCA_INCLUDE_DIR
     NAMES QtCrypto
     PATHS
+      "${_qca_fw}/Headers"
       ${LIB_DIR}/include
       "$ENV{LIB_DIR}/include"
       $ENV{INCLUDE}
       /usr/local/include
-      PATH_SUFFIXES QtCrypto qt5/QtCrypto Qca-qt5/QtCrypto
+      PATH_SUFFIXES QtCrypto qt5/QtCrypto Qca-qt5/QtCrypto qt/Qca-qt5/QtCrypto
   )
 
   if(QCA_LIBRARY AND QCA_INCLUDE_DIR)
@@ -73,7 +72,7 @@ else(NOT QCA_FOUND)
     file(STRINGS "${_qca_version_h}" _qca_version_str REGEX "^.*QCA_VERSION_STR +\"[^\"]+\".*$")
     string(REGEX REPLACE "^.*QCA_VERSION_STR +\"([^\"]+)\".*$" "\\1" QCA_VERSION_STR "${_qca_version_str}")
   else()
-    # qca_core.h contains hexidecimal version in <= 2.0.3
+    # qca_core.h contains hexadecimal version in <= 2.0.3
     set(_qca_core_h "${QCA_INCLUDE_DIR}/qca_core.h")
     if(EXISTS "${_qca_core_h}")
       file(STRINGS "${_qca_core_h}" _qca_version_str REGEX "^#define +QCA_VERSION +0x[0-9a-fA-F]+.*")

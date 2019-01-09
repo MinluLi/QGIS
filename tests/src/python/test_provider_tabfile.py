@@ -14,17 +14,14 @@ __revision__ = '$Format:%H$'
 
 import os
 import tempfile
+
 from qgis.core import QgsVectorLayer, QgsFeatureRequest, QgsVectorDataProvider, QgsField
 from qgis.PyQt.QtCore import QDate, QTime, QDateTime, QVariant, QDir
-from qgis.testing import (
-    start_app,
-    unittest
-)
-import osgeo.gdal
+from qgis.testing import start_app, unittest
+
+import osgeo.gdal  # NOQA
 from utilities import unitTestDataPath
-import tempfile
 import shutil
-import glob
 
 start_app()
 TEST_DATA_DIR = unitTestDataPath()
@@ -68,8 +65,6 @@ class TestPyQgsTabfileProvider(unittest.TestCase):
         assert isinstance(f.attributes()[datetime_idx], QDateTime)
         self.assertEqual(f.attributes()[datetime_idx], QDateTime(QDate(2004, 5, 3), QTime(13, 41, 00)))
 
-    # This test fails with GDAL version < 2 because tab update is new in GDAL 2.0
-    @unittest.expectedFailure(int(osgeo.gdal.VersionInfo()[:1]) < 2)
     def testUpdateMode(self):
         """ Test that on-the-fly re-opening in update/read-only mode works """
 
@@ -90,7 +85,6 @@ class TestPyQgsTabfileProvider(unittest.TestCase):
         self.assertEqual(vl.dataProvider().property("_debug_open_mode"), "read-only")
         self.assertTrue(vl.dataProvider().isValid())
 
-    @unittest.expectedFailure(int(osgeo.gdal.VersionInfo()[:1]) < 2)
     def testInteger64WriteTabfile(self):
         """Check writing Integer64 fields to an MapInfo tabfile (which does not support that type)."""
 

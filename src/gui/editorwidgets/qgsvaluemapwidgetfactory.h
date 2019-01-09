@@ -17,8 +17,12 @@
 #define QGSVALUEMAPWIDGETFACTORY_H
 
 #include "qgseditorwidgetfactory.h"
+#include "qgis_gui.h"
 
-/** \ingroup gui
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
  * \class QgsValueMapWidgetFactory
  * \note not available in Python bindings
  */
@@ -26,19 +30,11 @@
 class GUI_EXPORT QgsValueMapWidgetFactory : public QgsEditorWidgetFactory
 {
   public:
-    QgsValueMapWidgetFactory( const QString& name );
-
-    // QgsEditorWidgetFactory interface
-  public:
-    QgsEditorWidgetWrapper* create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const override;
-    QgsSearchWidgetWrapper* createSearchWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const override;
-    QgsEditorConfigWidget* configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const override;
-    QgsEditorWidgetConfig readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx ) override;
-    void writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx ) override;
-    QString representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const override;
-    QVariant sortValue( QgsVectorLayer *vl, int fieldIdx, const QgsEditorWidgetConfig &config, const QVariant &cache, const QVariant &value ) const override;
-    Qt::AlignmentFlag alignmentFlag( QgsVectorLayer *vl, int fieldIdx, const QgsEditorWidgetConfig &config ) const override;
-    virtual QHash<const char *, int> supportedWidgetTypes() override;
+    QgsValueMapWidgetFactory( const QString &name );
+    QgsEditorWidgetWrapper *create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const override;
+    QgsSearchWidgetWrapper *createSearchWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const override;
+    QgsEditorConfigWidget *configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const override;
+    QHash<const char *, int> supportedWidgetTypes() override;
 };
 
 #endif // QGSVALUEMAPWIDGETFACTORY_H

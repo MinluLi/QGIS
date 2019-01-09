@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>418</width>
-    <height>429</height>
+    <width>411</width>
+    <height>427</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -29,29 +29,31 @@
     </widget>
    </item>
    <item row="3" column="1" colspan="3">
-    <layout class="QHBoxLayout" name="horizontalLayout_8">
-     <item>
-      <widget class="QgsColorRampComboBox" name="cboGradientColorRamp"/>
-     </item>
-     <item>
-      <widget class="QPushButton" name="mButtonEditRamp">
-       <property name="maximumSize">
-        <size>
-         <width>100</width>
-         <height>16777215</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>Edit</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QgsColorRampButton" name="btnColorRamp">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="minimumSize">
+      <size>
+       <width>120</width>
+       <height>0</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>16777215</height>
+      </size>
+     </property>
+    </widget>
    </item>
    <item row="5" column="4">
-    <widget class="QgsDataDefinedButton" name="mShadeWholeShapeDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mShadeWholeShapeDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
@@ -92,16 +94,16 @@
     </layout>
    </item>
    <item row="6" column="4">
-    <widget class="QgsDataDefinedButton" name="mShadeDistanceDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mShadeDistanceDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
    <item row="2" column="4">
-    <widget class="QgsDataDefinedButton" name="mEndColorDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mEndColorDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
@@ -114,7 +116,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Gradient colors</string>
+      <string>Gradient Colors</string>
      </property>
     </widget>
    </item>
@@ -126,7 +128,7 @@
      <item>
       <widget class="QRadioButton" name="mRadioUseMaxDistance">
        <property name="text">
-        <string>Shade to a set distance:</string>
+        <string>Set distance</string>
        </property>
       </widget>
      </item>
@@ -170,6 +172,9 @@
          <height>0</height>
         </size>
        </property>
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
       </widget>
      </item>
     </layout>
@@ -177,21 +182,21 @@
    <item row="10" column="0">
     <widget class="QLabel" name="label_6">
      <property name="text">
-      <string>Offset X,Y</string>
+      <string>Offset</string>
      </property>
     </widget>
    </item>
    <item row="9" column="4">
-    <widget class="QgsDataDefinedButton" name="mBlurRadiusDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mBlurRadiusDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
    <item row="1" column="4">
-    <widget class="QgsDataDefinedButton" name="mStartColorDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mStartColorDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
@@ -245,9 +250,9 @@
     </widget>
    </item>
    <item row="8" column="4">
-    <widget class="QgsDataDefinedButton" name="mIgnoreRingsDDBtn">
+    <widget class="QgsPropertyOverrideButton" name="mIgnoreRingsDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
@@ -286,6 +291,13 @@
    <item row="10" column="1" colspan="3">
     <layout class="QGridLayout" name="gridLayout_2">
      <item row="0" column="0">
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>x</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
       <widget class="QgsDoubleSpinBox" name="spinOffsetX">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -307,10 +319,21 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="1" rowspan="2">
-      <widget class="QgsUnitSelectionWidget" name="mOffsetUnitWidget" native="true"/>
+     <item row="0" column="2" rowspan="2">
+      <widget class="QgsUnitSelectionWidget" name="mOffsetUnitWidget" native="true">
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
+      </widget>
      </item>
      <item row="1" column="0">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>y</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
       <widget class="QgsDoubleSpinBox" name="spinOffsetY">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -339,7 +362,7 @@
      <item>
       <widget class="QRadioButton" name="mRadioUseWholeShape">
        <property name="text">
-        <string>Shade whole shape</string>
+        <string>Whole shape</string>
        </property>
       </widget>
      </item>
@@ -367,7 +390,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Shading style</string>
+      <string>Shading Style</string>
      </property>
     </widget>
    </item>
@@ -385,6 +408,7 @@
     </spacer>
    </item>
   </layout>
+  <zorder>btnColorRamp</zorder>
   <zorder>label</zorder>
   <zorder>label_6</zorder>
   <zorder>label_2</zorder>
@@ -402,9 +426,15 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsDataDefinedButton</class>
+   <class>QgsColorButton</class>
    <extends>QToolButton</extends>
-   <header>qgsdatadefinedbutton.h</header>
+   <header>qgscolorbutton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsPropertyOverrideButton</class>
+   <extends>QToolButton</extends>
+   <header>qgspropertyoverridebutton.h</header>
   </customwidget>
   <customwidget>
    <class>QgsDoubleSpinBox</class>
@@ -418,29 +448,34 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsColorButton</class>
+   <class>QgsColorRampButton</class>
    <extends>QToolButton</extends>
-   <header>qgscolorbutton.h</header>
+   <header>qgscolorrampbutton.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>QgsColorRampComboBox</class>
-   <extends>QComboBox</extends>
-   <header>qgscolorrampcombobox.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>radioTwoColor</tabstop>
+  <tabstop>btnChangeColor</tabstop>
+  <tabstop>mStartColorDDBtn</tabstop>
+  <tabstop>btnChangeColor2</tabstop>
+  <tabstop>mEndColorDDBtn</tabstop>
   <tabstop>radioColorRamp</tabstop>
-  <tabstop>cboGradientColorRamp</tabstop>
-  <tabstop>mButtonEditRamp</tabstop>
+  <tabstop>btnColorRamp</tabstop>
   <tabstop>mRadioUseWholeShape</tabstop>
+  <tabstop>mShadeWholeShapeDDBtn</tabstop>
   <tabstop>mRadioUseMaxDistance</tabstop>
   <tabstop>mSpinMaxDistance</tabstop>
+  <tabstop>mDistanceUnitWidget</tabstop>
+  <tabstop>mShadeDistanceDDBtn</tabstop>
   <tabstop>mIgnoreRingsCheckBox</tabstop>
+  <tabstop>mIgnoreRingsDDBtn</tabstop>
   <tabstop>mBlurSlider</tabstop>
   <tabstop>mSpinBlurRadius</tabstop>
+  <tabstop>mBlurRadiusDDBtn</tabstop>
   <tabstop>spinOffsetX</tabstop>
+  <tabstop>mOffsetUnitWidget</tabstop>
+  <tabstop>spinOffsetY</tabstop>
  </tabstops>
  <resources/>
  <connections>
@@ -479,7 +514,7 @@
   <connection>
    <sender>radioColorRamp</sender>
    <signal>toggled(bool)</signal>
-   <receiver>cboGradientColorRamp</receiver>
+   <receiver>btnColorRamp</receiver>
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">

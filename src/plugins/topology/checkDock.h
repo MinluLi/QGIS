@@ -3,7 +3,7 @@
   TOPOLogy checker
   -------------------
          date                 : May 2009
-         copyright            : Vita Cizek
+         copyright            : (C) 2009 by Vita Cizek
          email                : weetya (at) gmail.com
 
  ***************************************************************************
@@ -20,9 +20,8 @@
 
 #include "qgsdockwidget.h"
 
-#include <qgsvectorlayer.h>
-#include <qgsgeometry.h>
-//#include <qgsvertexmarker.h>
+#include "qgsgeometry.h"
+//#include "qgsvertexmarker.h"
 #include "qgsspatialindex.h"
 
 #include "ui_checkDock.h"
@@ -31,7 +30,6 @@
 #include "topolTest.h"
 #include "dockModel.h"
 
-class QgsMapLayerRegistry;
 class QgsRubberBand;
 class QgsVertexMarker;
 class QgisApp;
@@ -43,97 +41,110 @@ class checkDock : public QgsDockWidget, private Ui::checkDock
     Q_OBJECT
 
   public:
+
     /**
      * Constructor
-     * @param qIface  pointer to QgisInterface instance that is passed to the rulesDialog
-     * @param parent parent object
+     * \param qIface  pointer to QgisInterface instance that is passed to the rulesDialog
+     * \param parent parent object
      */
-    checkDock( QgisInterface* qIface, QWidget *parent = nullptr );
-    ~checkDock();
+    checkDock( QgisInterface *qIface, QWidget *parent = nullptr );
+    ~checkDock() override;
 
   private slots:
+
     /**
      * Launches the configuration dialog
      */
     void configure();
+
     /**
      * Launches fixing routine
      */
     void fix();
+
     /**
      * Validates the whole layer
      */
     void validateAll();
+
     /**
      * Validates the current extent
      */
     void validateExtent();
+
     /**
      * Validates only selected features
      */
     void validateSelected();
+
     /**
      * toggles the visibility of rubber band error markers
      */
     void toggleErrorMarker();
+
     /**
      * Handles error selection
-     * @param index clicked index in the table
+     * \param index clicked index in the table
      */
-    void errorListClicked( const QModelIndex& index );
+    void errorListClicked( const QModelIndex &index );
+
     /**
      * Deletes allocated errors' data
      */
     void deleteErrors();
+
     /**
      * Filters all errors involving features from specified layer
-     * @param layerId layer ID
+     * \param layerId layer ID
      */
-    void parseErrorListByLayer( const QString& layerId );
+    void parseErrorListByLayer( const QString &layerId );
+
     /**
      * Clears rubberbands when window is hidden
-     * @param visible true if the window is visible
+     * \param visible true if the window is visible
      */
     void updateRubberBands( bool visible );
 
 
   private:
-    rulesDialog* mConfigureDialog;
+    rulesDialog *mConfigureDialog = nullptr;
 
-    QgsRubberBand* mRBConflict;
-    QgsRubberBand* mRBFeature1;
-    QgsRubberBand* mRBFeature2;
-    QgsVertexMarker* mVMConflict;
-    QgsVertexMarker* mVMFeature1;
-    QgsVertexMarker* mVMFeature2;
-    QList<QgsRubberBand*> mRbErrorMarkers;
+    QgsRubberBand *mRBConflict = nullptr;
+    QgsRubberBand *mRBFeature1 = nullptr;
+    QgsRubberBand *mRBFeature2 = nullptr;
+    QgsVertexMarker *mVMConflict = nullptr;
+    QgsVertexMarker *mVMFeature1 = nullptr;
+    QgsVertexMarker *mVMFeature2 = nullptr;
+    QList<QgsRubberBand *> mRbErrorMarkers;
 
     ErrorList mErrorList;
-    DockModel* mErrorListModel;
+    DockModel *mErrorListModel = nullptr;
 
-    QgisInterface* qgsInterface;
+    QgisInterface *qgsInterface = nullptr;
 
     //pointer to topology tests table
-    QTableWidget* mTestTable;
+    QTableWidget *mTestTable = nullptr;
 
-    topolTest* mTest;
-    QgsMapLayerRegistry* mLayerRegistry;
+    topolTest *mTest = nullptr;
 
     /**
      * Runs tests from the test table
-     * @param type validation type - what features to check
+     * \param type validation type - what features to check
      */
     void runTests( ValidateType type );
+
     /**
      * Validates topology
-     * @param type validation type - what features to check
+     * \param type validation type - what features to check
      */
     void validate( ValidateType type );
+
     /**
      * Filters all errors involving specified feature
-     * @param featureId feature ID
+     * \param featureId feature ID
      */
     void parseErrorListByFeature( int featureId );
+
     /**
      * Deletes vertex markers
      */

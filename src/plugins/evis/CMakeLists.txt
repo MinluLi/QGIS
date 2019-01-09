@@ -49,27 +49,31 @@ QT5_ADD_RESOURCES(evis_RCC_SRCS ${evis_RCCS})
 ADD_LIBRARY (evis MODULE ${evis_SRCS} ${evis_MOC_SRCS} ${evis_RCC_SRCS} ${evis_UIS_H})
 
 INCLUDE_DIRECTORIES(SYSTEM
-     ${GDAL_INCLUDE_DIR}
-     ${GEOS_INCLUDE_DIR}
-     ${QT_INCLUDE_DIR}
+  ${GDAL_INCLUDE_DIR}
+  ${QT_INCLUDE_DIR}
 )
 INCLUDE_DIRECTORIES(
-     ${CMAKE_CURRENT_SOURCE_DIR}
-     ${CMAKE_CURRENT_BINARY_DIR}
-     ${CMAKE_CURRENT_SOURCE_DIR}/databaseconnection
-     ${CMAKE_CURRENT_SOURCE_DIR}/eventbrowser
-     ${CMAKE_CURRENT_SOURCE_DIR}/idtool
-     ${CMAKE_CURRENT_SOURCE_DIR}/../../gui
-     ${CMAKE_CURRENT_SOURCE_DIR}/../../core
-     ${CMAKE_CURRENT_SOURCE_DIR}/../../core/geometry
-     ${CMAKE_CURRENT_SOURCE_DIR}/../../core/raster
-     ${CMAKE_CURRENT_SOURCE_DIR}/..
+  ${CMAKE_CURRENT_SOURCE_DIR}/databaseconnection
+  ${CMAKE_CURRENT_SOURCE_DIR}/eventbrowser
+  ${CMAKE_CURRENT_SOURCE_DIR}/idtool
+
+  ${CMAKE_SOURCE_DIR}/src/gui
+  ${CMAKE_SOURCE_DIR}/src/core
+  ${CMAKE_SOURCE_DIR}/src/core/expression
+  ${CMAKE_SOURCE_DIR}/src/core/geometry
+  ${CMAKE_SOURCE_DIR}/src/core/metadata
+  ${CMAKE_SOURCE_DIR}/src/core/raster
+  ${CMAKE_SOURCE_DIR}/src/plugins
+
+  ${CMAKE_BINARY_DIR}/src/core
+  ${CMAKE_BINARY_DIR}/src/gui
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 TARGET_LINK_LIBRARIES(evis
   qgis_core
   qgis_gui
-  ${QT_QTSQL_LIBRARY}
+  ${Qt5Sql_LIBRARIES}
 )
 
 

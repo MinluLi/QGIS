@@ -24,16 +24,14 @@ from builtins import str
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import SpatiaLiteDBConnector
 
-from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
+from qgis.PyQt.QtCore import Qt, QFileInfo, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QApplication, QAction, QFileDialog
-from qgis.core import QgsDataSourceUri
+from qgis.core import Qgis, QgsApplication, QgsDataSourceUri, QgsSettings
 from qgis.gui import QgsMessageBar
 
 from ..plugin import DBPlugin, Database, Table, VectorTable, RasterTable, TableField, TableIndex, TableTrigger, \
     InvalidDataException
-
-from . import resources_rc  # NOQA
 
 
 def classFactory():
@@ -44,7 +42,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     @classmethod
     def icon(self):
-        return QIcon(":/db_manager/spatialite/icon")
+        return QgsApplication.getThemeIcon("/mIconSpatialite.svg")
 
     @classmethod
     def typeName(self):
@@ -52,7 +50,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     @classmethod
     def typeNameString(self):
-        return 'SpatiaLite'
+        return QCoreApplication.translate('db_manager', 'SpatiaLite')
 
     @classmethod
     def providerName(self):
@@ -67,11 +65,11 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     def connect(self, parent=None):
         conn_name = self.connectionName()
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
 
         if not settings.contains("sqlitepath"):  # non-existent entry?
-            raise InvalidDataException(u'there is no defined database connection "%s".' % conn_name)
+            raise InvalidDataException(self.tr(u'There is no defined database connection "{0}".').format(conn_name))
 
         database = settings.value("sqlitepath")
 
@@ -81,7 +79,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     @classmethod
     def addConnection(self, conn_name, uri):
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
         settings.setValue("sqlitepath", uri.database())
         return True
@@ -90,7 +88,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
     def addConnectionActionSlot(self, item, action, parent, index):
         QApplication.restoreOverrideCursor()
         try:
-            filename, selected_filter = QFileDialog.getOpenFileName(parent, "Choose Sqlite/Spatialite file")
+            filename, selected_filter = QFileDialog.getOpenFileName(parent, "Choose SQLite/SpatiaLite file")
             if not filename:
                 return
         finally:
@@ -130,6 +128,11 @@ class SLDatabase(Database):
 
         return SLSqlResultModel(self, sql, parent)
 
+    def sqlResultModelAsync(self, sql, parent):
+        from .data_model import SLSqlResultModelAsync
+
+        return SLSqlResultModelAsync(self, sql, parent)
+
     def registerDatabaseActions(self, mainWindow):
         action = QAction(self.tr("Run &Vacuum"), self)
         mainWindow.registerAction(action, self.tr("&Database"), self.runVacuumActionSlot)
@@ -141,7 +144,7 @@ class SLDatabase(Database):
         try:
             if not isinstance(item, (DBPlugin, Table)) or item.database() is None:
                 parent.infoBar.pushMessage(self.tr("No database selected or you are not connected to it."),
-                                           QgsMessageBar.INFO, parent.iface.messageTimeout())
+                                           Qgis.Info, parent.iface.messageTimeout())
                 return
         finally:
             QApplication.setOverrideCursor(Qt.WaitCursor)

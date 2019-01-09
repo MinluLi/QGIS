@@ -15,7 +15,6 @@
 
 #include "qgsstatisticalsummary.h"
 #include <limits>
-#include <qmath.h>
 #include <QString>
 #include <QObject>
 
@@ -26,14 +25,9 @@
  ****************************************************************************/
 
 QgsStatisticalSummary::QgsStatisticalSummary( Statistics stats )
-    : mStatistics( stats )
+  : mStatistics( stats )
 {
   reset();
-}
-
-QgsStatisticalSummary::~QgsStatisticalSummary()
-{
-
 }
 
 void QgsStatisticalSummary::reset()
@@ -77,8 +71,8 @@ void QgsStatisticalSummary::addValue( double value )
 {
   mCount++;
   mSum += value;
-  mMin = qMin( mMin, value );
-  mMax = qMax( mMax, value );
+  mMin = std::min( mMin, value );
+  mMax = std::max( mMax, value );
 
   if ( mStatistics & QgsStatisticalSummary::Majority || mStatistics & QgsStatisticalSummary::Minority || mStatistics & QgsStatisticalSummary::Variety )
     mValueCount.insert( value, mValueCount.value( value, 0 ) + 1 );
@@ -89,7 +83,7 @@ void QgsStatisticalSummary::addValue( double value )
     mValues << value;
 }
 
-void QgsStatisticalSummary::addVariant( const QVariant& value )
+void QgsStatisticalSummary::addVariant( const QVariant &value )
 {
   bool convertOk = false;
   if ( !value.isValid() || value.isNull() )
@@ -107,7 +101,19 @@ void QgsStatisticalSummary::addVariant( const QVariant& value )
 void QgsStatisticalSummary::finalize()
 {
   if ( mCount == 0 )
+  {
+    mMin = std::numeric_limits<double>::quiet_NaN();
+    mMax = std::numeric_limits<double>::quiet_NaN();
+    mMean = std::numeric_limits<double>::quiet_NaN();
+    mMedian = std::numeric_limits<double>::quiet_NaN();
+    mStdev = std::numeric_limits<double>::quiet_NaN();
+    mSampleStdev = std::numeric_limits<double>::quiet_NaN();
+    mMinority = std::numeric_limits<double>::quiet_NaN();
+    mMajority = std::numeric_limits<double>::quiet_NaN();
+    mFirstQuartile = std::numeric_limits<double>::quiet_NaN();
+    mThirdQuartile = std::numeric_limits<double>::quiet_NaN();
     return;
+  }
 
   mMean = mSum / mCount;
 
@@ -119,8 +125,8 @@ void QgsStatisticalSummary::finalize()
       double diff = value - mMean;
       sumSquared += diff * diff;
     }
-    mStdev = qPow( sumSquared / mValues.count(), 0.5 );
-    mSampleStdev = qPow( sumSquared / ( mValues.count() - 1 ), 0.5 );
+    mStdev = std::pow( sumSquared / mValues.count(), 0.5 );
+    mSampleStdev = std::pow( sumSquared / ( mValues.count() - 1 ), 0.5 );
   }
 
   if ( mStatistics & QgsStatisticalSummary::Median
@@ -128,7 +134,7 @@ void QgsStatisticalSummary::finalize()
        || mStatistics & QgsStatisticalSummary::ThirdQuartile
        || mStatistics & QgsStatisticalSummary::InterQuartileRange )
   {
-    qSort( mValues.begin(), mValues.end() );
+    std::sort( mValues.begin(), mValues.end() );
     bool even = ( mCount % 2 ) < 1;
     if ( even )
     {
@@ -143,7 +149,7 @@ void QgsStatisticalSummary::finalize()
   if ( mStatistics & QgsStatisticalSummary::FirstQuartile
        || mStatistics & QgsStatisticalSummary::InterQuartileRange )
   {
-    if (( mCount % 2 ) < 1 )
+    if ( ( mCount % 2 ) < 1 )
     {
       int halfCount = mCount / 2;
       bool even = ( halfCount % 2 ) < 1;
@@ -174,7 +180,7 @@ void QgsStatisticalSummary::finalize()
   if ( mStatistics & QgsStatisticalSummary::ThirdQuartile
        || mStatistics & QgsStatisticalSummary::InterQuartileRange )
   {
-    if (( mCount % 2 ) < 1 )
+    if ( ( mCount % 2 ) < 1 )
     {
       int halfCount = mCount / 2;
       bool even = ( halfCount % 2 ) < 1;
@@ -205,7 +211,7 @@ void QgsStatisticalSummary::finalize()
   if ( mStatistics & QgsStatisticalSummary::Minority || mStatistics & QgsStatisticalSummary::Majority )
   {
     QList<int> valueCounts = mValueCount.values();
-    qSort( valueCounts.begin(), valueCounts.end() );
+    std::sort( valueCounts.begin(), valueCounts.end() );
     if ( mStatistics & QgsStatisticalSummary::Minority )
     {
       mMinority = mValueCount.key( valueCounts.first() );

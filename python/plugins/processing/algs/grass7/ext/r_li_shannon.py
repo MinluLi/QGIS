@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import absolute_import
 
 __author__ = 'Médéric Ribreux'
 __date__ = 'February 2016'
@@ -29,9 +28,9 @@ __revision__ = '$Format:%H$'
 from .r_li import checkMovingWindow, configFile
 
 
-def checkParameterValuesBeforeExecuting(alg):
-    return checkMovingWindow(alg)
+def checkParameterValuesBeforeExecuting(alg, parameters, context):
+    return checkMovingWindow(alg, parameters, context)
 
 
-def processCommand(alg):
-    configFile(alg)
+def processCommand(alg, parameters, context, feedback):
+    configFile(alg, parameters, context, feedback)

@@ -26,10 +26,13 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from qgis.PyQt.QtGui import QIcon
+
+from qgis.PyQt.QtCore import QCoreApplication
+
+from qgis.core import QgsApplication
+
 from processing.gui.ToolboxAction import ToolboxAction
 from processing.modeler.ModelerDialog import ModelerDialog
-from processing.core.alglist import algList
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
 
@@ -37,11 +40,11 @@ pluginPath = os.path.split(os.path.dirname(__file__))[0]
 class CreateNewModelAction(ToolboxAction):
 
     def __init__(self):
-        self.name, self.i18n_name = self.trAction('Create new model')
-        self.group, self.i18n_group = self.trAction('Tools')
+        self.name = QCoreApplication.translate('CreateNewModelAction', 'Create New Model…')
+        self.group = self.tr('Tools')
 
     def getIcon(self):
-        return QIcon(os.path.join(pluginPath, 'images', 'model.png'))
+        return QgsApplication.getThemeIcon("/processingModel.svg")
 
     def execute(self):
         dlg = ModelerDialog()
@@ -49,4 +52,4 @@ class CreateNewModelAction(ToolboxAction):
         dlg.show()
 
     def updateModel(self):
-        algList.reloadProvider('model')
+        QgsApplication.processingRegistry().providerById('model').refreshAlgorithms()

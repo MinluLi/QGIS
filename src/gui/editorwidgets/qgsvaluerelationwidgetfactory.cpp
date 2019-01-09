@@ -17,7 +17,6 @@
 
 #include "qgsfeatureiterator.h"
 #include "qgslogger.h"
-#include "qgsmaplayerregistry.h"
 #include "qgsvaluerelationconfigdlg.h"
 #include "qgsvaluerelationsearchwidgetwrapper.h"
 #include "qgsvectorlayer.h"
@@ -25,12 +24,12 @@
 
 #include <QSettings>
 
-QgsValueRelationWidgetFactory::QgsValueRelationWidgetFactory( const QString& name )
-    :  QgsEditorWidgetFactory( name )
+QgsValueRelationWidgetFactory::QgsValueRelationWidgetFactory( const QString &name )
+  :  QgsEditorWidgetFactory( name )
 {
 }
 
-QgsEditorWidgetWrapper* QgsValueRelationWidgetFactory::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const
+QgsEditorWidgetWrapper *QgsValueRelationWidgetFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsValueRelationWidgetWrapper( vl, fieldIdx, editor, parent );
 }
@@ -40,116 +39,7 @@ QgsSearchWidgetWrapper *QgsValueRelationWidgetFactory::createSearchWidget( QgsVe
   return new QgsValueRelationSearchWidgetWrapper( vl, fieldIdx, parent );
 }
 
-QgsEditorConfigWidget* QgsValueRelationWidgetFactory::configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsEditorConfigWidget *QgsValueRelationWidgetFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsValueRelationConfigDlg( vl, fieldIdx, parent );
 }
-
-QgsEditorWidgetConfig QgsValueRelationWidgetFactory::readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx )
-{
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  QgsEditorWidgetConfig cfg;
-
-  cfg.insert( QStringLiteral( "Layer" ), configElement.attribute( QStringLiteral( "Layer" ) ) );
-  cfg.insert( QStringLiteral( "Key" ), configElement.attribute( QStringLiteral( "Key" ) ) );
-  cfg.insert( QStringLiteral( "Value" ), configElement.attribute( QStringLiteral( "Value" ) ) );
-  cfg.insert( QStringLiteral( "FilterExpression" ), configElement.attribute( QStringLiteral( "FilterExpression" ) ) );
-  cfg.insert( QStringLiteral( "OrderByValue" ), configElement.attribute( QStringLiteral( "OrderByValue" ) ) );
-  cfg.insert( QStringLiteral( "AllowMulti" ), configElement.attribute( QStringLiteral( "AllowMulti" ) ) );
-  cfg.insert( QStringLiteral( "AllowNull" ), configElement.attribute( QStringLiteral( "AllowNull" ) ) );
-  cfg.insert( QStringLiteral( "UseCompleter" ), configElement.attribute( QStringLiteral( "UseCompleter" ) ) );
-
-  return cfg;
-}
-
-void QgsValueRelationWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx )
-{
-  Q_UNUSED( doc )
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  configElement.setAttribute( QStringLiteral( "Layer" ), config.value( QStringLiteral( "Layer" ) ).toString() );
-  configElement.setAttribute( QStringLiteral( "Key" ), config.value( QStringLiteral( "Key" ) ).toString() );
-  configElement.setAttribute( QStringLiteral( "Value" ), config.value( QStringLiteral( "Value" ) ).toString() );
-  configElement.setAttribute( QStringLiteral( "FilterExpression" ), config.value( QStringLiteral( "FilterExpression" ) ).toString() );
-  configElement.setAttribute( QStringLiteral( "OrderByValue" ), config.value( QStringLiteral( "OrderByValue" ) ).toBool() );
-  configElement.setAttribute( QStringLiteral( "AllowMulti" ), config.value( QStringLiteral( "AllowMulti" ) ).toBool() );
-  configElement.setAttribute( QStringLiteral( "AllowNull" ), config.value( QStringLiteral( "AllowNull" ) ).toBool() );
-  configElement.setAttribute( QStringLiteral( "UseCompleter" ), config.value( QStringLiteral( "UseCompleter" ) ).toBool() );
-}
-
-QString QgsValueRelationWidgetFactory::representValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const
-{
-  Q_UNUSED( vl )
-  Q_UNUSED( fieldIdx )
-
-  QgsValueRelationWidgetWrapper::ValueRelationCache vrCache;
-
-  if ( cache.isValid() )
-  {
-    vrCache = cache.value<QgsValueRelationWidgetWrapper::ValueRelationCache>();
-  }
-  else
-  {
-    vrCache = QgsValueRelationWidgetWrapper::createCache( config );
-  }
-
-  if ( config.value( QStringLiteral( "AllowMulti" ) ).toBool() )
-  {
-    QStringList keyList = value.toString().remove( QChar( '{' ) ).remove( QChar( '}' ) ).split( ',' );
-    QStringList valueList;
-
-    Q_FOREACH ( const QgsValueRelationWidgetWrapper::ValueRelationItem& item, vrCache )
-    {
-      if ( keyList.contains( item.first.toString() ) )
-      {
-        valueList << item.second;
-      }
-    }
-
-    return valueList.join( QStringLiteral( ", " ) ).prepend( '{' ).append( '}' );
-  }
-  else
-  {
-    if ( value.isNull() )
-    {
-      QSettings settings;
-      return settings.value( QStringLiteral( "qgis/nullValue" ), "NULL" ).toString();
-    }
-
-    Q_FOREACH ( const QgsValueRelationWidgetWrapper::ValueRelationItem& item, vrCache )
-    {
-      if ( item.first == value )
-      {
-        return item.second;
-      }
-    }
-  }
-
-  return QStringLiteral( "(%1)" ).arg( value.toString() );
-}
-
-QVariant QgsValueRelationWidgetFactory::sortValue( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, const QVariant& cache, const QVariant& value ) const
-{
-  return representValue( vl, fieldIdx, config, cache, value );
-}
-
-Qt::AlignmentFlag QgsValueRelationWidgetFactory::alignmentFlag( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config ) const
-{
-  Q_UNUSED( vl );
-  Q_UNUSED( fieldIdx );
-  Q_UNUSED( config );
-
-  return Qt::AlignLeft;
-}
-
-QVariant QgsValueRelationWidgetFactory::createCache( QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config )
-{
-  Q_UNUSED( vl )
-  Q_UNUSED( fieldIdx )
-
-  return QVariant::fromValue<QgsValueRelationWidgetWrapper::ValueRelationCache>( QgsValueRelationWidgetWrapper::createCache( config ) );
-}
-

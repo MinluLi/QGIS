@@ -23,9 +23,8 @@ from qgis.core import (QgsGraduatedSymbolRenderer,
                        QgsVectorLayer,
                        QgsFeature,
                        QgsGeometry,
-                       QgsPoint,
-                       QgsSymbol,
-                       QgsSymbolLayerUtils,
+                       QgsPointXY,
+                       QgsReadWriteContext,
                        QgsRenderContext
                        )
 from qgis.PyQt.QtCore import Qt
@@ -59,7 +58,7 @@ def createMemoryLayer(values):
         feat = QgsFeature(fields)
         feat['id'] = id
         feat['value'] = value
-        g = QgsGeometry.fromPoint(QgsPoint(x, x))
+        g = QgsGeometry.fromPointXY(QgsPointXY(x, x))
         feat.setGeometry(g)
         pr.addFeatures([feat])
     ml.updateExtents()
@@ -142,7 +141,6 @@ def dumpGraduatedRenderer(r):
     else:
         rstr = rstr + symbol.dump() + ':'
     rstr = rstr + dumpColorRamp(r.sourceColorRamp())
-    rstr = rstr + str(r.invertedColorRamp()) + ':'
     rstr = rstr + dumpRangeList(r.ranges())
     return rstr
 
@@ -195,8 +193,8 @@ class TestQgsGraduatedSymbolRenderer(unittest.TestCase):
         self.assertFalse(format.trimTrailingZeroes(), "TrimTrailingZeroes getter/setter failed")
         minprecision = -6
         maxprecision = 15
-        self.assertEqual(QgsRendererRangeLabelFormat.MinPrecision, minprecision, "Minimum precision != -6")
-        self.assertEqual(QgsRendererRangeLabelFormat.MaxPrecision, maxprecision, "Maximum precision != 15")
+        self.assertEqual(QgsRendererRangeLabelFormat.MIN_PRECISION, minprecision, "Minimum precision != -6")
+        self.assertEqual(QgsRendererRangeLabelFormat.MAX_PRECISION, maxprecision, "Maximum precision != 15")
         format.setPrecision(-10)
         self.assertEqual(format.precision(), minprecision, "Minimum precision not enforced")
         format.setPrecision(20)
@@ -305,13 +303,6 @@ class TestQgsGraduatedSymbolRenderer(unittest.TestCase):
             dumpColorRamp(renderer.sourceColorRamp()),
             "Get/set renderer color ramp")
 
-        renderer.setInvertedColorRamp(True)
-        self.assertTrue(renderer.invertedColorRamp(),
-                        "Get/set renderer inverted color ramp")
-        renderer.setInvertedColorRamp(False)
-        self.assertFalse(renderer.invertedColorRamp(),
-                         "Get/set renderer inverted color ramp")
-
         renderer.setSourceColorRamp(ramp)
         self.assertEqual(
             dumpColorRamp(ramp),
@@ -382,8 +373,8 @@ class TestQgsGraduatedSymbolRenderer(unittest.TestCase):
         # Check save and reload from Dom works
 
         doc = QDomDocument()
-        element = renderer.save(doc)
-        renderer2 = QgsGraduatedSymbolRenderer.create(element)
+        element = renderer.save(doc, QgsReadWriteContext())
+        renderer2 = QgsGraduatedSymbolRenderer.create(element, QgsReadWriteContext())
         self.assertEqual(
             dumpGraduatedRenderer(renderer),
             dumpGraduatedRenderer(renderer2),
@@ -421,9 +412,9 @@ class TestQgsGraduatedSymbolRenderer(unittest.TestCase):
 
 
 #    void addClass( QgsSymbol* symbol );
-#    //! @note available in python bindings as addClassRange
+#    //! \note available in python bindings as addClassRange
 #    void addClass( QgsRendererRange range ) /PyName=addClassRange/;
-#    //! @note available in python bindings as addClassLowerUpper
+#    //! \note available in python bindings as addClassLowerUpper
 #    void addClass( double lower, double upper ) /PyName=addClassLowerUpper/;
 #    void deleteClass( int idx );
 #    void deleteAllClasses();
@@ -459,11 +450,31 @@ class TestQgsGraduatedSymbolRenderer(unittest.TestCase):
             '(0.5000-1.0000,1.0000-1.1000,1.1000-1.2000,1.2000-5.0000,)',
             'Quantile classification not correct')
 
-        # Tests still needed
+    def testUsedAttributes(self):
+        renderer = QgsGraduatedSymbolRenderer()
+        ctx = QgsRenderContext()
 
-        # Other calculation method tests
-        # createRenderer function
-        # symbolForFeature correctly selects range
+        # attribute can contain either attribute name or an expression.
+        # Sometimes it is not possible to distinguish between those two,
+        # e.g. "a - b" can be both a valid attribute name or expression.
+        # Since we do not have access to fields here, the method should return both options.
+        renderer.setClassAttribute("value")
+        self.assertEqual(renderer.usedAttributes(ctx), {"value"})
+        renderer.setClassAttribute("value - 1")
+        self.assertEqual(renderer.usedAttributes(ctx), {"value", "value - 1"})
+        renderer.setClassAttribute("valuea - valueb")
+        self.assertEqual(renderer.usedAttributes(ctx), {"valuea", "valuea - valueb", "valueb"})
+
+    def testFilterNeedsGeometry(self):
+        renderer = QgsGraduatedSymbolRenderer()
+
+        renderer.setClassAttribute("value")
+        self.assertFalse(renderer.filterNeedsGeometry())
+        renderer.setClassAttribute("$area")
+        self.assertTrue(renderer.filterNeedsGeometry())
+        renderer.setClassAttribute("value - $area")
+        self.assertTrue(renderer.filterNeedsGeometry())
+
 
 if __name__ == "__main__":
     unittest.main()

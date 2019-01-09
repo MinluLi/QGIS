@@ -18,12 +18,16 @@
 #define QGSAUTHGUIUTILS_H
 
 #include <QColor>
+#include "qgis_gui.h"
 
 class QWidget;
 class QgsMessageBar;
 
+#define SIP_NO_FILE
 
-/** \ingroup gui
+
+/**
+ * \ingroup gui
  * \brief Utility functions for use by authentication GUI widgets or standalone apps
  * \note not available in Python bindings
  */
@@ -44,13 +48,13 @@ class GUI_EXPORT QgsAuthGuiUtils
     static QColor yellowColor();
 
     //! Green text stylesheet representing valid, trusted, etc. certificate
-    static QString greenTextStyleSheet( const QString& selector = "*" );
+    static QString greenTextStyleSheet( const QString &selector = "*" );
 
     //! Orange text stylesheet representing loaded component, but not stored in database
-    static QString orangeTextStyleSheet( const QString& selector = "*" );
+    static QString orangeTextStyleSheet( const QString &selector = "*" );
 
     //! Red text stylesheet representing invalid, untrusted, etc. certificate
-    static QString redTextStyleSheet( const QString& selector = "*" );
+    static QString redTextStyleSheet( const QString &selector = "*" );
 
 
     //! Verify the authentication system is active, else notify user
@@ -62,7 +66,7 @@ class GUI_EXPORT QgsAuthGuiUtils
     //! Clear the currently cached master password (not its hash in database)
     static void clearCachedMasterPassword( QgsMessageBar *msgbar, int timeout = 0 );
 
-    //! Reset the cached master password, updating its hash in authentication database and reseting all existing configs to use it
+    //! Reset the cached master password, updating its hash in authentication database and resetting all existing configs to use it
     static void resetMasterPassword( QgsMessageBar *msgbar, int timeout = 0, QWidget *parent = nullptr );
 
     //! Clear all cached authentication configs for session
@@ -75,10 +79,25 @@ class GUI_EXPORT QgsAuthGuiUtils
     static void eraseAuthenticationDatabase( QgsMessageBar *msgbar, int timeout = 0, QWidget *parent = nullptr );
 
     //! Color a widget via a stylesheet if a file path is found or not
-    static void fileFound( bool found, QWidget * widget );
+    static void fileFound( bool found, QWidget *widget );
 
     //! Open file dialog for auth associated widgets
-    static QString getOpenFileName( QWidget *parent, const QString& title, const QString& extfilter );
+    static QString getOpenFileName( QWidget *parent, const QString &title, const QString &extfilter );
+
+    //! Remove master password from wallet
+    static void passwordHelperDelete( QgsMessageBar *msgbar, int timeout = 0, QWidget *parent = nullptr );
+
+    //! Store master password into the wallet
+    static void passwordHelperSync( QgsMessageBar *msgbar, int timeout = 0 );
+
+    //! Sets password helper enabled (enable/disable)
+    static void passwordHelperEnable( bool enabled, QgsMessageBar *msgbar, int timeout = 0 );
+
+    //! Sets password helper logging enabled (enable/disable)
+    static void passwordHelperLoggingEnable( bool enabled, QgsMessageBar *msgbar, int timeout = 0 );
+
 };
+
+// clazy:excludeall=qstring-allocations
 
 #endif // QGSAUTHGUIUTILS_H

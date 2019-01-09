@@ -28,7 +28,7 @@
 class QgsFeature;
 class QgsField;
 class QgsGeometry;
-class QgsPoint;
+class QgsPointXY;
 class QFile;
 class QTextStream;
 
@@ -65,8 +65,8 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
      * Regular expression defining possible prefixes to WKT string,
      * (EWKT srid, Informix SRID)
      */
-    static QRegExp WktPrefixRegexp;
-    static QRegExp CrdDmsRegexp;
+    static QRegExp sWktPrefixRegexp;
+    static QRegExp sCrdDmsRegexp;
 
     enum GeomRepresentationType
     {
@@ -75,57 +75,51 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
       GeomAsWkt
     };
 
-    explicit QgsDelimitedTextProvider( const QString& uri = QString() );
-
-    virtual ~QgsDelimitedTextProvider();
+    explicit QgsDelimitedTextProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options );
+    ~QgsDelimitedTextProvider() override;
 
     /* Implementation of functions from QgsVectorDataProvider */
 
-    virtual QgsAbstractFeatureSource* featureSource() const override;
+    QgsAbstractFeatureSource *featureSource() const override;
 
     /**
      * Returns the permanent storage type for this layer as a friendly name.
      */
-    virtual QString storageType() const override;
+    QString storageType() const override;
 
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) const override;
+    QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) const override;
+
+    QgsWkbTypes::Type wkbType() const override;
+
+    long featureCount() const override;
+
+    QgsFields fields() const override;
 
     /**
-     * Get feature type.
-     * @return int representing the feature type
-     */
-    virtual QgsWkbTypes::Type wkbType() const override;
-
-    /**
-     * Number of features in the layer
-     * @return long containing number of features
-     */
-    virtual long featureCount() const override;
-
-    virtual QgsFields fields() const override;
-
-    /** Returns a bitmask containing the supported capabilities
+     * Returns a bitmask containing the supported capabilities
      * Note, some capabilities may change depending on whether
      * a spatial filter is active on this provider, so it may
      * be prudent to check this value per intended operation.
      */
-    virtual QgsVectorDataProvider::Capabilities capabilities() const override;
+    QgsVectorDataProvider::Capabilities capabilities() const override;
 
-    /** Creates a spatial index on the data
-     * @return indexCreated  Returns true if a spatial index is created
+    /**
+     * Creates a spatial index on the data
+     * \returns indexCreated  Returns true if a spatial index is created
      */
-    virtual bool createSpatialIndex() override;
+    bool createSpatialIndex() override;
 
     /* Implementation of functions from QgsDataProvider */
 
-    /** Return a provider name
+    /**
+     * Returns a provider name
      *
      *  Essentially just returns the provider key.  Should be used to build file
      *  dialogs so that providers can be shown with their supported types. Thus
      *  if more than one provider supports a given format, the user is able to
      *  select a specific provider to open that file.
      *
-     *  @note
+     *  \note
      *
      *  Instead of being pure virtual, might be better to generalize this
      *  behavior and presume that none of the sub-classes are going to do
@@ -133,11 +127,12 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
      */
     QString name() const override;
 
-    /** Return description
+    /**
+     * Returns description
      *
      *  Return a terse string describing what the provider is.
      *
-     *  @note
+     *  \note
      *
      *  Instead of being pure virtual, might be better to generalize this
      *  behavior and presume that none of the sub-classes are going to do
@@ -145,19 +140,20 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
      */
     QString description() const override;
 
-    virtual QgsRectangle extent() const override;
+    QgsRectangle extent() const override;
     bool isValid() const override;
 
-    virtual QgsCoordinateReferenceSystem crs() const override;
+    QgsCoordinateReferenceSystem crs() const override;
+
     /**
      * Set the subset string used to create a subset of features in
      * the layer.
      */
-    virtual bool setSubsetString( const QString& subset, bool updateFeatureCount = true ) override;
+    bool setSubsetString( const QString &subset, bool updateFeatureCount = true ) override;
 
-    virtual bool supportsSubsetString() const override { return true; }
+    bool supportsSubsetString() const override { return true; }
 
-    virtual QString subsetString() const override
+    QString subsetString() const override
     {
       return mSubsetString;
     }
@@ -166,9 +162,9 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
     /**
      * Check to see if the point is withn the selection
      * rectangle
-     * @param x X value of point
-     * @param y Y value of point
-     * @return True if point is within the rectangle
+     * \param x X value of point
+     * \param y Y value of point
+     * \returns True if point is within the rectangle
      */
     bool boundsCheck( double x, double y );
 
@@ -176,19 +172,19 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
     /**
      * Check to see if a geometry overlaps the selection
      * rectangle
-     * @param geom geometry to test against bounds
-     * @param y Y value of point
-     * @return True if point is within the rectangle
+     * \param geom geometry to test against bounds
+     * \param y Y value of point
+     * \returns True if point is within the rectangle
      */
     bool boundsCheck( QgsGeometry *geom );
 
     /**
-     * Try to read field types from CSVT (or equialent xxxT) file.
-     * @param filename The name of the file from which to read the field types
-     * @param message  Pointer to a string to receive a status message
-     * @return A list of field type strings, empty if not found or not valid
+     * Try to read field types from CSVT (or equivalent xxxT) file.
+     * \param filename The name of the file from which to read the field types
+     * \param message  Pointer to a string to receive a status message
+     * \returns A list of field type strings, empty if not found or not valid
      */
-    QStringList readCsvtFieldTypes( const QString& filename, QString *message = nullptr );
+    QStringList readCsvtFieldTypes( const QString &filename, QString *message = nullptr );
 
   private slots:
 
@@ -203,42 +199,43 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
     void resetCachedSubset() const;
     void resetIndexes() const;
     void clearInvalidLines() const;
-    void recordInvalidLine( const QString& message );
-    void reportErrors( const QStringList& messages = QStringList(), bool showDialog = false ) const;
+    void recordInvalidLine( const QString &message );
+    void reportErrors( const QStringList &messages = QStringList(), bool showDialog = false ) const;
     static bool recordIsEmpty( QStringList &record );
-    void setUriParameter( const QString& parameter, const QString& value );
+    void setUriParameter( const QString &parameter, const QString &value );
 
 
     static QgsGeometry geomFromWkt( QString &sWkt, bool wktHasPrefixRegexp );
-    static bool pointFromXY( QString &sX, QString &sY, QgsPoint &point, const QString& decimalPoint, bool xyDms );
+    static bool pointFromXY( QString &sX, QString &sY, QgsPointXY &point, const QString &decimalPoint, bool xyDms );
     static double dmsStringToDouble( const QString &sX, bool *xOk );
 
     // mLayerValid defines whether the layer has been loaded as a valid layer
-    bool mLayerValid;
+    bool mLayerValid = false;
     // mValid defines whether the layer is currently valid (may differ from
     // mLayerValid if the file has been rewritten)
-    mutable bool mValid;
+    mutable bool mValid = false;
 
     //! Text file
-    QgsDelimitedTextFile *mFile;
+    std::unique_ptr< QgsDelimitedTextFile > mFile;
 
     // Fields
-    GeomRepresentationType mGeomRep;
+    GeomRepresentationType mGeomRep = GeomNone;
     mutable QList<int> attributeColumns;
     QgsFields attributeFields;
 
-    int mFieldCount;  // Note: this includes field count for wkt field
+    int mFieldCount = 0;  // Note: this includes field count for wkt field
     QString mWktFieldName;
     QString mXFieldName;
     QString mYFieldName;
+    bool mDetectTypes = true;
 
-    mutable int mXFieldIndex;
-    mutable int mYFieldIndex;
-    mutable int mWktFieldIndex;
+    mutable int mXFieldIndex = -1;
+    mutable int mYFieldIndex = -1;
+    mutable int mWktFieldIndex = -1;
 
     // mWktPrefix regexp is used to clean up
-    // prefixes sometimes used for WKT (postgis EWKT, informix SRID)
-    bool mWktHasPrefix;
+    // prefixes sometimes used for WKT (PostGIS EWKT, informix SRID)
+    bool mWktHasPrefix = false;
 
     //! Layer extent
     mutable QgsRectangle mExtent;
@@ -248,37 +245,37 @@ class QgsDelimitedTextProvider : public QgsVectorDataProvider
     mutable long mNumberFeatures;
     int mSkipLines;
     QString mDecimalPoint;
-    bool mXyDms;
+    bool mXyDms = false;
 
     QString mSubsetString;
     mutable QString mCachedSubsetString;
-    QgsExpression *mSubsetExpression;
-    bool mBuildSubsetIndex;
+    std::unique_ptr< QgsExpression > mSubsetExpression;
+    bool mBuildSubsetIndex = true;
     mutable QList<quintptr> mSubsetIndex;
-    mutable bool mUseSubsetIndex;
+    mutable bool mUseSubsetIndex = false;
     mutable bool mCachedUseSubsetIndex;
 
     //! Storage for any lines in the file that couldn't be loaded
-    int mMaxInvalidLines;
+    int mMaxInvalidLines = 50;
     mutable int mNExtraInvalidLines;
     mutable QStringList mInvalidLines;
     //! Only want to show the invalid lines once to the user
-    bool mShowInvalidLines;
+    bool mShowInvalidLines = true;
 
     //! Record file updates, flags rescan required
-    mutable bool mRescanRequired;
+    mutable bool mRescanRequired = false;
 
-    // Coordinate reference sytem
+    // Coordinate reference system
     QgsCoordinateReferenceSystem mCrs;
 
-    QgsWkbTypes::Type mWkbType;
-    QgsWkbTypes::GeometryType mGeometryType;
+    QgsWkbTypes::Type mWkbType = QgsWkbTypes::NoGeometry;
+    QgsWkbTypes::GeometryType mGeometryType = QgsWkbTypes::UnknownGeometry;
 
     // Spatial index
-    bool mBuildSpatialIndex;
+    bool mBuildSpatialIndex = false;
     mutable bool mUseSpatialIndex;
     mutable bool mCachedUseSpatialIndex;
-    mutable QgsSpatialIndex *mSpatialIndex;
+    mutable std::unique_ptr< QgsSpatialIndex > mSpatialIndex;
 
     friend class QgsDelimitedTextFeatureIterator;
     friend class QgsDelimitedTextFeatureSource;

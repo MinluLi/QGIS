@@ -15,7 +15,6 @@
 
 #include "qgsvectorlayerlabelprovider.h"
 
-#include "qgsdatadefined.h"
 #include "qgsgeometry.h"
 #include "qgslabelsearchtree.h"
 #include "qgspallabeling.h"
@@ -35,13 +34,13 @@
 
 using namespace pal;
 
-QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( QgsVectorLayer* layer, const QString& providerId, bool withFeatureLoop, const QgsPalLayerSettings* settings, const QString& layerName )
-    : QgsAbstractLabelProvider( layer->id(), providerId )
-    , mSettings( settings ? *settings : QgsPalLayerSettings::fromLayer( layer ) )
-    , mLayerGeometryType( layer->geometryType() )
-    , mRenderer( layer->renderer() )
-    , mFields( layer->fields() )
-    , mCrs( layer->crs() )
+QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( QgsVectorLayer *layer, const QString &providerId, bool withFeatureLoop, const QgsPalLayerSettings *settings, const QString &layerName )
+  : QgsAbstractLabelProvider( layer, providerId )
+  , mSettings( settings ? * settings : QgsPalLayerSettings() ) // TODO: all providers should have valid settings?
+  , mLayerGeometryType( layer->geometryType() )
+  , mRenderer( layer->renderer() )
+  , mFields( layer->fields() )
+  , mCrs( layer->crs() )
 {
   mName = layerName.isEmpty() ? layer->id() : layerName;
 
@@ -59,35 +58,22 @@ QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( QgsVectorLayer* layer,
   init();
 }
 
-QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( const QgsPalLayerSettings& settings,
-    const QString& layerId,
-    const QgsFields& fields,
-    const QgsCoordinateReferenceSystem& crs,
-    QgsAbstractFeatureSource* source,
-    bool ownsSource, QgsFeatureRenderer* renderer )
-    : QgsAbstractLabelProvider( layerId )
-    , mSettings( settings )
-    , mLayerGeometryType( QgsWkbTypes::UnknownGeometry )
-    , mRenderer( renderer )
-    , mFields( fields )
-    , mCrs( crs )
-    , mSource( source )
-    , mOwnsSource( ownsSource )
-{
-  init();
-}
-
-
 void QgsVectorLayerLabelProvider::init()
 {
   mPlacement = mSettings.placement;
   mLinePlacementFlags = mSettings.placementFlags;
   mFlags = Flags();
-  if ( mSettings.drawLabels ) mFlags |= DrawLabels;
-  if ( mSettings.displayAll ) mFlags |= DrawAllLabels;
-  if ( mSettings.mergeLines ) mFlags |= MergeConnectedLines;
-  if ( mSettings.centroidInside ) mFlags |= CentroidMustBeInside;
-  if ( mSettings.labelPerPart ) mFlags |= LabelPerFeaturePart;
+  if ( mSettings.drawLabels )
+    mFlags |= DrawLabels;
+  if ( mSettings.displayAll )
+    mFlags |= DrawAllLabels;
+  if ( mSettings.mergeLines && !mSettings.addDirectionSymbol )
+    mFlags |= MergeConnectedLines;
+  if ( mSettings.centroidInside )
+    mFlags |= CentroidMustBeInside;
+  if ( mSettings.labelPerPart )
+    mFlags |= LabelPerFeaturePart;
+
   mPriority = 1 - mSettings.priority / 10.0; // convert 0..10 --> 1..0
 
   if ( mLayerGeometryType == QgsWkbTypes::PointGeometry && mRenderer )
@@ -113,10 +99,10 @@ QgsVectorLayerLabelProvider::~QgsVectorLayerLabelProvider()
 }
 
 
-bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext& context, QSet<QString>& attributeNames )
+bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext &context, QSet<QString> &attributeNames )
 {
-  QgsPalLayerSettings& lyr = mSettings;
-  const QgsMapSettings& mapSettings = mEngine->mapSettings();
+  QgsPalLayerSettings &lyr = mSettings;
+  const QgsMapSettings &mapSettings = mEngine->mapSettings();
 
   QgsDebugMsgLevel( "PREPARE LAYER " + mLayerId, 4 );
 
@@ -148,49 +134,35 @@ bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext& context, QSet
 
   lyr.mCurFields = mFields;
 
-  if ( lyr.drawLabels )
+  if ( lyr.drawLabels || lyr.obstacle )
   {
-    // add field indices for label's text, from expression or field
-    if ( lyr.isExpression )
+    if ( lyr.drawLabels )
     {
-      // prepare expression for use in QgsPalLayerSettings::registerFeature()
-      QgsExpression* exp = lyr.getLabelExpression();
-      exp->prepare( &context.expressionContext() );
-      if ( exp->hasEvalError() )
+      // add field indices for label's text, from expression or field
+      if ( lyr.isExpression )
       {
-        QgsDebugMsgLevel( "Prepare error:" + exp->evalErrorString(), 4 );
+        // prepare expression for use in QgsPalLayerSettings::registerFeature()
+        QgsExpression *exp = lyr.getLabelExpression();
+        exp->prepare( &context.expressionContext() );
+        if ( exp->hasEvalError() )
+        {
+          QgsDebugMsgLevel( "Prepare error:" + exp->evalErrorString(), 4 );
+        }
+        Q_FOREACH ( const QString &name, exp->referencedColumns() )
+        {
+          QgsDebugMsgLevel( "REFERENCED COLUMN = " + name, 4 );
+          attributeNames.insert( name );
+        }
       }
-      Q_FOREACH ( const QString& name, exp->referencedColumns() )
+      else
       {
-        QgsDebugMsgLevel( "REFERENCED COLUMN = " + name, 4 );
-        attributeNames.insert( name );
+        attributeNames.insert( lyr.fieldName );
       }
-    }
-    else
-    {
-      attributeNames.insert( lyr.fieldName );
     }
 
+    lyr.dataDefinedProperties().prepare( context.expressionContext() );
     // add field indices of data defined expression or field
-    QMap< QgsPalLayerSettings::DataDefinedProperties, QgsDataDefined* >::const_iterator dIt = lyr.dataDefinedProperties.constBegin();
-    for ( ; dIt != lyr.dataDefinedProperties.constEnd(); ++dIt )
-    {
-      QgsDataDefined* dd = dIt.value();
-      if ( !dd->isActive() )
-      {
-        continue;
-      }
-
-      // this will return columns for expressions or field name, depending upon what is set to be used
-      // this also prepares any expressions, too
-      QSet<QString> cols = dd->referencedColumns( context.expressionContext() );
-
-      //QgsDebugMsgLevel( QString( "Data defined referenced columns:" ) + cols.join( "," ), 4 );
-      Q_FOREACH ( const QString& name, cols )
-      {
-        attributeNames.insert( name );
-      }
-    }
+    attributeNames.unite( lyr.dataDefinedProperties().referencedFields( context.expressionContext() ) );
   }
 
   // NOW INITIALIZE QgsPalLayerSettings
@@ -203,14 +175,13 @@ bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext& context, QSet
 
   lyr.xform = &mapSettings.mapToPixel();
   lyr.ct = QgsCoordinateTransform();
-  if ( mapSettings.hasCrsTransformEnabled() )
+  if ( context.coordinateTransform().isValid() )
+    // this is context for layer rendering
+    lyr.ct = context.coordinateTransform();
+  else
   {
-    if ( context.coordinateTransform().isValid() )
-      // this is context for layer rendering - use its CT as it includes correct datum transform
-      lyr.ct = context.coordinateTransform();
-    else
-      // otherwise fall back to creating our own CT - this one may not have the correct datum transform!
-      lyr.ct = QgsCoordinateTransform( mCrs, mapSettings.destinationCrs() );
+    // otherwise fall back to creating our own CT
+    lyr.ct = QgsCoordinateTransform( mCrs, mapSettings.destinationCrs(), mapSettings.transformContext() );
   }
   lyr.ptZero = lyr.xform->toMapCoordinates( 0, 0 );
   lyr.ptOne = lyr.xform->toMapCoordinates( 1, 0 );
@@ -230,7 +201,7 @@ bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext& context, QSet
 
 
 
-QList<QgsLabelFeature*> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderContext &ctx )
+QList<QgsLabelFeature *> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderContext &ctx )
 {
   if ( !mSource )
   {
@@ -241,7 +212,7 @@ QList<QgsLabelFeature*> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderCon
 
   QSet<QString> attrNames;
   if ( !prepare( ctx, attrNames ) )
-    return QList<QgsLabelFeature*>();
+    return QList<QgsLabelFeature *>();
 
   if ( mRenderer )
     mRenderer->startRender( ctx, mFields );
@@ -255,19 +226,19 @@ QList<QgsLabelFeature*> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderCon
   request.setSubsetOfAttributes( attrNames, mFields );
   QgsFeatureIterator fit = mSource->getFeatures( request );
 
-  QgsExpressionContextScope* symbolScope = new QgsExpressionContextScope();
+  QgsExpressionContextScope *symbolScope = new QgsExpressionContextScope();
   ctx.expressionContext().appendScope( symbolScope );
   QgsFeature fet;
   while ( fit.nextFeature( fet ) )
   {
-    QScopedPointer<QgsGeometry> obstacleGeometry;
+    QgsGeometry obstacleGeometry;
     if ( mRenderer )
     {
       QgsSymbolList symbols = mRenderer->originalSymbolsForFeature( fet, ctx );
       if ( !symbols.isEmpty() && fet.geometry().type() == QgsWkbTypes::PointGeometry )
       {
         //point feature, use symbol bounds as obstacle
-        obstacleGeometry.reset( QgsVectorLayerLabelProvider::getPointObstacleGeometry( fet, ctx, symbols ) );
+        obstacleGeometry = QgsVectorLayerLabelProvider::getPointObstacleGeometry( fet, ctx, symbols );
       }
       if ( !symbols.isEmpty() )
       {
@@ -275,7 +246,7 @@ QList<QgsLabelFeature*> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderCon
       }
     }
     ctx.expressionContext().setFeature( fet );
-    registerFeature( fet, ctx, obstacleGeometry.data() );
+    registerFeature( fet, ctx, obstacleGeometry );
   }
 
   if ( ctx.expressionContext().lastScope() == symbolScope )
@@ -287,29 +258,29 @@ QList<QgsLabelFeature*> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderCon
   return mLabels;
 }
 
-void QgsVectorLayerLabelProvider::registerFeature( QgsFeature& feature, QgsRenderContext& context, QgsGeometry* obstacleGeometry )
+void QgsVectorLayerLabelProvider::registerFeature( QgsFeature &feature, QgsRenderContext &context, const QgsGeometry &obstacleGeometry )
 {
-  QgsLabelFeature* label = nullptr;
+  QgsLabelFeature *label = nullptr;
   mSettings.registerFeature( feature, context, &label, obstacleGeometry );
   if ( label )
     mLabels << label;
 }
 
-QgsGeometry* QgsVectorLayerLabelProvider::getPointObstacleGeometry( QgsFeature& fet, QgsRenderContext& context, const QgsSymbolList& symbols )
+QgsGeometry QgsVectorLayerLabelProvider::getPointObstacleGeometry( QgsFeature &fet, QgsRenderContext &context, const QgsSymbolList &symbols )
 {
   if ( !fet.hasGeometry() || fet.geometry().type() != QgsWkbTypes::PointGeometry )
-    return nullptr;
+    return QgsGeometry();
 
-  bool isMultiPoint = fet.geometry().geometry()->nCoordinates() > 1;
-  QgsAbstractGeometry* obstacleGeom = nullptr;
+  bool isMultiPoint = fet.geometry().constGet()->nCoordinates() > 1;
+  std::unique_ptr< QgsAbstractGeometry > obstacleGeom;
   if ( isMultiPoint )
-    obstacleGeom = new QgsMultiPolygonV2();
+    obstacleGeom = qgis::make_unique< QgsMultiPolygon >();
 
   // for each point
-  for ( int i = 0; i < fet.geometry().geometry()->nCoordinates(); ++i )
+  for ( int i = 0; i < fet.geometry().constGet()->nCoordinates(); ++i )
   {
     QRectF bounds;
-    QgsPointV2 p =  fet.geometry().geometry()->vertexAt( QgsVertexId( i, 0, 0 ) );
+    QgsPoint p = fet.geometry().constGet()->vertexAt( QgsVertexId( i, 0, 0 ) );
     double x = p.x();
     double y = p.y();
     double z = 0; // dummy variable for coordinate transforms
@@ -317,65 +288,91 @@ QgsGeometry* QgsVectorLayerLabelProvider::getPointObstacleGeometry( QgsFeature& 
     //transform point to pixels
     if ( context.coordinateTransform().isValid() )
     {
-      context.coordinateTransform().transformInPlace( x, y, z );
+      try
+      {
+        context.coordinateTransform().transformInPlace( x, y, z );
+      }
+      catch ( QgsCsException & )
+      {
+        return QgsGeometry();
+      }
     }
     context.mapToPixel().transformInPlace( x, y );
 
     QPointF pt( x, y );
-    Q_FOREACH ( QgsSymbol* symbol, symbols )
+    Q_FOREACH ( QgsSymbol *symbol, symbols )
     {
       if ( symbol->type() == QgsSymbol::Marker )
       {
         if ( bounds.isValid() )
-          bounds = bounds.united( static_cast< QgsMarkerSymbol* >( symbol )->bounds( pt, context, fet ) );
+          bounds = bounds.united( static_cast< QgsMarkerSymbol * >( symbol )->bounds( pt, context, fet ) );
         else
-          bounds = static_cast< QgsMarkerSymbol* >( symbol )->bounds( pt, context, fet );
+          bounds = static_cast< QgsMarkerSymbol * >( symbol )->bounds( pt, context, fet );
       }
     }
 
     //convert bounds to a geometry
-    QgsLineString* boundLineString = new QgsLineString();
-    boundLineString->addVertex( QgsPointV2( bounds.topLeft() ) );
-    boundLineString->addVertex( QgsPointV2( bounds.topRight() ) );
-    boundLineString->addVertex( QgsPointV2( bounds.bottomRight() ) );
-    boundLineString->addVertex( QgsPointV2( bounds.bottomLeft() ) );
+    QVector< double > bX;
+    bX << bounds.left() << bounds.right() << bounds.right() << bounds.left();
+    QVector< double > bY;
+    bY << bounds.top() << bounds.top() << bounds.bottom() << bounds.bottom();
+    std::unique_ptr< QgsLineString > boundLineString = qgis::make_unique< QgsLineString >( bX, bY );
 
     //then transform back to map units
     //TODO - remove when labeling is refactored to use screen units
     for ( int i = 0; i < boundLineString->numPoints(); ++i )
     {
-      QgsPoint point = context.mapToPixel().toMapCoordinates( boundLineString->xAt( i ), boundLineString->yAt( i ) );
+      QgsPointXY point = context.mapToPixel().toMapCoordinates( static_cast<int>( boundLineString->xAt( i ) ),
+                         static_cast<int>( boundLineString->yAt( i ) ) );
       boundLineString->setXAt( i, point.x() );
       boundLineString->setYAt( i, point.y() );
     }
     if ( context.coordinateTransform().isValid() )
     {
-      boundLineString->transform( context.coordinateTransform(), QgsCoordinateTransform::ReverseTransform );
+      try
+      {
+        boundLineString->transform( context.coordinateTransform(), QgsCoordinateTransform::ReverseTransform );
+      }
+      catch ( QgsCsException & )
+      {
+        return QgsGeometry();
+      }
     }
     boundLineString->close();
 
-    QgsPolygonV2* obstaclePolygon = new QgsPolygonV2();
-    obstaclePolygon->setExteriorRing( boundLineString );
+    if ( context.coordinateTransform().isValid() )
+    {
+      // coordinate transforms may have resulted in nan coordinates - if so, strip these out
+      boundLineString->filterVertices( []( const QgsPoint & point )->bool
+      {
+        return std::isfinite( point.x() ) && std::isfinite( point.y() );
+      } );
+      if ( !boundLineString->isRing() )
+        return QgsGeometry();
+    }
+
+    std::unique_ptr< QgsPolygon > obstaclePolygon = qgis::make_unique< QgsPolygon >();
+    obstaclePolygon->setExteriorRing( boundLineString.release() );
 
     if ( isMultiPoint )
     {
-      static_cast<QgsMultiPolygonV2*>( obstacleGeom )->addGeometry( obstaclePolygon );
+      static_cast<QgsMultiPolygon *>( obstacleGeom.get() )->addGeometry( obstaclePolygon.release() );
     }
     else
     {
-      obstacleGeom = obstaclePolygon;
+      obstacleGeom = std::move( obstaclePolygon );
     }
   }
 
-  return new QgsGeometry( obstacleGeom );
+  return QgsGeometry( std::move( obstacleGeom ) );
 }
 
-void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext& context, pal::LabelPosition* label ) const
+void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext &context, pal::LabelPosition *label ) const
 {
   if ( !mSettings.drawLabels )
     return;
 
-  QgsTextLabelFeature* lf = dynamic_cast<QgsTextLabelFeature*>( label->getFeaturePart()->feature() );
+  QgsTextLabelFeature *lf = dynamic_cast<QgsTextLabelFeature *>( label->getFeaturePart()->feature() );
 
   // Copy to temp, editable layer settings
   // these settings will be changed by any data defined values, then used for rendering label components
@@ -383,12 +380,12 @@ void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext& context, pal::Lab
   QgsPalLayerSettings tmpLyr( mSettings );
 
   // apply any previously applied data defined settings for the label
-  const QMap< QgsPalLayerSettings::DataDefinedProperties, QVariant >& ddValues = lf->dataDefinedValues();
+  const QMap< QgsPalLayerSettings::Property, QVariant > &ddValues = lf->dataDefinedValues();
 
   //font
   QFont dFont = lf->definedFont();
-  QgsDebugMsgLevel( QString( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
-  QgsDebugMsgLevel( QString( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
 
   QgsTextFormat format = tmpLyr.format();
   format.setFont( dFont );
@@ -478,27 +475,27 @@ void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext& context, pal::Lab
 }
 
 
-void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, QgsRenderContext& context, QgsPalLayerSettings& tmpLyr, QgsTextRenderer::TextPart drawType, double dpiRatio ) const
+void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, QgsRenderContext &context, QgsPalLayerSettings &tmpLyr, QgsTextRenderer::TextPart drawType, double dpiRatio ) const
 {
   // NOTE: this is repeatedly called for multi-part labels
-  QPainter* painter = context.painter();
+  QPainter *painter = context.painter();
 
   // features are pre-rotated but not scaled/translated,
   // so we only disable rotation here. Ideally, they'd be
   // also pre-scaled/translated, as suggested here:
-  // http://hub.qgis.org/issues/11856
+  // https://issues.qgis.org/issues/11856
   QgsMapToPixel xform = context.mapToPixel();
   xform.setMapRotation( 0, 0, 0 );
 
   QPointF outPt = xform.transform( label->getX(), label->getY() ).toQPointF();
 
-  if ( mEngine->testFlag( QgsLabelingEngine::DrawLabelRectOnly ) )  // TODO: this should get directly to labeling engine
+  if ( mEngine->engineSettings().testFlag( QgsLabelingEngineSettings::DrawLabelRectOnly ) )  // TODO: this should get directly to labeling engine
   {
     //debugging rect
     if ( drawType != QgsTextRenderer::Text )
       return;
 
-    QgsPoint outPt2 = xform.transform( label->getX() + label->getWidth(), label->getY() + label->getHeight() );
+    QgsPointXY outPt2 = xform.transform( label->getX() + label->getWidth(), label->getY() + label->getHeight() );
     QRectF rect( 0, 0, outPt2.x() - outPt.x(), outPt2.y() - outPt.y() );
     painter->save();
     painter->setRenderHint( QPainter::Antialiasing, false );
@@ -536,15 +533,15 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, Q
   {
     // get rotated label's center point
     QPointF centerPt( outPt );
-    QgsPoint outPt2 = xform.transform( label->getX() + label->getWidth() / 2,
-                                       label->getY() + label->getHeight() / 2 );
+    QgsPointXY outPt2 = xform.transform( label->getX() + label->getWidth() / 2,
+                                         label->getY() + label->getHeight() / 2 );
 
     double xc = outPt2.x() - outPt.x();
     double yc = outPt2.y() - outPt.y();
 
     double angle = -component.rotation;
-    double xd = xc * cos( angle ) - yc * sin( angle );
-    double yd = xc * sin( angle ) + yc * cos( angle );
+    double xd = xc * std::cos( angle ) - yc * std::sin( angle );
+    double yd = xc * std::sin( angle ) + yc * std::cos( angle );
 
     centerPt.setX( centerPt.x() + xd );
     centerPt.setY( centerPt.y() + yd );
@@ -552,8 +549,8 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, Q
     component.center = centerPt;
 
     // convert label size to render units
-    double labelWidthPx = QgsTextRenderer::scaleToPixelContext( label->getWidth(), context, QgsUnitTypes::RenderMapUnits, true );
-    double labelHeightPx = QgsTextRenderer::scaleToPixelContext( label->getHeight(), context, QgsUnitTypes::RenderMapUnits, true );
+    double labelWidthPx = context.convertToPainterUnits( label->getWidth(), QgsUnitTypes::RenderMapUnits, QgsMapUnitScale() );
+    double labelHeightPx = context.convertToPainterUnits( label->getHeight(), QgsUnitTypes::RenderMapUnits, QgsMapUnitScale() );
 
     component.size = QSizeF( labelWidthPx, labelHeightPx );
 
@@ -565,9 +562,9 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, Q
   {
 
     // TODO: optimize access :)
-    QgsTextLabelFeature* lf = static_cast<QgsTextLabelFeature*>( label->getFeaturePart()->feature() );
+    QgsTextLabelFeature *lf = static_cast<QgsTextLabelFeature *>( label->getFeaturePart()->feature() );
     QString txt = lf->text( label->getPartId() );
-    QFontMetricsF* labelfm = lf->labelFontMetrics();
+    QFontMetricsF *labelfm = lf->labelFontMetrics();
 
     //add the direction symbol if needed
     if ( !txt.isEmpty() && tmpLyr.placement == QgsPalLayerSettings::Line &&
@@ -618,7 +615,7 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, Q
     }
 
     //QgsDebugMsgLevel( "drawLabel " + txt, 4 );
-    QStringList multiLineList = QgsPalLabeling::splitToLines( txt, tmpLyr.wrapChar );
+    QStringList multiLineList = QgsPalLabeling::splitToLines( txt, tmpLyr.wrapChar, tmpLyr.autoWrapLength, tmpLyr.useMaxLineLengthForAutoWrap );
 
     QgsTextRenderer::HAlignment hAlign = QgsTextRenderer::AlignLeft;
     if ( tmpLyr.multilineAlign == QgsPalLayerSettings::MultiCenter )
@@ -629,8 +626,9 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition* label, Q
     QgsTextRenderer::Component component;
     component.origin = outPt;
     component.rotation = label->getAlpha();
+
     QgsTextRenderer::drawTextInternal( drawType, context, tmpLyr.format(), component, multiLineList, labelfm,
-                                       hAlign, mEngine->testFlag( QgsLabelingEngine::RenderOutlineLabels ), QgsTextRenderer::Label );
+                                       hAlign, QgsTextRenderer::Label );
 
   }
 

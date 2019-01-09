@@ -25,29 +25,32 @@
 #include <QMessageBox>
 
 
-QgsAmsSourceSelect::QgsAmsSourceSelect( QWidget* parent, Qt::WindowFlags fl, bool embeddedMode )
-    : QgsSourceSelectDialog( QStringLiteral( "ArcGisMapServer" ), QgsSourceSelectDialog::MapService, parent, fl )
+QgsAmsSourceSelect::QgsAmsSourceSelect( QWidget *parent, Qt::WindowFlags fl, QgsProviderRegistry::WidgetMode widgetMode )
+  : QgsArcGisServiceSourceSelect( QStringLiteral( "ARCGISMAPSERVER" ), QgsArcGisServiceSourceSelect::MapService, parent, fl, widgetMode )
 {
-  if ( embeddedMode )
-  {
-    buttonBox->button( QDialogButtonBox::Close )->hide();
-  }
+
+  // import/export of connections not supported yet
+  btnLoad->hide();
+  btnSave->hide();
 }
 
 bool QgsAmsSourceSelect::connectToService( const QgsOwsConnection &connection )
 {
   QString errorTitle, errorMessage;
-  QVariantMap serviceInfoMap = QgsArcGisRestUtils::getServiceInfo( connection.uri().param( QStringLiteral( "url" ) ), errorTitle, errorMessage );
+
+  const QString authcfg = connection.uri().param( QStringLiteral( "authcfg" ) );
+  const QVariantMap serviceInfoMap = QgsArcGisRestUtils::getServiceInfo( connection.uri().param( QStringLiteral( "url" ) ), authcfg, errorTitle, errorMessage );
   if ( serviceInfoMap.isEmpty() )
   {
     QMessageBox::warning( this, tr( "Error" ), tr( "Failed to retrieve service capabilities:\n%1: %2" ).arg( errorTitle, errorMessage ) );
     return false;
   }
 
-  populateImageEncodings( serviceInfoMap[QStringLiteral( "supportedImageFormatTypes" )].toString().split( QStringLiteral( "," ) ) );
+  populateImageEncodings( serviceInfoMap[QStringLiteral( "supportedImageFormatTypes" )].toString().split( ',' ) );
 
   QStringList layerErrors;
-  foreach ( const QVariant& layerInfo, serviceInfoMap["layers"].toList() )
+  const QVariantList layersList = serviceInfoMap[QStringLiteral( "layers" )].toList();
+  for ( const QVariant &layerInfo : layersList )
   {
     QVariantMap layerInfoMap = layerInfo.toMap();
     if ( !layerInfoMap[QStringLiteral( "id" )].isValid() )
@@ -56,16 +59,25 @@ bool QgsAmsSourceSelect::connectToService( const QgsOwsConnection &connection )
     }
 
     // Get layer info
-    QVariantMap layerData = QgsArcGisRestUtils::getLayerInfo( connection.uri().param( QStringLiteral( "url" ) ) + "/" + layerInfoMap[QStringLiteral( "id" )].toString(), errorTitle, errorMessage );
+    QVariantMap layerData = QgsArcGisRestUtils::getLayerInfo( connection.uri().param( QStringLiteral( "url" ) ) + "/" + layerInfoMap[QStringLiteral( "id" )].toString(),
+                            authcfg, errorTitle, errorMessage );
     if ( layerData.isEmpty() )
     {
       layerErrors.append( QStringLiteral( "Layer %1: %2 - %3" ).arg( layerInfoMap[QStringLiteral( "id" )].toString(), errorTitle, errorMessage ) );
       continue;
     }
     // insert the typenames, titles and abstracts into the tree view
-    QStandardItem* idItem = new QStandardItem( layerData[QStringLiteral( "id" )].toString() );
-    QStandardItem* nameItem = new QStandardItem( layerData[QStringLiteral( "name" )].toString() );
-    QStandardItem* abstractItem = new QStandardItem( layerData[QStringLiteral( "description" )].toString() );
+    QStandardItem *idItem = new QStandardItem( layerData[QStringLiteral( "id" )].toString() );
+    idItem->setData( true, IsLayerRole );
+    bool ok = false;
+    int idInt = layerData[QStringLiteral( "id" )].toInt( &ok );
+    if ( ok )
+    {
+      // force display role to be int value, so that sorting works correctly
+      idItem->setData( idInt, Qt::DisplayRole );
+    }
+    QStandardItem *nameItem = new QStandardItem( layerData[QStringLiteral( "name" )].toString() );
+    QStandardItem *abstractItem = new QStandardItem( layerData[QStringLiteral( "description" )].toString() );
     abstractItem->setToolTip( layerData[QStringLiteral( "description" )].toString() );
 
     QgsCoordinateReferenceSystem crs = QgsArcGisRestUtils::parseSpatialReference( serviceInfoMap[QStringLiteral( "spatialReference" )].toMap() );
@@ -76,7 +88,7 @@ bool QgsAmsSourceSelect::connectToService( const QgsOwsConnection &connection )
     }
     mAvailableCRS[layerData[QStringLiteral( "name" )].toString()] = QList<QString>()  << crs.authid();
 
-    mModel->appendRow( QList<QStandardItem*>() << idItem << nameItem << abstractItem );
+    mModel->appendRow( QList<QStandardItem *>() << idItem << nameItem << abstractItem );
   }
   if ( !layerErrors.isEmpty() )
   {
@@ -85,15 +97,20 @@ bool QgsAmsSourceSelect::connectToService( const QgsOwsConnection &connection )
   return true;
 }
 
-QString QgsAmsSourceSelect::getLayerURI( const QgsOwsConnection& connection,
-    const QString& layerTitle, const QString& /*layerName*/,
-    const QString& crs,
-    const QString& /*filter*/,
-    const QgsRectangle& /*bBox*/ ) const
+QString QgsAmsSourceSelect::getLayerURI( const QgsOwsConnection &connection,
+    const QString &layerTitle, const QString & /*layerName*/,
+    const QString &crs,
+    const QString & /*filter*/,
+    const QgsRectangle & /*bBox*/ ) const
 {
   QgsDataSourceUri ds = connection.uri();
   ds.setParam( QStringLiteral( "layer" ), layerTitle );
   ds.setParam( QStringLiteral( "crs" ), crs );
   ds.setParam( QStringLiteral( "format" ), getSelectedImageEncoding() );
   return ds.uri();
+}
+
+void QgsAmsSourceSelect::addServiceLayer( QString uri, QString typeName )
+{
+  emit addRasterLayer( uri, typeName, QStringLiteral( "arcgismapserver" ) );
 }

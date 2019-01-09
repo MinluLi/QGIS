@@ -18,16 +18,14 @@
 #include "qgsnetworkcontentfetcher.h"
 #include "qgsapplication.h"
 #include <QObject>
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QNetworkReply>
 
 class TestQgsNetworkContentFetcher : public QObject
 {
     Q_OBJECT
   public:
-    TestQgsNetworkContentFetcher()
-        : mLoaded( false )
-    {}
+    TestQgsNetworkContentFetcher() = default;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -41,7 +39,7 @@ class TestQgsNetworkContentFetcher : public QObject
     void contentLoaded();
 
   private:
-    bool mLoaded;
+    bool mLoaded =  false ;
 };
 
 void TestQgsNetworkContentFetcher::initTestCase()
@@ -116,5 +114,5 @@ void TestQgsNetworkContentFetcher::contentLoaded()
   mLoaded = true;
 }
 
-QTEST_MAIN( TestQgsNetworkContentFetcher )
+QGSTEST_MAIN( TestQgsNetworkContentFetcher )
 #include "testqgsnetworkcontentfetcher.moc"

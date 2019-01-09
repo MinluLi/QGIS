@@ -20,21 +20,24 @@
 #include "qgsdb2dataitems.h"
 #include "qgsdb2featureiterator.h"
 #include "qgsdb2geometrycolumns.h"
-#include <qgscoordinatereferencesystem.h>
-#include <qgsdataitem.h>
-#include <qgslogger.h>
+#include "qgscoordinatereferencesystem.h"
+#include "qgsdataitem.h"
+#include "qgslogger.h"
 #include "qgscredentials.h"
+
+#ifdef HAVE_GUI
+#include "qgsdb2sourceselect.h"
+#include "qgssourceselectprovider.h"
+#endif
 
 static const QString PROVIDER_KEY = QStringLiteral( "DB2" );
 static const QString PROVIDER_DESCRIPTION = QStringLiteral( "DB2 Spatial Extender provider" );
 
 int QgsDb2Provider::sConnectionId = 0;
 
-QgsDb2Provider::QgsDb2Provider( const QString& uri )
-    : QgsVectorDataProvider( uri )
-    , mNumberFeatures( 0 )
-    , mEnvironment( ENV_LUW )
-    , mWkbType( QgsWkbTypes::Unknown )
+QgsDb2Provider::QgsDb2Provider( const QString &uri, const ProviderOptions &options )
+  : QgsVectorDataProvider( uri, options )
+  , mEnvironment( ENV_LUW )
 {
   QgsDebugMsg( "uri: " + uri );
   QgsDataSourceUri anUri = QgsDataSourceUri( uri );
@@ -47,8 +50,8 @@ QgsDb2Provider::QgsDb2Provider( const QString& uri )
   {
     mWkbType = anUri.wkbType();
   }
-  QgsDebugMsg( QString( "mWkbType: %1" ).arg( mWkbType ) );
-  QgsDebugMsg( QString( "new mWkbType: %1" ).arg( anUri.wkbType() ) );
+  QgsDebugMsg( QStringLiteral( "mWkbType: %1" ).arg( mWkbType ) );
+  QgsDebugMsg( QStringLiteral( "new mWkbType: %1" ).arg( anUri.wkbType() ) );
 
   mValid = true;
   mSkipFailures = false;
@@ -61,7 +64,7 @@ QgsDb2Provider::QgsDb2Provider( const QString& uri )
   QgsDebugMsg( "mExtents " + mExtents );
 
   mUseEstimatedMetadata = anUri.useEstimatedMetadata();
-  QgsDebugMsg( QString( "mUseEstimatedMetadata: '%1'" ).arg( mUseEstimatedMetadata ) );
+  QgsDebugMsg( QStringLiteral( "mUseEstimatedMetadata: '%1'" ).arg( mUseEstimatedMetadata ) );
   mSqlWhereClause = anUri.sql();
   QString errMsg;
   mDatabase = getDatabase( uri, errMsg );
@@ -168,12 +171,12 @@ QSqlDatabase QgsDb2Provider::getDatabase( const QString &connInfo, QString &errM
   host = uriExpanded.host();
   port = uriExpanded.port();
   driver = uriExpanded.driver();
-  QgsDebugMsg( QString( "driver: '%1'; host: '%2'; databaseName: '%3'" ).arg( driver, host, databaseName ) );
+  QgsDebugMsg( QStringLiteral( "driver: '%1'; host: '%2'; databaseName: '%3'" ).arg( driver, host, databaseName ) );
   if ( service.isEmpty() )
   {
     if ( driver.isEmpty() || host.isEmpty() || databaseName.isEmpty() )
     {
-      QgsDebugMsg( "service not provided, a required argument is empty." );
+      QgsDebugMsg( QStringLiteral( "service not provided, a required argument is empty." ) );
       return db;
     }
     connectionName = databaseName + ".";
@@ -186,12 +189,12 @@ QSqlDatabase QgsDb2Provider::getDatabase( const QString &connInfo, QString &errM
   /* if new database connection */
   if ( !QSqlDatabase::contains( connectionName ) )
   {
-    QgsDebugMsg( "new connection. create new QODBC mapping" );
+    QgsDebugMsg( QStringLiteral( "new connection. create new QODBC mapping" ) );
     db = QSqlDatabase::addDatabase( QStringLiteral( "QODBC3" ), connectionName );
   }
   else  /* if existing database connection */
   {
-    QgsDebugMsg( "found existing connection, use the existing one" );
+    QgsDebugMsg( QStringLiteral( "found existing connection, use the existing one" ) );
     db = QSqlDatabase::database( connectionName );
   }
   db.setHostName( host );
@@ -242,7 +245,7 @@ QSqlDatabase QgsDb2Provider::getDatabase( const QString &connInfo, QString &errM
     if ( db.open() )
     {
       connected = true;
-      errMsg = QLatin1String( "" );
+      errMsg.clear();
     }
     else
     {
@@ -261,12 +264,12 @@ QSqlDatabase QgsDb2Provider::getDatabase( const QString &connInfo, QString &errM
 
 bool QgsDb2Provider::openDatabase( QSqlDatabase db )
 {
-  QgsDebugMsg( "openDatabase" );
+  QgsDebugMsg( QStringLiteral( "openDatabase" ) );
   if ( !db.isOpen() )
   {
     if ( !db.open() )
     {
-      QgsDebugMsg( "Database could not be opened." );
+      QgsDebugMsg( QStringLiteral( "Database could not be opened." ) );
       return false;
     }
   }
@@ -290,7 +293,7 @@ void QgsDb2Provider::loadFields()
     int typeID = f.typeID(); // seems to be DB2 numeric type id (standard?)
     QString sqlTypeName = db2TypeName( typeID );
     QVariant::Type sqlType = f.type();
-    QgsDebugMsg( QString( "name: %1; length: %2; sqlTypeID: %3; sqlTypeName: %4" )
+    QgsDebugMsg( QStringLiteral( "name: %1; length: %2; sqlTypeID: %3; sqlTypeName: %4" )
                  .arg( f.name() ).arg( f.length() ).arg( QString::number( typeID ), sqlTypeName ) );
     if ( f.name() == mGeometryColName ) continue; // Got this with uri, just skip
     if ( sqlType == QVariant::String )
@@ -330,10 +333,23 @@ void QgsDb2Provider::loadFields()
     }
 // Hack to get primary key since the primaryIndex function above doesn't work
 // on z/OS. Pick first integer column.
-    if ( mFidColName.length() == 0 &&
+    if ( mFidColName.isEmpty() &&
          ( sqlType == QVariant::LongLong || sqlType == QVariant::Int ) )
     {
       mFidColName = f.name();
+    }
+  }
+
+  if ( !mFidColName.isEmpty() )
+  {
+    mFidColIdx = mAttributeFields.indexFromName( mFidColName );
+    if ( mFidColIdx >= 0 )
+    {
+      // primary key has not null, unique constraints
+      QgsFieldConstraints constraints = mAttributeFields.at( mFidColIdx ).constraints();
+      constraints.setConstraint( QgsFieldConstraints::ConstraintNotNull, QgsFieldConstraints::ConstraintOriginProvider );
+      constraints.setConstraint( QgsFieldConstraints::ConstraintUnique, QgsFieldConstraints::ConstraintOriginProvider );
+      mAttributeFields[ mFidColIdx ].setConstraints( constraints );
     }
   }
 }
@@ -389,7 +405,7 @@ QVariant::Type QgsDb2Provider::decodeSqlType( int typeId )
 // Return the DB2 type name for the type numeric value
 QString QgsDb2Provider::db2TypeName( int typeId )
 {
-  QString typeName = QLatin1String( "" );
+  QString typeName;
   switch ( typeId )
   {
     case -3:     //VARBINARY
@@ -413,27 +429,27 @@ QString QgsDb2Provider::db2TypeName( int typeId )
       break;
 
     case 3:     //NUMERIC and DECIMAL
-      typeName =  QStringLiteral( "DECIMAL" );
+      typeName = QStringLiteral( "DECIMAL" );
       break;
 
     case 7:     //REAL
-      typeName =  QStringLiteral( "REAL" );
+      typeName = QStringLiteral( "REAL" );
       break;
 
     case 8:     //DOUBLE
-      typeName =  QStringLiteral( "DOUBLE" );
+      typeName = QStringLiteral( "DOUBLE" );
       break;
 
     case 9:    //DATE
-      typeName =  QStringLiteral( "DATE" );
+      typeName = QStringLiteral( "DATE" );
       break;
 
     case 10:    //TIME
-      typeName =  QStringLiteral( "TIME" );
+      typeName = QStringLiteral( "TIME" );
       break;
 
     case 11:    //TIMESTAMP
-      typeName =  QStringLiteral( "TIMESTAMP" );
+      typeName = QStringLiteral( "TIMESTAMP" );
       break;
 
     default:
@@ -443,16 +459,16 @@ QString QgsDb2Provider::db2TypeName( int typeId )
   return typeName;
 }
 
-QgsAbstractFeatureSource* QgsDb2Provider::featureSource() const
+QgsAbstractFeatureSource *QgsDb2Provider::featureSource() const
 {
   return new QgsDb2FeatureSource( this );
 }
 
-QgsFeatureIterator QgsDb2Provider::getFeatures( const QgsFeatureRequest& request ) const
+QgsFeatureIterator QgsDb2Provider::getFeatures( const QgsFeatureRequest &request ) const
 {
   if ( !mValid )
   {
-    QgsDebugMsg( "Read attempt on an invalid db2 data source" );
+    QgsDebugMsg( QStringLiteral( "Read attempt on an invalid db2 data source" ) );
     return QgsFeatureIterator();
   }
 
@@ -482,12 +498,12 @@ long QgsDb2Provider::featureCount() const
   QgsDebugMsg( statement );
   if ( query.exec( statement ) && query.next() )
   {
-    QgsDebugMsg( QString( "count: %1" ).arg( query.value( 0 ).toInt() ) );
+    QgsDebugMsg( QStringLiteral( "count: %1" ).arg( query.value( 0 ).toInt() ) );
     return query.value( 0 ).toInt();
   }
   else
   {
-    QgsDebugMsg( "Failed" );
+    QgsDebugMsg( QStringLiteral( "Failed" ) );
     QgsDebugMsg( query.lastError().text() );
     return -1;
   }
@@ -560,13 +576,13 @@ void QgsDb2Provider::updateStatistics() const
     mExtent.setYMinimum( query.value( 1 ).toDouble() );
     mExtent.setXMaximum( query.value( 2 ).toDouble() );
     mExtent.setYMaximum( query.value( 3 ).toDouble() );
-    QgsDebugMsg( QString( "after setting; mExtent: %1" ).arg( mExtent.toString() ) );
+    QgsDebugMsg( QStringLiteral( "after setting; mExtent: %1" ).arg( mExtent.toString() ) );
   }
 
-  QgsDebugMsg( QString( "mSRId: %1" ).arg( mSRId ) );
+  QgsDebugMsg( QStringLiteral( "mSRId: %1" ).arg( mSRId ) );
   QgsDb2GeometryColumns gc( mDatabase );
-  int rc = gc.open( mSchemaName, mTableName );  // returns SQLCODE if failure
-  if ( rc == 0 )
+  QString rc = gc.open( mSchemaName, mTableName );  // returns SQLCODE if failure
+  if ( rc.isEmpty() || rc == QStringLiteral( "0" ) )
   {
     mEnvironment = gc.db2Environment();
     if ( -1 == mSRId )
@@ -579,18 +595,18 @@ void QgsDb2Provider::updateStatistics() const
         mSrsName = layer.srsName;
       }
       mGeometryColType = layer.type;
-      QgsDebugMsg( QString( "srs_id: %1; srs_name: %2; mGeometryColType: %3" )
+      QgsDebugMsg( QStringLiteral( "srs_id: %1; srs_name: %2; mGeometryColType: %3" )
                    .arg( mSRId ).arg( mSrsName, mGeometryColType ) );
       return;
     }
   }
   else
   {
-    QgsDebugMsg( "Couldn't get srid from geometry columns" );
+    QgsDebugMsg( QStringLiteral( "Couldn't get srid from geometry columns" ) );
   }
 
   // Try to get the srid from the data if srid isn't already set
-  QgsDebugMsg( QString( "mSRId: %1" ).arg( mSRId ) );
+  QgsDebugMsg( QStringLiteral( "mSRId: %1" ).arg( mSRId ) );
   if ( -1 == mSRId )
   {
     query.clear();
@@ -607,19 +623,19 @@ void QgsDb2Provider::updateStatistics() const
     if ( query.next() )
     {
       mSRId = query.value( 0 ).toInt();
-      QgsDebugMsg( QString( "srid from data: %1" ).arg( mSRId ) );
+      QgsDebugMsg( QStringLiteral( "srid from data: %1" ).arg( mSRId ) );
       return;
     }
     else
     {
-      QgsDebugMsg( "Couldn't get srid from data" );
+      QgsDebugMsg( QStringLiteral( "Couldn't get srid from data" ) );
     }
   }
 }
 
 QgsRectangle QgsDb2Provider::extent() const
 {
-  QgsDebugMsg( QString( "entering; mExtent: %1" ).arg( mExtent.toString() ) );
+  QgsDebugMsg( QStringLiteral( "entering; mExtent: %1" ).arg( mExtent.toString() ) );
   if ( mExtent.isEmpty() )
     updateStatistics();
   return mExtent;
@@ -635,7 +651,7 @@ QString QgsDb2Provider::subsetString() const
   return mSqlWhereClause;
 }
 
-bool QgsDb2Provider::setSubsetString( const QString& theSQL, bool )
+bool QgsDb2Provider::setSubsetString( const QString &theSQL, bool )
 {
   QString prevWhere = mSqlWhereClause;
   QgsDebugMsg( theSQL );
@@ -669,7 +685,7 @@ bool QgsDb2Provider::setSubsetString( const QString& theSQL, bool )
   if ( query.isActive() && query.next() )
   {
     mNumberFeatures = query.value( 0 ).toInt();
-    QgsDebugMsg( QString( "count: %1" ).arg( mNumberFeatures ) );
+    QgsDebugMsg( QStringLiteral( "count: %1" ).arg( mNumberFeatures ) );
   }
   else
   {
@@ -716,7 +732,7 @@ void QgsDb2Provider::db2WkbTypeAndDimension( QgsWkbTypes::Type wkbType, QString 
     dim = 0;
 }
 
-bool QgsDb2Provider::deleteFeatures( const QgsFeatureIds & id )
+bool QgsDb2Provider::deleteFeatures( const QgsFeatureIds &id )
 {
   if ( mFidColName.isEmpty() )
     return false;
@@ -757,7 +773,7 @@ bool QgsDb2Provider::deleteFeatures( const QgsFeatureIds & id )
 
 bool QgsDb2Provider::changeAttributeValues( const QgsChangedAttributesMap &attr_map )
 {
-  QgsDebugMsg( "Entering" );
+  QgsDebugMsg( QStringLiteral( "Entering" ) );
   if ( attr_map.isEmpty() )
     return true;
 
@@ -772,7 +788,7 @@ bool QgsDb2Provider::changeAttributeValues( const QgsChangedAttributesMap &attr_
     if ( FID_IS_NEW( fid ) )
       continue;
 
-    const QgsAttributeMap& attrs = it.value();
+    const QgsAttributeMap &attrs = it.value();
     if ( attrs.isEmpty() )
       continue;
 
@@ -883,7 +899,7 @@ bool QgsDb2Provider::changeAttributeValues( const QgsChangedAttributesMap &attr_
   return true;
 }
 
-bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
+bool QgsDb2Provider::addFeatures( QgsFeatureList &flist, Flags flags )
 {
   QgsDebugMsg( "mGeometryColType: " + mGeometryColType );
   int writeCount = 0;
@@ -901,7 +917,7 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
   }
   if ( !mDatabase.transaction() )
   {
-    QgsDebugMsg( "transaction failed" );
+    QgsDebugMsg( QStringLiteral( "transaction failed" ) );
     return false;
   }
   QSqlQuery query = QSqlQuery( mDatabase );
@@ -917,40 +933,40 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
   bool first = true;
 
 // Get the first geometry and its wkbType as when we are doing drag/drop,
-// the wkbType is not passed to the DB2 provider from QgsVectorLayerImport
+// the wkbType is not passed to the DB2 provider from QgsVectorLayerExporter
 // Can't figure out how to resolved "unreferenced" wkbType compile message
 // Don't really do anything with it at this point
 #if 0
   QgsGeometry *geom = it.geometry();
   QgsWkbTypes::Type wkbType = geom->wkbType();
-  QgsDebugMsg( QString( "wkbType: %1" ).arg( wkbType ) );
-  QgsDebugMsg( QString( "mWkbType: %1" ).arg( mWkbType ) );
+  QgsDebugMsg( QStringLiteral( "wkbType: %1" ).arg( wkbType ) );
+  QgsDebugMsg( QStringLiteral( "mWkbType: %1" ).arg( mWkbType ) );
 #endif
 
   QgsAttributes attrs = it.attributes();
-  QgsDebugMsg( QString( "attrs.count: %1" ).arg( attrs.count() ) );
-  QgsDebugMsg( QString( "fields.count: %1" ).arg( mAttributeFields.count() ) );
+  QgsDebugMsg( QStringLiteral( "attrs.count: %1" ).arg( attrs.count() ) );
+  QgsDebugMsg( QStringLiteral( "fields.count: %1" ).arg( mAttributeFields.count() ) );
   if ( mAttributeFields.count() == ( attrs.count() + 1 ) )
   {
     copyOperation = true; // FID is first field but no attribute in attrs
   }
-  else if ( mAttributeFields.count() !=  attrs.count() )
+  else if ( mAttributeFields.count() != attrs.count() )
   {
-    QgsDebugMsg( "Count mismatch - failing" );
+    QgsDebugMsg( QStringLiteral( "Count mismatch - failing" ) );
     return false;
   }
 
 
   if ( attrs.count() != mAttributeFields.count() )
   {
-    QgsDebugMsg( "field counts don't match" );
+    QgsDebugMsg( QStringLiteral( "field counts don't match" ) );
 //  return false;
   }
 
   for ( int i = 0; i < mAttributeFields.count(); ++i )
   {
     QgsField fld = mAttributeFields.at( i );
-    QgsDebugMsg( QString( "i: %1; got field: %2" ).arg( i ).arg( fld.name() ) );
+    QgsDebugMsg( QStringLiteral( "i: %1; got field: %2" ).arg( i ).arg( fld.name() ) );
 
     if ( fld.name().isEmpty() )
       continue; // invalid
@@ -995,7 +1011,7 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
   statement += ") VALUES (" + values + ')';
   QgsDebugMsg( statement );
 
-  QgsDebugMsg( "Prepare statement" );
+  QgsDebugMsg( QStringLiteral( "Prepare statement" ) );
   // use prepared statement to prevent from sql injection
   if ( !query.prepare( statement ) )
   {
@@ -1073,7 +1089,7 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
       }
 
 #if 0
-      QgsDebugMsg( QString( "bound i: %1; name: %2; value: %3; bindIdx: %4" ).
+      QgsDebugMsg( QStringLiteral( "bound i: %1; name: %2; value: %3; bindIdx: %4" ).
                    arg( i ).arg( fld.name() ).arg( attrs.at( i ).toString() ).arg( bindIdx ) );
 #endif
       bindIdx++;
@@ -1083,17 +1099,17 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
     {
       QgsGeometry geom = it->geometry();
 
-      QByteArray bytea = QByteArray(( char* )geom.asWkb(), ( int ) geom.wkbSize() );
+      QByteArray bytea = geom.asWkb();
       query.bindValue( bindIdx,  bytea, QSql::In | QSql::Binary );
     }
 
-    QList<QVariant> list = query.boundValues().values();
-
 // Show bound values
 #if 0
+    QList<QVariant> list = query.boundValues().values();
+
     for ( int i = 0; i < list.size(); ++i )
     {
-      QgsDebugMsg( QString( "i: %1; value: %2; type: %3" )
+      QgsDebugMsg( QStringLiteral( "i: %1; value: %2; type: %3" )
                    .arg( i ).arg( list.at( i ).toString().toLatin1().data() ).arg( list.at( i ).typeName() ) );
     }
 #endif
@@ -1108,36 +1124,39 @@ bool QgsDb2Provider::addFeatures( QgsFeatureList & flist )
       }
     }
 
-    statement = QString( "select IDENTITY_VAL_LOCAL() AS IDENTITY "
-                         "FROM SYSIBM.SYSDUMMY1" );
+    if ( !( flags & QgsFeatureSink::FastInsert ) )
+    {
+      statement = QString( "select IDENTITY_VAL_LOCAL() AS IDENTITY "
+                           "FROM SYSIBM.SYSDUMMY1" );
 //    QgsDebugMsg( statement );
-    if ( !queryFid.exec( statement ) )
-    {
-      QString msg = query.lastError().text();
-      QgsDebugMsg( msg );
-      if ( !mSkipFailures )
+      if ( !queryFid.exec( statement ) )
       {
-        pushError( msg );
-        return false;
+        QString msg = query.lastError().text();
+        QgsDebugMsg( msg );
+        if ( !mSkipFailures )
+        {
+          pushError( msg );
+          return false;
+        }
       }
-    }
 
-    if ( !queryFid.next() )
-    {
-      QString msg = query.lastError().text();
-      QgsDebugMsg( msg );
-      if ( !mSkipFailures )
+      if ( !queryFid.next() )
       {
-        pushError( msg );
-        return false;
+        QString msg = query.lastError().text();
+        QgsDebugMsg( msg );
+        if ( !mSkipFailures )
+        {
+          pushError( msg );
+          return false;
+        }
       }
+      it->setId( queryFid.value( 0 ).toLongLong() );
     }
-    it->setFeatureId( queryFid.value( 0 ).toLongLong() );
     writeCount++;
-//    QgsDebugMsg( QString( "count: %1; featureId: %2" ).arg( writeCount ).arg( queryFid.value( 0 ).toLongLong() ) );
+//    QgsDebugMsg( QStringLiteral( "count: %1; featureId: %2" ).arg( writeCount ).arg( queryFid.value( 0 ).toLongLong() ) );
   }
   bool commitStatus = mDatabase.commit();
-  QgsDebugMsg( QString( "commitStatus: %1; write count: %2; featureId: %3" )
+  QgsDebugMsg( QStringLiteral( "commitStatus: %1; write count: %2; featureId: %3" )
                .arg( commitStatus ).arg( writeCount ).arg( queryFid.value( 0 ).toLongLong() ) );
   if ( !commitStatus )
   {
@@ -1217,7 +1236,7 @@ bool QgsDb2Provider::changeGeometryValues( const QgsGeometryMap &geometry_map )
     }
 
     // add geometry param
-    QByteArray bytea = QByteArray(( char* )it->asWkb(), ( int ) it->wkbSize() );
+    QByteArray bytea = it->asWkb();
     query.addBindValue( bytea, QSql::In | QSql::Binary );
 
     if ( !query.exec() )
@@ -1230,10 +1249,10 @@ bool QgsDb2Provider::changeGeometryValues( const QgsGeometryMap &geometry_map )
   return true;
 }
 
-QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QString& uri,
+QgsVectorLayerExporter::ExportError QgsDb2Provider::createEmptyLayer( const QString &uri,
     const QgsFields &fields,
     QgsWkbTypes::Type wkbType,
-    const QgsCoordinateReferenceSystem& srs,
+    const QgsCoordinateReferenceSystem &srs,
     bool overwrite,
     QMap<int, int> *oldToNewAttrIdxMap,
     QString *errorMessage,
@@ -1256,7 +1275,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
   {
     if ( errorMessage )
       *errorMessage = errMsg;
-    return QgsVectorLayerImport::ErrConnectionFailed;
+    return QgsVectorLayerExporter::ErrConnectionFailed;
   }
 
   // Get the SRS name using srid, needed to register the spatial column
@@ -1265,7 +1284,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
   // value as the srid / srs_id.  If not, we are out of luck.
   QgsDebugMsg( "srs: " + srs.toWkt() );
   long srid = srs.postgisSrid();
-  QgsDebugMsg( QString( "srid: %1" ).arg( srid ) );
+  QgsDebugMsg( QStringLiteral( "srid: %1" ).arg( srid ) );
   if ( srid >= 0 )
   {
     QSqlQuery query( db );
@@ -1281,11 +1300,11 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
     if ( query.next() )
     {
       srsName = query.value( 0 ).toString();
-      QgsDebugMsg( QString( "srs_name: %1" ).arg( srsName ) );
+      QgsDebugMsg( QStringLiteral( "srs_name: %1" ).arg( srsName ) );
     }
     else
     {
-      QgsDebugMsg( "Couldn't get srs_name from db2gse.st_spatial_reference_systems" );
+      QgsDebugMsg( QStringLiteral( "Couldn't get srs_name from db2gse.st_spatial_reference_systems" ) );
     }
   }
 
@@ -1309,7 +1328,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
   // a multi-type, the insert will fail if the actual data is a single-type
   // due to type mismatch.
   // We could potentially defer adding the spatial column until addFeatures is
-  // called the first time, but QgsVectorLayerImport doesn't pass the CRS/srid
+  // called the first time, but QgsVectorLayerExporter doesn't pass the CRS/srid
   // information to the DB2 provider and we need this information to register
   // the spatial column.
   // This hack is problematic because the drag/drop will fail if the
@@ -1366,14 +1385,14 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
   QString geometryType;
   int dim = 2;
   db2WkbTypeAndDimension( wkbTypeSingle, geometryType, dim );
-  QgsDebugMsg( QString( "wkbTypeSingle: %1; geometryType: %2" ).arg( wkbTypeSingle ).arg( geometryType ) );
+  QgsDebugMsg( QStringLiteral( "wkbTypeSingle: %1; geometryType: %2" ).arg( wkbTypeSingle ).arg( geometryType ) );
   if ( overwrite )
   {
     // remove the old table with the same name
     sql = "DROP TABLE " + fullName;
     if ( !q.exec( sql ) )
     {
-      if ( q.lastError().number() != -206 ) // -206 is "not found" just ignore
+      if ( q.lastError().nativeErrorCode() != QStringLiteral( "-206" ) ) // -206 is "not found" just ignore
       {
         QString lastError = q.lastError().text();
         QgsDebugMsg( lastError );
@@ -1381,7 +1400,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
         {
           *errorMessage = lastError;
         }
-        return QgsVectorLayerImport::ErrCreateLayer;
+        return QgsVectorLayerExporter::ErrCreateLayer;
       }
     }
   }
@@ -1389,7 +1408,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
   // add fields to the layer
   if ( oldToNewAttrIdxMap )
     oldToNewAttrIdxMap->clear();
-  QString attr2Create = QLatin1String( "" );
+  QString attr2Create;
   if ( fields.size() > 0 )
   {
     int offset = 0;
@@ -1399,12 +1418,12 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
     for ( int i = 0; i < fieldCount; ++i )
     {
       QgsField fld = fields.field( i );
-      QgsDebugMsg( QString( "i: %1; fldIdx: %2; offset: %3" )
+      QgsDebugMsg( QStringLiteral( "i: %1; fldIdx: %2; offset: %3" )
                    .arg( i ).arg( fields.lookupField( fld.name() ) ).arg( offset ) );
 
       if ( oldToNewAttrIdxMap && fld.name() == primaryKey )
       {
-        oldToNewAttrIdxMap->insert( i , 0 );
+        oldToNewAttrIdxMap->insert( i, 0 );
         continue;
       }
 
@@ -1421,7 +1440,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
         {
           *errorMessage = QObject::tr( "Unsupported type for field %1" ).arg( fld.name() );
         }
-        return QgsVectorLayerImport::ErrAttributeTypeUnsupported;
+        return QgsVectorLayerExporter::ErrAttributeTypeUnsupported;
       }
 
       if ( oldToNewAttrIdxMap )
@@ -1461,7 +1480,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
       {
         *errorMessage = lastError;
       }
-      return QgsVectorLayerImport::ErrCreateLayer;
+      return QgsVectorLayerExporter::ErrCreateLayer;
     }
 
 
@@ -1477,8 +1496,8 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
 
 // get the environment
       QgsDb2GeometryColumns gc( db );
-      int rc = gc.open( schemaName, tableName );  // returns SQLCODE if failure
-      if ( rc == 0 )
+      QString rc = gc.open( schemaName, tableName );  // returns SQLCODE if failure
+      if ( rc.isEmpty() || rc == QStringLiteral( "0" ) )
       {
         db2Environment = gc.db2Environment();
       }
@@ -1509,7 +1528,7 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
 
       if ( !query.exec() )
       {
-        QgsDebugMsg( QString( "error: %1; sql: %2" ).arg( query.lastError().text(), query.lastQuery() ) );
+        QgsDebugMsg( QStringLiteral( "error: %1; sql: %2" ).arg( query.lastError().text(), query.lastQuery() ) );
       }
       else
       {
@@ -1517,18 +1536,18 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
         msgText = query.boundValue( outMsg ).toString();  // never gets a value...
         if ( 0 != msgCode )
         {
-          QgsDebugMsg( QString( "Register failed with code: %1; text: '%2'" ).arg( msgCode ).arg( msgText.toString() ) );
+          QgsDebugMsg( QStringLiteral( "Register failed with code: %1; text: '%2'" ).arg( msgCode ).arg( msgText.toString() ) );
         }
         else
         {
-          QgsDebugMsg( "Register successful" );
+          QgsDebugMsg( QStringLiteral( "Register successful" ) );
         }
       }
 
       QList<QVariant> list = query.boundValues().values();
       for ( int i = 0; i < list.size(); ++i )
       {
-        QgsDebugMsg( QString( "i: %1; value: %2; type: %3" )
+        QgsDebugMsg( QStringLiteral( "i: %1; value: %2; type: %3" )
                      .arg( i ).arg( list.at( i ).toString().toLatin1().data(), list.at( i ).typeName() ) );
       }
 
@@ -1538,13 +1557,13 @@ QgsVectorLayerImport::ImportError QgsDb2Provider::createEmptyLayer( const QStrin
     q.setForwardOnly( true );
 
   }
-  QgsDebugMsg( "successfully created empty layer" );
-  return QgsVectorLayerImport::NoError;
+  QgsDebugMsg( QStringLiteral( "successfully created empty layer" ) );
+  return QgsVectorLayerExporter::NoError;
 }
 
-QString QgsDb2Provider::qgsFieldToDb2Field( const QgsField& field )
+QString QgsDb2Provider::qgsFieldToDb2Field( const QgsField &field )
 {
-  QString result = QLatin1String( "" );
+  QString result;
   switch ( field.type() )
   {
     case QVariant::LongLong:
@@ -1664,9 +1683,17 @@ QString QgsDb2Provider::description() const
   return PROVIDER_DESCRIPTION;
 }
 
-QGISEXTERN QgsDb2Provider *classFactory( const QString *uri )
+QgsAttributeList QgsDb2Provider::pkAttributeIndexes() const
 {
-  return new QgsDb2Provider( *uri );
+  QgsAttributeList list;
+  if ( mFidColIdx >= 0 )
+    list << mFidColIdx;
+  return list;
+}
+
+QGISEXTERN QgsDb2Provider *classFactory( const QString *uri, const QgsDataProvider::ProviderOptions &options )
+{
+  return new QgsDb2Provider( *uri, options );
 }
 
 QGISEXTERN bool isProvider()
@@ -1689,21 +1716,23 @@ QGISEXTERN int dataCapabilities()
   return QgsDataProvider::Database;
 }
 
-QGISEXTERN void *selectWidget( QWidget *parent, Qt::WindowFlags fl )
+#ifdef HAVE_GUI
+QGISEXTERN void *selectWidget( QWidget *parent, Qt::WindowFlags fl, QgsProviderRegistry::WidgetMode widgetMode )
 {
-  return new QgsDb2SourceSelect( parent, fl );
+  return new QgsDb2SourceSelect( parent, fl, widgetMode );
 }
+#endif
 
-QGISEXTERN QgsDataItem *dataItem( QString thePath, QgsDataItem *parentItem )
+QGISEXTERN QgsDataItem *dataItem( QString path, QgsDataItem *parentItem )
 {
-  Q_UNUSED( thePath );
-  QgsDebugMsg( "DB2: Browser Panel; data item detected." );
+  Q_UNUSED( path );
+  QgsDebugMsg( QStringLiteral( "DB2: Browser Panel; data item detected." ) );
   return new QgsDb2RootItem( parentItem, PROVIDER_KEY, QStringLiteral( "DB2:" ) );
 }
 
 
-QGISEXTERN QgsVectorLayerImport::ImportError createEmptyLayer(
-  const QString& uri,
+QGISEXTERN QgsVectorLayerExporter::ExportError createEmptyLayer(
+  const QString &uri,
   const QgsFields &fields,
   QgsWkbTypes::Type wkbType,
   const QgsCoordinateReferenceSystem &srs,
@@ -1717,3 +1746,34 @@ QGISEXTERN QgsVectorLayerImport::ImportError createEmptyLayer(
            oldToNewAttrIdxMap, errorMessage, options
          );
 }
+
+
+#ifdef HAVE_GUI
+
+//! Provider for DB2 source select
+class QgsDb2SourceSelectProvider : public QgsSourceSelectProvider
+{
+  public:
+
+    QString providerKey() const override { return QStringLiteral( "DB2" ); }
+    QString text() const override { return QObject::tr( "DB2" ); }
+    int ordering() const override { return QgsSourceSelectProvider::OrderDatabaseProvider + 50; }
+    QIcon icon() const override { return QgsApplication::getThemeIcon( QStringLiteral( "/mActionAddDb2Layer.svg" ) ); }
+    QgsAbstractDataSourceWidget *createDataSourceWidget( QWidget *parent = nullptr, Qt::WindowFlags fl = Qt::Widget, QgsProviderRegistry::WidgetMode widgetMode = QgsProviderRegistry::WidgetMode::Embedded ) const override
+    {
+      return new QgsDb2SourceSelect( parent, fl, widgetMode );
+    }
+};
+
+
+QGISEXTERN QList<QgsSourceSelectProvider *> *sourceSelectProviders()
+{
+  QList<QgsSourceSelectProvider *> *providers = new QList<QgsSourceSelectProvider *>();
+
+  *providers
+      << new QgsDb2SourceSelectProvider;
+
+  return providers;
+}
+
+#endif

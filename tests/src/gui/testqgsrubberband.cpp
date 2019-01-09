@@ -14,10 +14,9 @@
  ***************************************************************************/
 
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
-#include <QSharedPointer>
 #include <QCoreApplication>
 #include <QWidget>
 
@@ -31,11 +30,7 @@ class TestQgsRubberband : public QObject
 {
     Q_OBJECT
   public:
-    TestQgsRubberband()
-        : mCanvas( 0 )
-        , mPolygonLayer( 0 )
-        , mRubberband( 0 )
-    {}
+    TestQgsRubberband() = default;
 
   private slots:
     void initTestCase(); // will be called before the first testfunction is executed.
@@ -49,10 +44,10 @@ class TestQgsRubberband : public QObject
     void testClose(); //test closing geometry
 
   private:
-    QgsMapCanvas* mCanvas;
-    QgsVectorLayer* mPolygonLayer;
+    QgsMapCanvas *mCanvas = nullptr;
+    QgsVectorLayer *mPolygonLayer = nullptr;
     QString mTestDataDir;
-    QgsRubberBand* mRubberband;
+    QgsRubberBand *mRubberband = nullptr;
 };
 
 void TestQgsRubberband::initTestCase()
@@ -74,7 +69,12 @@ void TestQgsRubberband::initTestCase()
                                       myPolygonFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
 
   mCanvas = new QgsMapCanvas();
-  mRubberband = 0;
+  mCanvas->setFrameStyle( QFrame::NoFrame );
+  mCanvas->resize( 512, 512 );
+  mCanvas->show(); // to make the canvas resize
+  mCanvas->hide();
+
+  mRubberband = nullptr;
 }
 
 void TestQgsRubberband::cleanupTestCase()
@@ -112,13 +112,9 @@ void TestQgsRubberband::testAddSingleMultiGeometries()
 
 void TestQgsRubberband::testBoundingRect()
 {
-  QSizeF mapSize = mCanvas->mapSettings().outputSize();
-
   // Set extent to match canvas size.
   // This is to ensure a 1:1 scale
-  mCanvas->setExtent( QgsRectangle( QRectF(
-                                      QPointF( 0, 0 ), mapSize
-                                    ) ) );
+  mCanvas->setExtent( QgsRectangle( 0, 0, 512, 512 ) );
   QCOMPARE( mCanvas->mapUnitsPerPixel(), 1.0 );
 
   // Polygon extent is 10,10 to 30,30
@@ -130,26 +126,24 @@ void TestQgsRubberband::testBoundingRect()
   mRubberband->setWidth( 1 );    // default, but better be explicit
   mRubberband->addGeometry( geom, mPolygonLayer );
 
-  // 20 pixels for the extent + 3 for pen & icon per side + 2 of padding
+  // 20 pixels for the extent + 3 for pen & icon per side + 2 of extra padding from setRect()
   QCOMPARE( mRubberband->boundingRect(), QRectF( QPointF( -1, -1 ), QSizeF( 28, 28 ) ) );
   QCOMPARE( mRubberband->pos(), QPointF(
               // 10 for extent minx - 3 for pen & icon
-              7,
+              10 - 3,
               // 30 for extent maxy - 3 for pen & icon
-              mapSize.height() - 30 - 3
+              512 - 30 - 3
             ) );
 
-  mCanvas->setExtent( QgsRectangle( QRectF(
-                                      QPointF( 0, 0 ), mapSize / 2
-                                    ) ) );
+  mCanvas->setExtent( QgsRectangle( 0, 0, 256, 256 ) );
 
-  // 40 pixels for the extent + 6 for pen & icon per side + 2 of padding
-  QCOMPARE( mRubberband->boundingRect(), QRectF( QPointF( -1, -1 ), QSizeF( 54, 54 ) ) );
+  // 40 pixels for the extent + 3 for pen & icon per side + 2 of extra padding from setRect()
+  QCOMPARE( mRubberband->boundingRect(), QRectF( QPointF( -1, -1 ), QSizeF( 48, 48 ) ) );
   QCOMPARE( mRubberband->pos(), QPointF(
               // 10 for extent minx - 3 for pen & icon
-              7 * 2,
+              10 * 2 - 3,
               // 30 for extent maxy - 3 for pen & icon
-              mapSize.height() - ( 30 + 3 ) * 2
+              512 - 30 * 2 - 3
             ) );
 
 }
@@ -162,13 +156,13 @@ void TestQgsRubberband::testVisibility()
   QCOMPARE( mRubberband->isVisible(), false );
 
   // Check visibility after setting to empty geometry
-  QSharedPointer<QgsGeometry> emptyGeom( new QgsGeometry );
-  mRubberband->setToGeometry( *emptyGeom.data(), mPolygonLayer );
+  std::shared_ptr<QgsGeometry> emptyGeom( new QgsGeometry );
+  mRubberband->setToGeometry( *emptyGeom.get(), mPolygonLayer );
   QCOMPARE( mRubberband->isVisible(), false );
 
   // Check that visibility changes
   mRubberband->setVisible( true );
-  mRubberband->setToGeometry( *emptyGeom.data(), mPolygonLayer );
+  mRubberband->setToGeometry( *emptyGeom.get(), mPolygonLayer );
   QCOMPARE( mRubberband->isVisible(), false );
 
   // Check visibility after setting to valid geometry
@@ -180,11 +174,11 @@ void TestQgsRubberband::testVisibility()
 
   // Add point without update
   mRubberband->reset( QgsWkbTypes::PolygonGeometry );
-  mRubberband->addPoint( QgsPoint( 10, 10 ), false );
+  mRubberband->addPoint( QgsPointXY( 10, 10 ), false );
   QCOMPARE( mRubberband->isVisible(), false );
 
   // Add point with update
-  mRubberband->addPoint( QgsPoint( 20, 20 ), true );
+  mRubberband->addPoint( QgsPointXY( 20, 20 ), true );
   QCOMPARE( mRubberband->isVisible(), true );
 
   // Check visibility after zoom (should not be changed)
@@ -202,9 +196,9 @@ void TestQgsRubberband::testClose()
   r.closePoints();
   QCOMPARE( r.partSize( 0 ), 0 );
 
-  r.addPoint( QgsPoint( 1, 2 ) );
-  r.addPoint( QgsPoint( 1, 3 ) );
-  r.addPoint( QgsPoint( 2, 3 ) );
+  r.addPoint( QgsPointXY( 1, 2 ) );
+  r.addPoint( QgsPointXY( 1, 3 ) );
+  r.addPoint( QgsPointXY( 2, 3 ) );
   QCOMPARE( r.partSize( 0 ), 3 );
 
   // test with some bad geometry indexes - don't want to crash!
@@ -223,7 +217,7 @@ void TestQgsRubberband::testClose()
 }
 
 
-QTEST_MAIN( TestQgsRubberband )
+QGSTEST_MAIN( TestQgsRubberband )
 #include "testqgsrubberband.moc"
 
 

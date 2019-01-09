@@ -16,6 +16,8 @@
 #define QGSWFSDATAITEMS_H
 
 #include "qgsdataitem.h"
+#include "qgsdataitemprovider.h"
+#include "qgsdataprovider.h"
 #include "qgsdatasourceuri.h"
 #include "qgswfscapabilities.h"
 
@@ -23,18 +25,22 @@ class QgsWfsRootItem : public QgsDataCollectionItem
 {
     Q_OBJECT
   public:
-    QgsWfsRootItem( QgsDataItem* parent, QString name, QString path );
-    ~QgsWfsRootItem();
+    QgsWfsRootItem( QgsDataItem *parent, QString name, QString path );
 
-    QVector<QgsDataItem*> createChildren() override;
+    QVector<QgsDataItem *> createChildren() override;
 
-    virtual QList<QAction*> actions() override;
+    QVariant sortKey() const override { return 9; }
 
-    virtual QWidget * paramWidget() override;
+#ifdef HAVE_GUI
+    QList<QAction *> actions( QWidget *parent ) override;
+    QWidget *paramWidget() override;
+#endif
 
   public slots:
-    void connectionsChanged();
+#ifdef HAVE_GUI
+    void onConnectionsChanged();
     void newConnection();
+#endif
 };
 
 class QgsWfsConnection;
@@ -43,22 +49,25 @@ class QgsWfsConnectionItem : public QgsDataCollectionItem
 {
     Q_OBJECT
   public:
-    QgsWfsConnectionItem( QgsDataItem* parent, QString name, QString path, QString uri );
-    ~QgsWfsConnectionItem();
+    QgsWfsConnectionItem( QgsDataItem *parent, QString name, QString path, QString uri );
 
-    QVector<QgsDataItem*> createChildren() override;
+    QVector<QgsDataItem *> createChildren() override;
     //virtual bool equal( const QgsDataItem *other );
 
-    virtual QList<QAction*> actions() override;
+#ifdef HAVE_GUI
+    QList<QAction *> actions( QWidget *parent ) override;
+#endif
 
   private slots:
+#ifdef HAVE_GUI
     void editConnection();
     void deleteConnection();
+#endif
 
   private:
     QString mUri;
 
-    QgsWfsCapabilities* mCapabilities;
+    QgsWfsCapabilities *mWfsCapabilities = nullptr;
 };
 
 
@@ -67,9 +76,38 @@ class QgsWfsLayerItem : public QgsLayerItem
     Q_OBJECT
 
   public:
-    QgsWfsLayerItem( QgsDataItem* parent, QString name, const QgsDataSourceUri &uri, QString featureType, QString title, QString crsString );
-    ~QgsWfsLayerItem();
+    QgsWfsLayerItem( QgsDataItem *parent, QString name, const QgsDataSourceUri &uri, QString featureType, QString title, QString crsString );
 
+    QList<QMenu *> menus( QWidget *parent ) override;
+
+  protected:
+    QString mBaseUri;
+
+  private slots:
+
+    /**
+     * Gets style of the active data item (geonode layer item) and copy it to the clipboard.
+     */
+    void copyStyle();
+
+    /**
+     * Paste style on the clipboard to the active data item (geonode layer item) and push it to the source.
+     */
+    //    void pasteStyle();
+};
+
+
+//! Provider for WFS root data item
+class QgsWfsDataItemProvider : public QgsDataItemProvider
+{
+  public:
+    QString name() override { return QStringLiteral( "WFS" ); }
+
+    int capabilities() override { return QgsDataProvider::Net; }
+
+    QgsDataItem *createDataItem( const QString &path, QgsDataItem *parentItem ) override;
+
+    QVector<QgsDataItem *> createDataItems( const QString &path, QgsDataItem *parentItem ) override;
 };
 
 

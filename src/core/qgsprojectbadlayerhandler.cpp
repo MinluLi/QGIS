@@ -16,42 +16,39 @@
 #include "qgsprojectbadlayerhandler.h"
 #include "qgslogger.h"
 #include "qgsmessagelog.h"
+#include "qgsapplication.h"
 
 #include <QFileInfo>
 
-void QgsProjectBadLayerHandler::handleBadLayers( const QList<QDomNode>& layers )
+void QgsProjectBadLayerHandler::handleBadLayers( const QList<QDomNode> &layers )
 {
-  QgsMessageLog::instance()->logMessage( QStringLiteral( "%1 bad layers dismissed:" ).arg( layers.size() ) );
-  Q_FOREACH ( const QDomNode& layer, layers )
+  QgsApplication::messageLog()->logMessage( QObject::tr( "%1 bad layers dismissed:" ).arg( layers.size() ) );
+  Q_FOREACH ( const QDomNode &layer, layers )
   {
-    QgsMessageLog::instance()->logMessage( QStringLiteral( " * %1" ).arg( dataSource( layer ) ) );
+    QgsApplication::messageLog()->logMessage( QObject::tr( " * %1" ).arg( dataSource( layer ) ) );
   }
 }
 
-QgsProjectBadLayerHandler::~QgsProjectBadLayerHandler()
-{
-}
-
-QgsProjectBadLayerHandler::DataType QgsProjectBadLayerHandler::dataType( const QDomNode& layerNode )
+QgsProjectBadLayerHandler::DataType QgsProjectBadLayerHandler::dataType( const QDomNode &layerNode )
 {
   QString type = layerNode.toElement().attribute( QStringLiteral( "type" ) );
 
-  if ( QString::null == type )
+  if ( type.isNull() )
   {
-    QgsDebugMsg( "cannot find ``type'' attribute" );
+    QgsDebugMsg( QStringLiteral( "cannot find ``type'' attribute" ) );
 
     return IS_BOGUS;
   }
 
   if ( "raster" == type )
   {
-    QgsDebugMsg( "is a raster" );
+    QgsDebugMsg( QStringLiteral( "is a raster" ) );
 
     return IS_RASTER;
   }
   else if ( "vector" == type )
   {
-    QgsDebugMsg( "is a vector" );
+    QgsDebugMsg( QStringLiteral( "is a vector" ) );
 
     return IS_VECTOR;
   }
@@ -61,21 +58,21 @@ QgsProjectBadLayerHandler::DataType QgsProjectBadLayerHandler::dataType( const Q
   return IS_BOGUS;
 }
 
-QString QgsProjectBadLayerHandler::dataSource( const QDomNode& layerNode )
+QString QgsProjectBadLayerHandler::dataSource( const QDomNode &layerNode )
 {
   QDomNode dataSourceNode = layerNode.namedItem( QStringLiteral( "datasource" ) );
 
   if ( dataSourceNode.isNull() )
   {
-    QgsDebugMsg( "cannot find datasource node" );
+    QgsDebugMsg( QStringLiteral( "cannot find datasource node" ) );
 
-    return QString::null;
+    return QString();
   }
 
   return dataSourceNode.toElement().text();
 }
 
-QgsProjectBadLayerHandler::ProviderType QgsProjectBadLayerHandler::providerType( const QDomNode& layerNode )
+QgsProjectBadLayerHandler::ProviderType QgsProjectBadLayerHandler::providerType( const QDomNode &layerNode )
 {
   // XXX but what about rasters that can be URLs?  _Can_ they be URLs?
 
@@ -106,13 +103,13 @@ QgsProjectBadLayerHandler::ProviderType QgsProjectBadLayerHandler::providerType(
       return IS_FILE;
 
     default:
-      QgsDebugMsg( "unknown ``type'' attribute" );
+      QgsDebugMsg( QStringLiteral( "unknown ``type'' attribute" ) );
   }
 
   return IS_Unknown;
 }
 
-void QgsProjectBadLayerHandler::setDataSource( QDomNode& layerNode, const QString& dataSource )
+void QgsProjectBadLayerHandler::setDataSource( QDomNode &layerNode, const QString &dataSource )
 {
   QDomNode dataSourceNode = layerNode.namedItem( QStringLiteral( "datasource" ) );
   QDomElement dataSourceElement = dataSourceNode.toElement();

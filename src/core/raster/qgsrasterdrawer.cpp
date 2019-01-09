@@ -27,14 +27,14 @@
 #include <QPainter>
 #include <QPrinter>
 
-QgsRasterDrawer::QgsRasterDrawer( QgsRasterIterator* iterator ): mIterator( iterator )
+QgsRasterDrawer::QgsRasterDrawer( QgsRasterIterator *iterator ): mIterator( iterator )
 {
 }
 
-void QgsRasterDrawer::draw( QPainter* p, QgsRasterViewPort* viewPort, const QgsMapToPixel* theQgsMapToPixel, QgsRasterBlockFeedback* feedback )
+void QgsRasterDrawer::draw( QPainter *p, QgsRasterViewPort *viewPort, const QgsMapToPixel *qgsMapToPixel, QgsRasterBlockFeedback *feedback )
 {
-  QgsDebugMsgLevel( "Entered", 4 );
-  if ( !p || !mIterator || !viewPort || !theQgsMapToPixel )
+  QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
+  if ( !p || !mIterator || !viewPort || !qgsMapToPixel )
   {
     return;
   }
@@ -52,26 +52,27 @@ void QgsRasterDrawer::draw( QPainter* p, QgsRasterViewPort* viewPort, const QgsM
 
   // We know that the output data type of last pipe filter is QImage data
 
-  QgsRasterBlock *block;
+  std::unique_ptr< QgsRasterBlock > block;
 
   // readNextRasterPart calcs and resets  nCols, nRows, topLeftCol, topLeftRow
   while ( mIterator->readNextRasterPart( bandNumber, nCols, nRows,
-                                         &block, topLeftCol, topLeftRow ) )
+                                         block, topLeftCol, topLeftRow ) )
   {
     if ( !block )
     {
-      QgsDebugMsg( "Cannot get block" );
+      QgsDebugMsg( QStringLiteral( "Cannot get block" ) );
       continue;
     }
 
     QImage img = block->image();
 
+#ifndef QT_NO_PRINTER
     // Because of bug in Acrobat Reader we must use "white" transparent color instead
     // of "black" for PDF. See #9101.
     QPrinter *printer = dynamic_cast<QPrinter *>( p->device() );
     if ( printer && printer->outputFormat() == QPrinter::PdfFormat )
     {
-      QgsDebugMsgLevel( "PdfFormat", 4 );
+      QgsDebugMsgLevel( QStringLiteral( "PdfFormat" ), 4 );
 
       img = img.convertToFormat( QImage::Format_ARGB32 );
       QRgb transparentBlack = qRgba( 0, 0, 0, 0 );
@@ -87,6 +88,7 @@ void QgsRasterDrawer::draw( QPainter* p, QgsRasterViewPort* viewPort, const QgsM
         }
       }
     }
+#endif
 
     if ( feedback && feedback->renderPartialOutput() )
     {
@@ -96,20 +98,22 @@ void QgsRasterDrawer::draw( QPainter* p, QgsRasterViewPort* viewPort, const QgsM
       p->setCompositionMode( QPainter::CompositionMode_Source );
     }
 
-    drawImage( p, viewPort, img, topLeftCol, topLeftRow, theQgsMapToPixel );
+    drawImage( p, viewPort, img, topLeftCol, topLeftRow, qgsMapToPixel );
 
-    delete block;
+    if ( feedback && feedback->renderPartialOutput() )
+    {
+      // go back to the default composition mode
+      p->setCompositionMode( QPainter::CompositionMode_SourceOver );
+    }
 
-    p->setCompositionMode( QPainter::CompositionMode_SourceOver );  // go back to the default composition mode
-
-    // ok this does not matter much anyway as the tile size quite big so most of the time
+    // OK this does not matter much anyway as the tile size quite big so most of the time
     // there would be just one tile for the whole display area, but it won't hurt...
-    if ( feedback && feedback->isCancelled() )
+    if ( feedback && feedback->isCanceled() )
       break;
   }
 }
 
-void QgsRasterDrawer::drawImage( QPainter* p, QgsRasterViewPort* viewPort, const QImage& img, int topLeftCol, int topLeftRow, const QgsMapToPixel* theQgsMapToPixel ) const
+void QgsRasterDrawer::drawImage( QPainter *p, QgsRasterViewPort *viewPort, const QImage &img, int topLeftCol, int topLeftRow, const QgsMapToPixel *qgsMapToPixel ) const
 {
   if ( !p || !viewPort )
   {
@@ -126,12 +130,12 @@ void QgsRasterDrawer::drawImage( QPainter* p, QgsRasterViewPort* viewPort, const
   // which should not harm anything
   p->setBrush( QBrush( QColor( Qt::white ), Qt::NoBrush ) );
 
-  if ( theQgsMapToPixel )
+  if ( qgsMapToPixel )
   {
-    int w = theQgsMapToPixel->mapWidth();
-    int h = theQgsMapToPixel->mapHeight();
+    int w = qgsMapToPixel->mapWidth();
+    int h = qgsMapToPixel->mapHeight();
 
-    double rotation = theQgsMapToPixel->mapRotation();
+    double rotation = qgsMapToPixel->mapRotation();
     if ( rotation )
     {
       // both viewPort and image sizes are dependent on scale

@@ -17,7 +17,6 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QToolButton>
 #include <QValidator>
 
 #include "qgsstatusbarscalewidget.h"
@@ -26,8 +25,8 @@
 #include "qgsscalecombobox.h"
 
 QgsStatusBarScaleWidget::QgsStatusBarScaleWidget( QgsMapCanvas *canvas, QWidget *parent )
-    : QWidget( parent )
-    , mMapCanvas( canvas )
+  : QWidget( parent )
+  , mMapCanvas( canvas )
 {
   // add a label to show current scale
   mLabel = new QLabel();
@@ -49,32 +48,17 @@ QgsStatusBarScaleWidget::QgsStatusBarScaleWidget( QgsMapCanvas *canvas, QWidget 
   mScale->setWhatsThis( tr( "Displays the current map scale" ) );
   mScale->setToolTip( tr( "Current map scale (formatted as x:y)" ) );
 
-  mLockButton = new QToolButton();
-  mLockButton->setIcon( QIcon( QgsApplication::getThemeIcon( "/lockedGray.svg" ) ) );
-  mLockButton->setToolTip( tr( "Lock the scale to use magnifier to zoom in or out." ) );
-  mLockButton->setCheckable( true );
-  mLockButton->setChecked( false );
-  mLockButton->setAutoRaise( true );
-
   // layout
   mLayout = new QHBoxLayout( this );
   mLayout->addWidget( mLabel );
   mLayout->addWidget( mScale );
-  mLayout->addWidget( mLockButton );
   mLayout->setContentsMargins( 0, 0, 0, 0 );
   mLayout->setAlignment( Qt::AlignRight );
   mLayout->setSpacing( 0 );
 
   setLayout( mLayout );
 
-  connect( mScale, SIGNAL( scaleChanged( double ) ), this, SLOT( userScale() ) );
-
-  connect( mLockButton, SIGNAL( toggled( bool ) ), this, SIGNAL( scaleLockChanged( bool ) ) );
-  connect( mLockButton, SIGNAL( toggled( bool ) ), mScale, SLOT( setDisabled( bool ) ) );
-}
-
-QgsStatusBarScaleWidget::~QgsStatusBarScaleWidget()
-{
+  connect( mScale, &QgsScaleComboBox::scaleChanged, this, &QgsStatusBarScaleWidget::userScale );
 }
 
 void QgsStatusBarScaleWidget::setScale( double scale )
@@ -82,11 +66,21 @@ void QgsStatusBarScaleWidget::setScale( double scale )
   mScale->blockSignals( true );
   mScale->setScale( scale );
   mScale->blockSignals( false );
+
+  if ( mScale->width() > mScale->minimumWidth() )
+  {
+    mScale->setMinimumWidth( mScale->width() );
+  }
 }
 
 bool QgsStatusBarScaleWidget::isLocked() const
 {
-  return mLockButton->isChecked();
+  return !mScale->isEnabled();
+}
+
+void QgsStatusBarScaleWidget::setLocked( bool state )
+{
+  mScale->setDisabled( state );
 }
 
 void QgsStatusBarScaleWidget::setFont( const QFont &font )
@@ -102,6 +96,5 @@ void QgsStatusBarScaleWidget::updateScales( const QStringList &scales )
 
 void QgsStatusBarScaleWidget::userScale() const
 {
-  // Why has MapCanvas the scale inverted?
-  mMapCanvas->zoomScale( 1.0 / mScale->scale() );
+  mMapCanvas->zoomScale( mScale->scale() );
 }

@@ -21,13 +21,15 @@
 #include "ui_qgsrendererrasterpropswidgetbase.h"
 
 #include "qgsmaplayerconfigwidget.h"
+#include "qgis_gui.h"
 
 
 class QgsRasterLayer;
 class QgsMapCanvas;
 class QgsRasterRendererWidget;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsRendererRasterPropertiesWidget
  */
 class GUI_EXPORT QgsRendererRasterPropertiesWidget : public QgsMapLayerConfigWidget, private Ui::QgsRendererRasterPropsWidgetBase
@@ -35,54 +37,58 @@ class GUI_EXPORT QgsRendererRasterPropertiesWidget : public QgsMapLayerConfigWid
     Q_OBJECT
 
   public:
+
     /**
      * A widget to hold the renderer properties for a raster layer.
-     * @param layer The raster layer to style
-     * @param canvas The canvas object used to calculate the max and min values from the extent.
-     * @param parent Parent object
+     * \param layer The raster layer to style
+     * \param canvas The canvas object used to calculate the max and min values from the extent.
+     * \param parent Parent object
      */
-    QgsRendererRasterPropertiesWidget( QgsMapLayer* layer, QgsMapCanvas *canvas, QWidget *parent = 0 );
-    ~QgsRendererRasterPropertiesWidget();
-
-    /** Sets the map canvas associated with the dialog. This allows the widget to retrieve the current
-     * map scale and other properties from the canvas.
-     * @param canvas map canvas
-     * @note added in QGIS 2.12
-     */
-    void setMapCanvas( QgsMapCanvas* canvas );
+    QgsRendererRasterPropertiesWidget( QgsMapLayer *layer, QgsMapCanvas *canvas, QWidget *parent = nullptr );
 
     /**
-     * Return the active render widget. Can be null.
+     * Sets the map canvas associated with the dialog. This allows the widget to retrieve the current
+     * map scale and other properties from the canvas.
+     * \param canvas map canvas
+     * \since QGIS 2.12
      */
-    QgsRasterRendererWidget* currentRenderWidget() { return mRendererWidget; }
+    void setMapCanvas( QgsMapCanvas *canvas );
+
+    /**
+     * Returns the active render widget. Can be null.
+     */
+    QgsRasterRendererWidget *currentRenderWidget() { return mRendererWidget; }
 
   public slots:
     //! called when user changes renderer type
     void rendererChanged();
 
     //! Apply the changes from the dialog to the layer.
-    void apply();
+    void apply() override;
 
     /**
-     * @brief Sync the widget to the given layer.
-     * @param layer The layer to use for the widget
+     * \brief Sync the widget to the given layer.
+     * \param layer The layer to use for the widget
      */
     void syncToLayer( QgsRasterLayer *layer );
 
   private slots:
     //! Slot to reset all color rendering options to default
-    void on_mResetColorRenderingBtn_clicked();
+    void mResetColorRenderingBtn_clicked();
 
     //! Enable or disable saturation controls depending on choice of grayscale mode
     void toggleSaturationControls( int grayscaleMode );
 
     //! Enable or disable colorize controls depending on checkbox
     void toggleColorizeControls( bool colorizeEnabled );
-  private:
-    void setRendererWidget( const QString& rendererName );
 
-    QgsRasterLayer* mRasterLayer;
-    QgsRasterRendererWidget* mRendererWidget;
+    void refreshAfterStyleChanged();
+
+  private:
+    void setRendererWidget( const QString &rendererName );
+
+    QgsRasterLayer *mRasterLayer = nullptr;
+    QgsRasterRendererWidget *mRendererWidget = nullptr;
 };
 
 #endif // QGSRENDERERRASTERPROPERTIESDIALOG_H

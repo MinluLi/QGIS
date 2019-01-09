@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2013'
@@ -28,23 +27,51 @@ __revision__ = '$Format:%H$'
 
 import os
 import re
+import warnings
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import Qt, QSettings
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QApplication, QMessageBox
 from qgis.PyQt.QtGui import QCursor
-from qgis.core import QgsExpressionContext, QgsExpressionContextUtils
-from qgis.gui import QgsEncodingFileDialog
+from qgis.core import (Qgis,
+                       QgsExpressionContextUtils,
+                       QgsProcessingFeedback,
+                       QgsSettings,
+                       QgsMapLayerProxyModel,
+                       QgsProperty,
+                       QgsProject,
+                       QgsMessageLog,
+                       QgsProcessingOutputLayerDefinition)
+from qgis.gui import QgsEncodingFileDialog, QgsGui
+from qgis.utils import OverrideCursor
 
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
-from processing.gui.AlgorithmExecutor import runalg
+from processing.gui.AlgorithmExecutor import execute
 from processing.tools import dataobjects
 from processing.gui.Postprocessing import handleAlgorithmResults
+from processing.gui.PostgisTableSelector import PostgisTableSelector
+from processing.gui.ParameterGuiUtils import getFileFilter
 
 pluginPath = os.path.dirname(__file__)
-WIDGET, BASE = uic.loadUiType(
-    os.path.join(pluginPath, 'DlgFieldsCalculator.ui'))
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    WIDGET, BASE = uic.loadUiType(
+        os.path.join(pluginPath, 'DlgFieldsCalculator.ui'))
+
+
+class FieldCalculatorFeedback(QgsProcessingFeedback):
+
+    """
+    Directs algorithm feedback to an algorithm dialog
+    """
+
+    def __init__(self, dialog):
+        QgsProcessingFeedback.__init__(self)
+        self.dialog = dialog
+
+    def reportError(self, msg, fatalError=False):
+        self.dialog.error(msg)
 
 
 class FieldsCalculatorDialog(BASE, WIDGET):
@@ -54,10 +81,12 @@ class FieldsCalculatorDialog(BASE, WIDGET):
         self.setupUi(self)
 
         self.executed = False
+        self._wasExecuted = False
         self.alg = alg
         self.layer = None
 
-        self.cmbInputLayer.currentIndexChanged.connect(self.updateLayer)
+        self.cmbInputLayer.setFilters(QgsMapLayerProxyModel.VectorLayer)
+        self.cmbInputLayer.layerChanged.connect(self.updateLayer)
         self.btnBrowse.clicked.connect(self.selectFile)
         self.mNewFieldGroupBox.toggled.connect(self.toggleExistingGroup)
         self.mUpdateExistingGroupBox.toggled.connect(self.toggleNewGroup)
@@ -81,31 +110,21 @@ class FieldsCalculatorDialog(BASE, WIDGET):
         for t in self.alg.type_names:
             self.mOutputFieldTypeComboBox.addItem(t)
         self.mOutputFieldTypeComboBox.blockSignals(False)
-
-        self.cmbInputLayer.blockSignals(True)
-        layers = dataobjects.getVectorLayers()
-        for layer in layers:
-            self.cmbInputLayer.addItem(layer.name())
-        self.cmbInputLayer.blockSignals(False)
-
         self.builder.loadRecent('fieldcalc')
 
-        self.initContext()
-        self.updateLayer()
+        self.updateLayer(self.cmbInputLayer.currentLayer())
 
     def initContext(self):
         exp_context = self.builder.expressionContext()
-        exp_context.appendScope(QgsExpressionContextUtils.globalScope())
-        exp_context.appendScope(QgsExpressionContextUtils.projectScope())
-        exp_context.appendScope(QgsExpressionContextUtils.layerScope(self.layer))
+        exp_context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(self.layer))
         exp_context.lastScope().setVariable("row_number", 1)
         exp_context.setHighlightedVariables(["row_number"])
         self.builder.setExpressionContext(exp_context)
 
-    def updateLayer(self):
-        self.layer = dataobjects.getObject(self.cmbInputLayer.currentText())
+    def updateLayer(self, layer):
+        self.layer = layer
         self.builder.setLayer(self.layer)
-        self.builder.loadFieldNames()
+        self.initContext()
         self.populateFields()
 
     def setupSpinboxes(self, index):
@@ -130,10 +149,10 @@ class FieldsCalculatorDialog(BASE, WIDGET):
             self.mOutputFieldPrecisionSpinBox.setEnabled(False)
 
     def selectFile(self):
-        output = self.alg.getOutputFromName('OUTPUT_LAYER')
-        fileFilter = output.getFileFilter(self.alg)
+        output = self.alg.parameterDefinition('OUTPUT')
+        fileFilter = getFileFilter(output)
 
-        settings = QSettings()
+        settings = QgsSettings()
         if settings.contains('/Processing/LastOutputPath'):
             path = settings.value('/Processing/LastOutputPath')
         else:
@@ -154,8 +173,8 @@ class FieldsCalculatorDialog(BASE, WIDGET):
             filename = str(files[0])
             selectedFileFilter = str(fileDialog.selectedNameFilter())
             if not filename.lower().endswith(
-                    tuple(re.findall("\*(\.[a-z]{1,10})", fileFilter))):
-                ext = re.search("\*(\.[a-z]{1,10})", selectedFileFilter)
+                    tuple(re.findall("\\*(\\.[a-z]{1,10})", fileFilter))):
+                ext = re.search("\\*(\\.[a-z]{1,10})", selectedFileFilter)
                 if ext:
                     filename = filename + ext.group(1)
             self.leOutputFile.setText(filename)
@@ -178,51 +197,62 @@ class FieldsCalculatorDialog(BASE, WIDGET):
         for f in fields:
             self.mExistingFieldComboBox.addItem(f.name())
 
-    def setParamValues(self):
+    def getParamValues(self):
         if self.mUpdateExistingGroupBox.isChecked():
             fieldName = self.mExistingFieldComboBox.currentText()
         else:
             fieldName = self.mOutputFieldNameLineEdit.text()
 
-        layer = dataobjects.getObjectFromName(self.cmbInputLayer.currentText())
+        layer = self.cmbInputLayer.currentLayer()
 
-        self.alg.setParameterValue('INPUT_LAYER', layer)
-        self.alg.setParameterValue('FIELD_NAME', fieldName)
-        self.alg.setParameterValue('FIELD_TYPE',
-                                   self.mOutputFieldTypeComboBox.currentIndex())
-        self.alg.setParameterValue('FIELD_LENGTH',
-                                   self.mOutputFieldWidthSpinBox.value())
-        self.alg.setParameterValue('FIELD_PRECISION',
-                                   self.mOutputFieldPrecisionSpinBox.value())
-        self.alg.setParameterValue('NEW_FIELD',
-                                   self.mNewFieldGroupBox.isChecked())
-        self.alg.setParameterValue('FORMULA', self.builder.expressionText())
-        self.alg.setOutputValue('OUTPUT_LAYER', self.leOutputFile.text().strip() or None)
+        context = dataobjects.createContext()
 
-        msg = self.alg.checkParameterValuesBeforeExecuting()
-        if msg:
+        parameters = {}
+        parameters['INPUT'] = layer
+        parameters['FIELD_NAME'] = fieldName
+        parameters['FIELD_TYPE'] = self.mOutputFieldTypeComboBox.currentIndex()
+        parameters['FIELD_LENGTH'] = self.mOutputFieldWidthSpinBox.value()
+        parameters['FIELD_PRECISION'] = self.mOutputFieldPrecisionSpinBox.value()
+        parameters['NEW_FIELD'] = self.mNewFieldGroupBox.isChecked()
+        parameters['FORMULA'] = self.builder.expressionText()
+        output = QgsProcessingOutputLayerDefinition()
+        if self.leOutputFile.text().strip():
+            output.sink = QgsProperty.fromValue(self.leOutputFile.text().strip())
+        else:
+            output.sink = QgsProperty.fromValue('memory:')
+        output.destinationProject = context.project()
+        parameters['OUTPUT'] = output
+
+        ok, msg = self.alg.checkParameterValues(parameters, context)
+        if not ok:
             QMessageBox.warning(
                 self, self.tr('Unable to execute algorithm'), msg)
-            return False
-        return True
+            return {}
+        return parameters
 
     def accept(self):
         keepOpen = ProcessingConfig.getSetting(ProcessingConfig.KEEP_DIALOG_OPEN)
-        try:
-            if self.setParamValues():
-                QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-                ProcessingLog.addToLog(ProcessingLog.LOG_ALGORITHM,
-                                       self.alg.getAsCommand())
+        parameters = self.getParamValues()
+        if parameters:
+            with OverrideCursor(Qt.WaitCursor):
+                self.feedback = FieldCalculatorFeedback(self)
+                self.feedback.progressChanged.connect(self.setPercentage)
 
-                self.executed = runalg(self.alg, self)
+                context = dataobjects.createContext()
+                ProcessingLog.addToLog(self.alg.asPythonCommand(parameters, context))
+                QgsGui.instance().processingRecentAlgorithmLog().push(self.alg.id())
+
+                self.executed, results = execute(self.alg, parameters, context, self.feedback)
+                self.setPercentage(0)
+
                 if self.executed:
                     handleAlgorithmResults(self.alg,
-                                           self,
+                                           context,
+                                           self.feedback,
                                            not keepOpen)
+                self._wasExecuted = self.executed or self._wasExecuted
                 if not keepOpen:
                     QDialog.reject(self)
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def reject(self):
         self.executed = False
@@ -231,9 +261,9 @@ class FieldsCalculatorDialog(BASE, WIDGET):
     def setPercentage(self, i):
         self.progressBar.setValue(i)
 
-    def setText(self, text):
-        pass
-
     def error(self, text):
         QMessageBox.critical(self, "Error", text)
-        ProcessingLog.addToLog(ProcessingLog.LOG_ERROR, text)
+        QgsMessageLog.logMessage(text, self.tr('Processing'), Qgis.Critical)
+
+    def wasExecuted(self):
+        return self._wasExecuted

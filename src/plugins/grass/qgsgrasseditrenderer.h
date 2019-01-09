@@ -30,21 +30,21 @@ class QgsGrassEditRenderer : public QgsFeatureRenderer
 
     QgsGrassEditRenderer();
 
-    virtual ~QgsGrassEditRenderer();
+    ~QgsGrassEditRenderer() override;
 
-    virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext& context ) override;
+    QgsSymbol *symbolForFeature( const QgsFeature &feature, QgsRenderContext &context ) const override;
 
-    virtual void startRender( QgsRenderContext& context, const QgsFields& fields ) override;
+    void startRender( QgsRenderContext &context, const QgsFields &fields ) override;
 
-    virtual void stopRender( QgsRenderContext& context ) override;
+    void stopRender( QgsRenderContext &context ) override;
 
-    virtual QSet<QString> usedAttributes() const override;
+    QSet<QString> usedAttributes( const QgsRenderContext &context ) const override;
 
-    virtual QgsFeatureRenderer* clone() const override;
+    QgsFeatureRenderer *clone() const override;
 
-    virtual QgsSymbolList symbols( QgsRenderContext& context ) override;
+    QgsSymbolList symbols( QgsRenderContext &context ) const override;
 
-    virtual QString dump() const override;
+    QString dump() const override;
 
     QgsFeatureRenderer *lineRenderer() const { return mLineRenderer; }
     QgsFeatureRenderer *pointRenderer() const { return mMarkerRenderer; }
@@ -52,31 +52,31 @@ class QgsGrassEditRenderer : public QgsFeatureRenderer
     void setLineRenderer( QgsFeatureRenderer *renderer );
     void setMarkerRenderer( QgsFeatureRenderer *renderer );
 
-    virtual QDomElement save( QDomDocument& doc ) override;
+    QDomElement save( QDomDocument &doc, const QgsReadWriteContext &context ) override;
 
-    static QgsFeatureRenderer* create( QDomElement& element );
+    static QgsFeatureRenderer *create( QDomElement &element, const QgsReadWriteContext &context );
 
   protected:
-    QgsFeatureRenderer *mLineRenderer;
-    QgsFeatureRenderer *mMarkerRenderer;
+    QgsFeatureRenderer *mLineRenderer = nullptr;
+    QgsFeatureRenderer *mMarkerRenderer = nullptr;
 };
 
 class QgsGrassEditRendererWidget : public QgsRendererWidget
 {
     Q_OBJECT
   public:
-    static QgsRendererWidget* create( QgsVectorLayer* layer, QgsStyle* style, QgsFeatureRenderer* renderer );
+    static QgsRendererWidget *create( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer );
 
-    QgsGrassEditRendererWidget( QgsVectorLayer* layer, QgsStyle* style, QgsFeatureRenderer* renderer );
-    ~QgsGrassEditRendererWidget();
+    QgsGrassEditRendererWidget( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer );
+    ~QgsGrassEditRendererWidget() override;
 
-    virtual QgsFeatureRenderer* renderer() override;
+    QgsFeatureRenderer *renderer() override;
 
   protected:
-    QgsGrassEditRenderer* mRenderer;
+    QgsGrassEditRenderer *mRenderer = nullptr;
 
-    QgsRendererWidget* mLineRendererWidget;
-    QgsRendererWidget* mPointRendererWidget;
+    QgsRendererWidget *mLineRendererWidget = nullptr;
+    QgsRendererWidget *mPointRendererWidget = nullptr;
 };
 
 #endif // QGSGRASSEDITRENDERER_H

@@ -18,12 +18,16 @@
 
 #include <QDomNode>
 
-/** \ingroup core
+#include "qgis_core.h"
+
+/**
+ * \ingroup core
  * Interface for classes that handle missing layer files when reading project file.
  */
 class CORE_EXPORT QgsProjectBadLayerHandler
 {
   public:
+
     /**
      * This method will be called whenever the project tries to load layers which
      * cannot be accessed. It should inform the user about this and if possible offer
@@ -33,11 +37,10 @@ class CORE_EXPORT QgsProjectBadLayerHandler
      * The default implementation will dismiss all bad layers and write information to the
      * log.
      *
-     * @note Added in QGIS 3.0
-     * @see QgsProjectBadLayerGuiHandler
+     * \since QGIS 3.0
      */
-    virtual void handleBadLayers( const QList<QDomNode>& layers );
-    virtual ~QgsProjectBadLayerHandler();
+    virtual void handleBadLayers( const QList<QDomNode> &layers );
+    virtual ~QgsProjectBadLayerHandler() = default;
 
 
   protected:
@@ -65,23 +68,23 @@ class CORE_EXPORT QgsProjectBadLayerHandler
      *
      * The Dom node should represent the state associated with a specific layer.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    DataType dataType( const QDomNode & layerNode );
+    DataType dataType( const QDomNode &layerNode );
 
     /**
-     * Return the data source for the given layer
+     * Returns the data source for the given layer
      *
      * The QDomNode is a QgsProject Dom node corresponding to a map layer state.
      *
      * Essentially dumps datasource tag.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    QString dataSource( const QDomNode& layerNode );
+    QString dataSource( const QDomNode &layerNode );
 
     /**
-     * Return the physical storage type associated with the given layer
+     * Returns the physical storage type associated with the given layer
      *
      * The QDomNode is a QgsProject Dom node corresponding to a map layer state.
      *
@@ -94,16 +97,16 @@ class CORE_EXPORT QgsProjectBadLayerHandler
      * it's either a database or URL.  If the datasource tag has "url=", then it's
      * URL based and if it has "dbname=">, then the layer data is in a database.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    ProviderType providerType( const QDomNode& layerNode );
+    ProviderType providerType( const QDomNode &layerNode );
 
     /**
      * Set the datasource element to the new value
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    void setDataSource( QDomNode& layerNode, const QString& dataSource );
+    void setDataSource( QDomNode &layerNode, const QString &dataSource );
 };
 
 #endif // QGSPROJECTBADLAYERHANDLER_H

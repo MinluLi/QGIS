@@ -24,10 +24,10 @@
 #include "qgspluginsortfilterproxymodel.h"
 
 
-QgsPluginItemDelegate::QgsPluginItemDelegate( QObject * parent ) : QStyledItemDelegate( parent ) {}
+QgsPluginItemDelegate::QgsPluginItemDelegate( QObject *parent ) : QStyledItemDelegate( parent ) {}
 
 
-QSize QgsPluginItemDelegate::sizeHint( const QStyleOptionViewItem & option, const QModelIndex & index ) const
+QSize QgsPluginItemDelegate::sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
   Q_UNUSED( option );
   Q_UNUSED( index );
@@ -77,14 +77,13 @@ void QgsPluginItemDelegate::paint( QPainter *painter, const QStyleOptionViewItem
   {
     painter->setPen( option.palette.highlightedText().color() );
   }
+  else if ( index.data( PLUGIN_ISDEPRECATED_ROLE ).toString() == QLatin1String( "true" ) )
+  {
+    painter->setPen( option.palette.color( QPalette::Disabled, QPalette::Text ) );
+  }
   else
   {
     painter->setPen( option.palette.text().color() );
-  }
-
-  if ( index.data( PLUGIN_TRUSTED_ROLE ).toBool() )
-  {
-    painter->setPen( Qt::darkGreen );
   }
 
   if ( ! index.data( PLUGIN_ERROR_ROLE ).toString().isEmpty() )

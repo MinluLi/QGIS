@@ -20,6 +20,7 @@
 #include "qgsexpressionbuilderdialog.h"
 #include "qgsexpressioncontextgenerator.h"
 #include "qgscodeeditorsql.h"
+#include "qgsproject.h"
 #include "qgsvectorlayer.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -27,28 +28,23 @@
 
 
 QgsExpressionLineEdit::QgsExpressionLineEdit( QWidget *parent )
-    : QWidget( parent )
-    , mLineEdit( nullptr )
-    , mCodeEditor( nullptr )
-    , mExpressionDialogTitle( tr( "Expression dialog" ) )
-    , mDa( nullptr )
-    , mExpressionContextGenerator( nullptr )
-    , mLayer( nullptr )
+  : QWidget( parent )
+  , mExpressionDialogTitle( tr( "Expression Dialog" ) )
 {
   mButton = new QToolButton();
   mButton->setSizePolicy( QSizePolicy::Minimum, QSizePolicy::Minimum );
   mButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mIconExpression.svg" ) ) );
-  connect( mButton, SIGNAL( clicked() ), this, SLOT( editExpression() ) );
+  connect( mButton, &QAbstractButton::clicked, this, &QgsExpressionLineEdit::editExpression );
 
   //sets up layout
   setMultiLine( false );
 
   mExpressionContext = QgsExpressionContext();
   mExpressionContext << QgsExpressionContextUtils::globalScope()
-  << QgsExpressionContextUtils::projectScope();
+                     << QgsExpressionContextUtils::projectScope( QgsProject::instance() );
 }
 
-void QgsExpressionLineEdit::setExpressionDialogTitle( const QString& title )
+void QgsExpressionLineEdit::setExpressionDialogTitle( const QString &title )
 {
   mExpressionDialogTitle = title;
 }
@@ -59,16 +55,16 @@ void QgsExpressionLineEdit::setMultiLine( bool multiLine )
 
   if ( multiLine && !mCodeEditor )
   {
-    mCodeEditor = new QgsCodeEditorSQL();
+    mCodeEditor = new QgsCodeEditorExpression();
     mCodeEditor->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     delete mLineEdit;
     mLineEdit = nullptr;
 
-    QHBoxLayout* newLayout = new QHBoxLayout();
+    QHBoxLayout *newLayout = new QHBoxLayout();
     newLayout->setContentsMargins( 0, 0, 0, 0 );
     newLayout->addWidget( mCodeEditor );
 
-    QVBoxLayout* vLayout = new QVBoxLayout();
+    QVBoxLayout *vLayout = new QVBoxLayout();
     vLayout->addWidget( mButton );
     vLayout->addStretch();
     newLayout->addLayout( vLayout );
@@ -79,7 +75,7 @@ void QgsExpressionLineEdit::setMultiLine( bool multiLine )
     setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
 
     setFocusProxy( mCodeEditor );
-    connect( mCodeEditor, SIGNAL( textChanged() ), this, SLOT( expressionEdited() ) );
+    connect( mCodeEditor, &QsciScintilla::textChanged, this, static_cast < void ( QgsExpressionLineEdit::* )() > ( &QgsExpressionLineEdit::expressionEdited ) );
 
     setExpression( exp );
   }
@@ -90,7 +86,7 @@ void QgsExpressionLineEdit::setMultiLine( bool multiLine )
     mLineEdit = new QgsFilterLineEdit();
     mLineEdit->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
 
-    QHBoxLayout* newLayout = new QHBoxLayout();
+    QHBoxLayout *newLayout = new QHBoxLayout();
     newLayout->setContentsMargins( 0, 0, 0, 0 );
     newLayout->addWidget( mLineEdit );
     newLayout->addWidget( mButton );
@@ -101,10 +97,20 @@ void QgsExpressionLineEdit::setMultiLine( bool multiLine )
     setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
 
     setFocusProxy( mLineEdit );
-    connect( mLineEdit, SIGNAL( textChanged( QString ) ), this, SLOT( expressionEdited( QString ) ) );
+    connect( mLineEdit, &QLineEdit::textChanged, this, static_cast < void ( QgsExpressionLineEdit::* )( const QString & ) > ( &QgsExpressionLineEdit::expressionEdited ) );
 
     setExpression( exp );
   }
+}
+
+QString QgsExpressionLineEdit::expectedOutputFormat() const
+{
+  return mExpectedOutputFormat;
+}
+
+void QgsExpressionLineEdit::setExpectedOutputFormat( const QString &expected )
+{
+  mExpectedOutputFormat = expected;
 }
 
 void QgsExpressionLineEdit::setGeomCalculator( const QgsDistanceArea &da )
@@ -112,7 +118,7 @@ void QgsExpressionLineEdit::setGeomCalculator( const QgsDistanceArea &da )
   mDa.reset( new QgsDistanceArea( da ) );
 }
 
-void QgsExpressionLineEdit::setLayer( QgsVectorLayer* layer )
+void QgsExpressionLineEdit::setLayer( QgsVectorLayer *layer )
 {
   if ( !mExpressionContextGenerator || mExpressionContextGenerator == mLayer )
     mExpressionContextGenerator = layer;
@@ -135,12 +141,12 @@ bool QgsExpressionLineEdit::isValidExpression( QString *expressionError ) const
   return QgsExpression::checkExpression( expression(), &mExpressionContext, expressionError ? *expressionError : temp );
 }
 
-void QgsExpressionLineEdit::registerExpressionContextGenerator( const QgsExpressionContextGenerator* generator )
+void QgsExpressionLineEdit::registerExpressionContextGenerator( const QgsExpressionContextGenerator *generator )
 {
   mExpressionContextGenerator = generator;
 }
 
-void QgsExpressionLineEdit::setExpression( const QString& newExpression )
+void QgsExpressionLineEdit::setExpression( const QString &newExpression )
 {
   if ( mLineEdit )
     mLineEdit->setText( newExpression );
@@ -155,7 +161,8 @@ void QgsExpressionLineEdit::editExpression()
   QgsExpressionContext context = mExpressionContextGenerator ? mExpressionContextGenerator->createExpressionContext() : mExpressionContext;
 
   QgsExpressionBuilderDialog dlg( mLayer, currentExpression, this, QStringLiteral( "generic" ), context );
-  if ( !mDa.isNull() )
+  dlg.setExpectedOutputFormat( mExpectedOutputFormat );
+  if ( mDa )
   {
     dlg.setGeomCalculator( *mDa );
   }
@@ -173,13 +180,13 @@ void QgsExpressionLineEdit::expressionEdited()
   emit expressionChanged( expression() );
 }
 
-void QgsExpressionLineEdit::expressionEdited( const QString& expression )
+void QgsExpressionLineEdit::expressionEdited( const QString &expression )
 {
   updateLineEditStyle( expression );
   emit expressionChanged( expression );
 }
 
-void QgsExpressionLineEdit::changeEvent( QEvent* event )
+void QgsExpressionLineEdit::changeEvent( QEvent *event )
 {
   if ( event->type() == QEvent::EnabledChange )
   {
@@ -187,12 +194,12 @@ void QgsExpressionLineEdit::changeEvent( QEvent* event )
   }
 }
 
-void QgsExpressionLineEdit::updateLineEditStyle( const QString& expression )
+void QgsExpressionLineEdit::updateLineEditStyle( const QString &expression )
 {
   if ( !mLineEdit )
     return;
 
-  QPalette palette;
+  QPalette palette = mLineEdit->palette();
   if ( !isEnabled() )
   {
     palette.setColor( QPalette::Text, Qt::gray );
@@ -216,7 +223,7 @@ void QgsExpressionLineEdit::updateLineEditStyle( const QString& expression )
   mLineEdit->setPalette( palette );
 }
 
-bool QgsExpressionLineEdit::isExpressionValid( const QString& expressionStr )
+bool QgsExpressionLineEdit::isExpressionValid( const QString &expressionStr )
 {
   QgsExpression expression( expressionStr );
   expression.prepare( &mExpressionContext );

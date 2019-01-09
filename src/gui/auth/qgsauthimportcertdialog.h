@@ -18,13 +18,16 @@
 #define QGSAUTHIMPORTCERTDIALOG_H
 
 #include <QDialog>
+#include "qgis.h"
 #include "ui_qgsauthimportcertdialog.h"
 
 #include <QSslCertificate>
+#include "qgis_gui.h"
 
 class QPushButton;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Widget for importing a certificate into the authentication database
  */
 class GUI_EXPORT QgsAuthImportCertDialog : public QDialog, private Ui::QgsAuthImportCertDialog
@@ -49,22 +52,21 @@ class GUI_EXPORT QgsAuthImportCertDialog : public QDialog, private Ui::QgsAuthIm
 
     /**
      * Construct a dialog for importing certificates
-     * @param parent Parent widget
-     * @param filter Certificate type filter to apply to dialog
-     * @param input Type of input(s) for certificates
+     * \param parent Parent widget
+     * \param filter Certificate type filter to apply to dialog
+     * \param input Type of input(s) for certificates
      */
-    explicit QgsAuthImportCertDialog( QWidget *parent = nullptr,
+    explicit QgsAuthImportCertDialog( QWidget *parent SIP_TRANSFERTHIS = nullptr,
                                       QgsAuthImportCertDialog::CertFilter filter = NoFilter,
                                       QgsAuthImportCertDialog::CertInput input = AllInputs );
-    ~QgsAuthImportCertDialog();
 
-    //! Get list of certificate objects to import
+    //! Gets list of certificate objects to import
     const QList<QSslCertificate> certificatesToImport();
 
-    //! Get the file path to a certificate to import
+    //! Gets the file path to a certificate to import
     const QString certFileToImport();
 
-    //! Get certificate text to import
+    //! Gets certificate text to import
     const QString certTextToImport();
 
     //! Whether to allow importation of invalid certificates (so trust policy can be overridden)
@@ -78,22 +80,22 @@ class GUI_EXPORT QgsAuthImportCertDialog : public QDialog, private Ui::QgsAuthIm
 
     void validateCertificates();
 
-    void on_btnImportFile_clicked();
+    void btnImportFile_clicked();
 
-    void on_chkAllowInvalid_toggled( bool checked );
+    void chkAllowInvalid_toggled( bool checked );
 
   private:
-    QString getOpenFileName( const QString& title, const QString& extfilter );
+    QString getOpenFileName( const QString &title, const QString &extfilter );
 
-    QPushButton* okButton();
+    QPushButton *okButton();
 
     QList<QSslCertificate> mCerts;
     QgsAuthImportCertDialog::CertFilter mFilter;
     QgsAuthImportCertDialog::CertInput mInput;
 
-    bool mDisabled;
-    QVBoxLayout *mAuthNotifyLayout;
-    QLabel *mAuthNotify;
+    bool mDisabled = false;
+    QVBoxLayout *mAuthNotifyLayout = nullptr;
+    QLabel *mAuthNotify = nullptr;
 };
 
 #endif // QGSAUTHIMPORTCERTDIALOG_H

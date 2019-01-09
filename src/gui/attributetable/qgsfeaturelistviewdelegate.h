@@ -17,13 +17,15 @@
 
 #include <QItemDelegate>
 #include <QItemSelectionModel>
+#include "qgis_gui.h"
 
 class QgsVectorLayer;
 class QgsFeatureListModel;
 class QgsFeatureSelectionModel;
 class QPosition;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsFeatureListViewDelegate
  */
 class GUI_EXPORT QgsFeatureListViewDelegate : public QItemDelegate
@@ -31,7 +33,7 @@ class GUI_EXPORT QgsFeatureListViewDelegate : public QItemDelegate
     Q_OBJECT
 
   public:
-    static int const sIconSize = 24;
+    static const int ICON_SIZE = 24;
 
     enum Element
     {
@@ -39,28 +41,28 @@ class GUI_EXPORT QgsFeatureListViewDelegate : public QItemDelegate
       SelectionElement
     };
 
-    explicit QgsFeatureListViewDelegate( QgsFeatureListModel* listModel, QObject *parent = nullptr );
+    explicit QgsFeatureListViewDelegate( QgsFeatureListModel *listModel, QObject *parent = nullptr );
 
-    void setEditSelectionModel( QItemSelectionModel* editSelectionModel );
+    void setEditSelectionModel( QItemSelectionModel *editSelectionModel );
 
     Element positionToElement( QPoint pos );
 
-    void setFeatureSelectionModel( QgsFeatureSelectionModel* featureSelectionModel );
+    void setFeatureSelectionModel( QgsFeatureSelectionModel *featureSelectionModel );
 
     void setCurrentFeatureEdited( bool state );
 
   signals:
-    void editButtonClicked( QModelIndex& index );
+    void editButtonClicked( QModelIndex &index );
 
   protected:
-    virtual QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const override;
-    virtual void paint( QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index ) const override;
+    QSize sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
+    void paint( QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
 
   private:
-    QgsFeatureSelectionModel* mFeatureSelectionModel;
-    QItemSelectionModel* mEditSelectionModel;
-    QgsFeatureListModel* mListModel;
-    //! Set to true if the current edit selection has been edited
+    QgsFeatureSelectionModel *mFeatureSelectionModel = nullptr;
+    QItemSelectionModel *mEditSelectionModel = nullptr;
+    QgsFeatureListModel *mListModel = nullptr;
+    //! Sets to true if the current edit selection has been edited
     bool mCurrentFeatureEdited;
 };
 

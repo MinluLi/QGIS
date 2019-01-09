@@ -15,19 +15,18 @@
 
 #include "qgstexteditconfigdlg.h"
 
-#include "qgseditorwidgetconfig.h"
-QgsTextEditConfigDlg::QgsTextEditConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget* parent )
-    : QgsEditorConfigWidget( vl, fieldIdx, parent )
+QgsTextEditConfigDlg::QgsTextEditConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
+  : QgsEditorConfigWidget( vl, fieldIdx, parent )
 {
   setupUi( this );
-  connect( mIsMultiline, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mUseHtml, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
+  connect( mIsMultiline, &QGroupBox::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mUseHtml, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
 }
 
 
-QgsEditorWidgetConfig QgsTextEditConfigDlg::config()
+QVariantMap QgsTextEditConfigDlg::config()
 {
-  QgsEditorWidgetConfig cfg;
+  QVariantMap cfg;
 
   cfg.insert( QStringLiteral( "IsMultiline" ), mIsMultiline->isChecked() );
   cfg.insert( QStringLiteral( "UseHtml" ), mUseHtml->isChecked() );
@@ -35,7 +34,7 @@ QgsEditorWidgetConfig QgsTextEditConfigDlg::config()
   return cfg;
 }
 
-void QgsTextEditConfigDlg::setConfig( const QgsEditorWidgetConfig& config )
+void QgsTextEditConfigDlg::setConfig( const QVariantMap &config )
 {
   mIsMultiline->setChecked( config.value( QStringLiteral( "IsMultiline" ) ).toBool() );
   mUseHtml->setChecked( config.value( QStringLiteral( "UseHtml" ) ).toBool() );

@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -31,7 +31,6 @@
 #include <qgsrasterpyramid.h>
 #include <qgsrasterbandstats.h>
 #include "qgsrasterdataprovider.h"
-#include <qgsmaplayerregistry.h>
 #include <qgsapplication.h>
 #include <qgssinglebandgrayrenderer.h>
 #include <qgssinglebandpseudocolorrenderer.h>
@@ -41,7 +40,8 @@
 //qgis unit test includes
 #include <qgsrenderchecker.h>
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for raster sublayers
  */
 class TestQgsRasterSubLayer : public QObject
@@ -62,17 +62,12 @@ class TestQgsRasterSubLayer : public QObject
   private:
     QString mTestDataDir;
     QString mFileName;
-    QgsRasterLayer * mpRasterLayer;
+    QgsRasterLayer *mpRasterLayer = nullptr;
     QString mReport;
-    bool mHasNetCDF;
+    bool mHasNetCDF =  false ;
 };
 
-TestQgsRasterSubLayer::TestQgsRasterSubLayer()
-    : mpRasterLayer( nullptr )
-    , mHasNetCDF( false )
-{
-
-}
+TestQgsRasterSubLayer::TestQgsRasterSubLayer() = default;
 
 //runs before all tests
 void TestQgsRasterSubLayer::initTestCase()
@@ -89,7 +84,7 @@ void TestQgsRasterSubLayer::initTestCase()
   GDALAllRegister();
   QString format = QStringLiteral( "netCDF" );
   GDALDriverH myGdalDriver = GDALGetDriverByName( format.toLocal8Bit().constData() );
-  mHasNetCDF = myGdalDriver != 0;
+  mHasNetCDF = myGdalDriver != nullptr;
 
   mFileName = mTestDataDir + "landsat2.nc";
 
@@ -101,8 +96,8 @@ void TestQgsRasterSubLayer::initTestCase()
     QFileInfo myRasterFileInfo( mFileName );
     mpRasterLayer = new QgsRasterLayer( myRasterFileInfo.filePath(),
                                         myRasterFileInfo.completeBaseName() );
-    qDebug() << "raster metadata: " << mpRasterLayer->dataProvider()->metadata();
-    mReport += "raster metadata: " + mpRasterLayer->dataProvider()->metadata();
+    qDebug() << "raster metadata: " << mpRasterLayer->dataProvider()->htmlMetadata();
+    mReport += "raster metadata: " + mpRasterLayer->dataProvider()->htmlMetadata();
   }
   else
   {
@@ -140,7 +135,7 @@ void TestQgsRasterSubLayer::subLayersList()
     expected << QStringLiteral( "Band2" );
 
     QStringList sublayers;
-    Q_FOREACH ( const QString& s, mpRasterLayer->subLayers() )
+    Q_FOREACH ( const QString &s, mpRasterLayer->subLayers() )
     {
       qDebug() << "sublayer: " << s;
       sublayers << s.split( ':' ).last();
@@ -148,7 +143,7 @@ void TestQgsRasterSubLayer::subLayersList()
     qDebug() << "sublayers: " << sublayers.join( QStringLiteral( "," ) );
     mReport += QStringLiteral( "sublayers:<br>%1<br>\n" ).arg( sublayers.join( QStringLiteral( "<br>" ) ) );
     mReport += QStringLiteral( "expected:<br>%1<br>\n" ).arg( expected.join( QStringLiteral( "<br>" ) ) );
-    QVERIFY( sublayers == expected );
+    QCOMPARE( sublayers, expected );
     mReport += QLatin1String( "<p>Passed</p>" );
   }
 }
@@ -176,13 +171,13 @@ void TestQgsRasterSubLayer::checkStats()
 
     QVERIFY( sublayer->width() == width );
     QVERIFY( sublayer->height() == height );
-    QVERIFY( qgsDoubleNear( myStatistics.minimumValue, min ) );
-    QVERIFY( qgsDoubleNear( myStatistics.maximumValue, max ) );
+    QGSCOMPARENEAR( myStatistics.minimumValue, min, 4 * std::numeric_limits<double>::epsilon() );
+    QGSCOMPARENEAR( myStatistics.maximumValue, max, 4 * std::numeric_limits<double>::epsilon() );
     mReport += QLatin1String( "<p>Passed</p>" );
     delete sublayer;
   }
 }
 
 
-QTEST_MAIN( TestQgsRasterSubLayer )
+QGSTEST_MAIN( TestQgsRasterSubLayer )
 #include "testqgsrastersublayer.moc"

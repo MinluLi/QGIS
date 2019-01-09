@@ -19,62 +19,71 @@
 #define QGSGEOMETRYRUBBERBAND_H
 
 #include "qgsmapcanvasitem.h"
+#include "qgis.h"
 #include <QBrush>
 #include <QPen>
+#include "qgis_gui.h"
 
 
 class QgsAbstractGeometry;
-class QgsPointV2;
+class QgsPoint;
 struct QgsVertexId;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * A rubberband class for QgsAbstractGeometry (considering curved geometries)*/
 class GUI_EXPORT QgsGeometryRubberBand: public QgsMapCanvasItem
 {
   public:
     enum IconType
     {
+
       /**
       * No icon is used
       */
       ICON_NONE,
+
       /**
        * A cross is used to highlight points (+)
        */
       ICON_CROSS,
+
       /**
        * A cross is used to highlight points (x)
        */
       ICON_X,
+
       /**
        * A box is used to highlight points (□)
        */
       ICON_BOX,
+
       /**
        * A circle is used to highlight points (○)
        */
       ICON_CIRCLE,
+
       /**
        * A full box is used to highlight points (■)
        */
       ICON_FULL_BOX
     };
 
-    QgsGeometryRubberBand( QgsMapCanvas* mapCanvas, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::LineGeometry );
-    ~QgsGeometryRubberBand();
+    QgsGeometryRubberBand( QgsMapCanvas *mapCanvas, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::LineGeometry );
+    ~QgsGeometryRubberBand() override;
 
     //! Sets geometry (takes ownership). Geometry is expected to be in map coordinates
-    void setGeometry( QgsAbstractGeometry* geom );
+    void setGeometry( QgsAbstractGeometry *geom SIP_TRANSFER );
     //! Returns a pointer to the geometry
-    const QgsAbstractGeometry* geometry() { return mGeometry; }
+    const QgsAbstractGeometry *geometry() { return mGeometry; }
     //! Moves vertex to new position (in map coordinates)
-    void moveVertex( QgsVertexId id, const QgsPointV2& newPos );
+    void moveVertex( QgsVertexId id, const QgsPoint &newPos );
     //! Sets fill color for vertex markers
-    void setFillColor( const QColor& c );
-    //! Sets outline color for vertex markes
-    void setOutlineColor( const QColor& c );
-    //! Sets outline width
-    void setOutlineWidth( int width );
+    void setFillColor( const QColor &c );
+    //! Sets stroke color for vertex markers
+    void setStrokeColor( const QColor &c );
+    //! Sets stroke width
+    void setStrokeWidth( int width );
     //! Sets pen style
     void setLineStyle( Qt::PenStyle penStyle );
     //! Sets brush style
@@ -83,17 +92,17 @@ class GUI_EXPORT QgsGeometryRubberBand: public QgsMapCanvasItem
     void setIconType( IconType iconType ) { mIconType = iconType; }
 
   protected:
-    virtual void paint( QPainter* painter ) override;
+    void paint( QPainter *painter ) override;
 
   private:
-    QgsAbstractGeometry* mGeometry;
+    QgsAbstractGeometry *mGeometry = nullptr;
     QBrush mBrush;
     QPen mPen;
     int mIconSize;
     IconType mIconType;
     QgsWkbTypes::GeometryType mGeometryType;
 
-    void drawVertex( QPainter* p, double x, double y );
+    void drawVertex( QPainter *p, double x, double y );
     QgsRectangle rubberBandRectangle() const;
 };
 

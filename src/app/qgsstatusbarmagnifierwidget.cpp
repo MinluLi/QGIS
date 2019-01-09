@@ -17,19 +17,21 @@
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QSettings>
+#include <QToolButton>
 
-#include <qgsapplication.h>
+#include "qgssettings.h"
+#include "qgsapplication.h"
 #include "qgsstatusbarmagnifierwidget.h"
 #include "qgsdoublespinbox.h"
+#include "qgsguiutils.h"
 
-QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget* parent )
-    : QWidget( parent )
+QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget *parent )
+  : QWidget( parent )
 {
-  QSettings settings;
-  int minimumFactor = ( int ) 100 * settings.value( QStringLiteral( "/qgis/magnifier_factor_min" ), 0.1 ).toDouble();
-  int maximumFactor = ( int ) 100 * settings.value( QStringLiteral( "/qgis/magnifier_factor_max" ), 10 ).toDouble();
-  int defaultFactor = ( int ) 100 * settings.value( QStringLiteral( "/qgis/magnifier_factor_default" ), 1.0 ).toDouble();
+  QgsSettings settings;
+  int minimumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MIN;
+  int maximumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MAX;
+  int defaultFactor = 100 * settings.value( QStringLiteral( "qgis/magnifier_factor_default" ), 1.0 ).toDouble();
 
   // label
   mLabel = new QLabel();
@@ -52,10 +54,20 @@ QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget* parent )
   mSpinBox->setClearValueMode( QgsDoubleSpinBox::CustomValue );
   mSpinBox->setClearValue( defaultFactor );
 
-  connect( mSpinBox, SIGNAL( valueChanged( double ) ), this, SLOT( setMagnification( double ) ) );
+  connect( mSpinBox, static_cast < void ( QgsDoubleSpinBox::* )( double ) > ( &QgsDoubleSpinBox::valueChanged ), this, &QgsStatusBarMagnifierWidget::setMagnification );
+
+  mLockButton = new QToolButton();
+  mLockButton->setIcon( QIcon( QgsApplication::getThemeIcon( "/lockedGray.svg" ) ) );
+  mLockButton->setToolTip( tr( "Lock the scale to use magnifier to zoom in or out." ) );
+  mLockButton->setCheckable( true );
+  mLockButton->setChecked( false );
+  mLockButton->setAutoRaise( true );
+
+  connect( mLockButton, &QAbstractButton::toggled, this, &QgsStatusBarMagnifierWidget::scaleLockChanged );
 
   // layout
   mLayout = new QHBoxLayout( this );
+  mLayout->addWidget( mLockButton );
   mLayout->addWidget( mLabel );
   mLayout->addWidget( mSpinBox );
   mLayout->setContentsMargins( 0, 0, 0, 0 );
@@ -65,16 +77,12 @@ QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget* parent )
   setLayout( mLayout );
 }
 
-QgsStatusBarMagnifierWidget::~QgsStatusBarMagnifierWidget()
-{
-}
-
 void QgsStatusBarMagnifierWidget::setDefaultFactor( double factor )
 {
-  mSpinBox->setClearValue(( int )100*factor );
+  mSpinBox->setClearValue( 100 * factor );
 }
 
-void QgsStatusBarMagnifierWidget::setFont( const QFont& myFont )
+void QgsStatusBarMagnifierWidget::setFont( const QFont &myFont )
 {
   mLabel->setFont( myFont );
   mSpinBox->setFont( myFont );

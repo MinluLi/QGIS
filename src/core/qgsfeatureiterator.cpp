@@ -16,25 +16,15 @@
 #include "qgslogger.h"
 
 #include "qgssimplifymethod.h"
-
+#include "qgsexception.h"
 #include "qgsexpressionsorter.h"
 
-QgsAbstractFeatureIterator::QgsAbstractFeatureIterator( const QgsFeatureRequest& request )
-    : mRequest( request )
-    , mClosed( false )
-    , mZombie( false )
-    , refs( 0 )
-    , mFetchedCount( 0 )
-    , mCompileStatus( NoCompilation )
-    , mUseCachedFeatures( false )
+QgsAbstractFeatureIterator::QgsAbstractFeatureIterator( const QgsFeatureRequest &request )
+  : mRequest( request )
 {
 }
 
-QgsAbstractFeatureIterator::~QgsAbstractFeatureIterator()
-{
-}
-
-bool QgsAbstractFeatureIterator::nextFeature( QgsFeature& f )
+bool QgsAbstractFeatureIterator::nextFeature( QgsFeature &f )
 {
   bool dataOk = false;
   if ( mRequest.limit() >= 0 && mFetchedCount >= mRequest.limit() )
@@ -81,7 +71,7 @@ bool QgsAbstractFeatureIterator::nextFeature( QgsFeature& f )
   return dataOk;
 }
 
-bool QgsAbstractFeatureIterator::nextFeatureFilterExpression( QgsFeature& f )
+bool QgsAbstractFeatureIterator::nextFeatureFilterExpression( QgsFeature &f )
 {
   while ( fetchFeature( f ) )
   {
@@ -92,7 +82,7 @@ bool QgsAbstractFeatureIterator::nextFeatureFilterExpression( QgsFeature& f )
   return false;
 }
 
-bool QgsAbstractFeatureIterator::nextFeatureFilterFids( QgsFeature& f )
+bool QgsAbstractFeatureIterator::nextFeatureFilterFids( QgsFeature &f )
 {
   while ( fetchFeature( f ) )
   {
@@ -102,10 +92,41 @@ bool QgsAbstractFeatureIterator::nextFeatureFilterFids( QgsFeature& f )
   return false;
 }
 
+void QgsAbstractFeatureIterator::geometryToDestinationCrs( QgsFeature &feature, const QgsCoordinateTransform &transform ) const
+{
+  if ( transform.isValid() && feature.hasGeometry() )
+  {
+    try
+    {
+      QgsGeometry g = feature.geometry();
+      g.transform( transform );
+      feature.setGeometry( g );
+    }
+    catch ( QgsCsException & )
+    {
+      // transform error
+      if ( mRequest.transformErrorCallback() )
+      {
+        mRequest.transformErrorCallback()( feature );
+      }
+      // remove geometry - we can't reproject so better not return a geometry in a different crs
+      feature.clearGeometry();
+    }
+  }
+}
+
+QgsRectangle QgsAbstractFeatureIterator::filterRectToSourceCrs( const QgsCoordinateTransform &transform ) const
+{
+  if ( mRequest.filterRect().isNull() )
+    return QgsRectangle();
+
+  return transform.transformBoundingBox( mRequest.filterRect(), QgsCoordinateTransform::ReverseTransform );
+}
+
 void QgsAbstractFeatureIterator::ref()
 {
   // Prepare if required the simplification of geometries to fetch:
-  // This code runs here because of 'prepareSimplification()' is virtual and it can be overrided
+  // This code runs here because of 'prepareSimplification()' is virtual and it can be overridden
   // in inherited iterators who change the default behavior.
   // It would be better to call this method in the constructor enabling virtual-calls as it is described by example at:
   // http://www.parashift.com/c%2B%2B-faq-lite/calling-virtuals-from-ctor-idiom.html
@@ -126,13 +147,18 @@ void QgsAbstractFeatureIterator::deref()
     delete this;
 }
 
-bool QgsAbstractFeatureIterator::prepareSimplification( const QgsSimplifyMethod& simplifyMethod )
+bool QgsAbstractFeatureIterator::compileFailed() const
+{
+  return mCompileFailed;
+}
+
+bool QgsAbstractFeatureIterator::prepareSimplification( const QgsSimplifyMethod &simplifyMethod )
 {
   Q_UNUSED( simplifyMethod );
   return false;
 }
 
-void QgsAbstractFeatureIterator::setupOrderBy( const QList<QgsFeatureRequest::OrderByClause>& orderBys )
+void QgsAbstractFeatureIterator::setupOrderBy( const QList<QgsFeatureRequest::OrderByClause> &orderBys )
 {
   // Let the provider try using an efficient order by strategy first
   if ( !orderBys.isEmpty() && !prepareOrderBy( orderBys ) )
@@ -143,10 +169,10 @@ void QgsAbstractFeatureIterator::setupOrderBy( const QList<QgsFeatureRequest::Or
     QList<QgsFeatureRequest::OrderByClause> preparedOrderBys( orderBys );
     QList<QgsFeatureRequest::OrderByClause>::iterator orderByIt( preparedOrderBys.begin() );
 
-    QgsExpressionContext* expressionContext( mRequest.expressionContext() );
+    QgsExpressionContext *expressionContext( mRequest.expressionContext() );
     do
     {
-      orderByIt->expression().prepare( expressionContext );
+      orderByIt->prepare( expressionContext );
     }
     while ( ++orderByIt != preparedOrderBys.end() );
 
@@ -158,7 +184,7 @@ void QgsAbstractFeatureIterator::setupOrderBy( const QList<QgsFeatureRequest::Or
     {
       expressionContext->setFeature( indexedFeature.mFeature );
       int i = 0;
-      Q_FOREACH ( const QgsFeatureRequest::OrderByClause& orderBy, preparedOrderBys )
+      Q_FOREACH ( const QgsFeatureRequest::OrderByClause &orderBy, preparedOrderBys )
       {
         indexedFeature.mIndexes.replace( i++, orderBy.expression().evaluate( expressionContext ) );
       }
@@ -169,7 +195,7 @@ void QgsAbstractFeatureIterator::setupOrderBy( const QList<QgsFeatureRequest::Or
       mCachedFeatures.append( indexedFeature );
     }
 
-    qSort( mCachedFeatures.begin(), mCachedFeatures.end(), QgsExpressionSorter( preparedOrderBys ) );
+    std::sort( mCachedFeatures.begin(), mCachedFeatures.end(), QgsExpressionSorter( preparedOrderBys ) );
 
     mFeatureIterator = mCachedFeatures.constBegin();
     mUseCachedFeatures = true;
@@ -184,19 +210,19 @@ bool QgsAbstractFeatureIterator::providerCanSimplify( QgsSimplifyMethod::MethodT
   return false;
 }
 
-bool QgsAbstractFeatureIterator::prepareOrderBy( const QList<QgsFeatureRequest::OrderByClause>& orderBys )
+bool QgsAbstractFeatureIterator::prepareOrderBy( const QList<QgsFeatureRequest::OrderByClause> &orderBys )
 {
   Q_UNUSED( orderBys )
   return false;
 }
 
-void QgsAbstractFeatureIterator::setInterruptionChecker( QgsInterruptionChecker* )
+void QgsAbstractFeatureIterator::setInterruptionChecker( QgsFeedback * )
 {
 }
 
 ///////
 
-QgsFeatureIterator& QgsFeatureIterator::operator=( const QgsFeatureIterator & other )
+QgsFeatureIterator &QgsFeatureIterator::operator=( const QgsFeatureIterator &other )
 {
   if ( this != &other )
   {
@@ -207,4 +233,9 @@ QgsFeatureIterator& QgsFeatureIterator::operator=( const QgsFeatureIterator & ot
       mIter->ref();
   }
   return *this;
+}
+
+bool QgsFeatureIterator::isValid() const
+{
+  return mIter && mIter->isValid();
 }

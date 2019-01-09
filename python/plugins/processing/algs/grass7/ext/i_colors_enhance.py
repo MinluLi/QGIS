@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import absolute_import
 
 __author__ = 'Médéric Ribreux'
 __date__ = 'March 2016'
@@ -29,21 +28,12 @@ __revision__ = '$Format:%H$'
 from .i import exportInputRasters
 
 
-def processCommand(alg):
-
+def processCommand(alg, parameters, context, feedback):
     # Temporary remove outputs:
-    outputs = [alg.getOutputFromName('{}output'.format(f)) for f in ['red', 'green', 'blue']]
-    for out in outputs:
-        alg.removeOutputFromName(out.name)
-
-    alg.processCommand()
-
-    # Re-add outputs
-    for output in outputs:
-        alg.addOutput(output)
+    alg.processCommand(parameters, context, feedback, True)
 
 
-def processOutputs(alg):
+def processOutputs(alg, parameters, context, feedback):
     # Input rasters are output rasters
     rasterDic = {'red': 'redoutput', 'green': 'greenoutput', 'blue': 'blueoutput'}
-    exportInputRasters(alg, rasterDic)
+    exportInputRasters(alg, parameters, context, rasterDic)

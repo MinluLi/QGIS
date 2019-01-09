@@ -28,6 +28,7 @@
 // version without notice, or even be removed.
 //
 
+#include "qgis_core.h"
 #include <QSharedData>
 #include "qgsfields.h"
 
@@ -37,7 +38,7 @@
  * See details in QEP #17
  ****************************************************************************/
 
-class CORE_EXPORT QgsFieldsPrivate : public QSharedData
+class QgsFieldsPrivate : public QSharedData
 {
   public:
 
@@ -45,10 +46,10 @@ class CORE_EXPORT QgsFieldsPrivate : public QSharedData
     {
     }
 
-    QgsFieldsPrivate( const QgsFieldsPrivate& other )
-        : QSharedData( other )
-        , fields( other.fields )
-        , nameToIndex( other.nameToIndex )
+    QgsFieldsPrivate( const QgsFieldsPrivate &other )
+      : QSharedData( other )
+      , fields( other.fields )
+      , nameToIndex( other.nameToIndex )
     {
     }
 

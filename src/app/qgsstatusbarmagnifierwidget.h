@@ -20,14 +20,16 @@
 class QLabel;
 class QFont;
 class QHBoxLayout;
+class QToolButton;
 class QgsDoubleSpinBox;
 
 #include <QWidget>
+#include "qgis_app.h"
 
 /**
   * A widget which lets the user select the current level of magnification to
   * apply to the canvas.
-  * @note added in 2.16
+  * \since QGIS 2.16
   */
 class APP_EXPORT QgsStatusBarMagnifierWidget : public QWidget
 {
@@ -35,20 +37,19 @@ class APP_EXPORT QgsStatusBarMagnifierWidget : public QWidget
 
   public:
 
-    /** Constructor
-      * @param parent is the parent widget
+    /**
+     * Constructor
+      * \param parent is the parent widget
       */
-    QgsStatusBarMagnifierWidget( QWidget* parent = nullptr );
-
-    //! Destructor
-    virtual ~QgsStatusBarMagnifierWidget();
+    QgsStatusBarMagnifierWidget( QWidget *parent = nullptr );
 
     void setDefaultFactor( double factor );
 
-    /** Set the font of the text
-      * @param font the font to use
+    /**
+     * Set the font of the text
+      * \param font the font to use
       */
-    void setFont( const QFont& font );
+    void setFont( const QFont &font );
 
 
   public slots:
@@ -63,11 +64,13 @@ class APP_EXPORT QgsStatusBarMagnifierWidget : public QWidget
   signals:
     void magnificationChanged( double factor );
 
+    void scaleLockChanged( bool );
 
   private:
-    QHBoxLayout *mLayout;
-    QLabel *mLabel;
-    QgsDoubleSpinBox *mSpinBox;
+    QHBoxLayout *mLayout = nullptr;
+    QLabel *mLabel = nullptr;
+    QgsDoubleSpinBox *mSpinBox = nullptr;
+    QToolButton *mLockButton = nullptr;
 };
 
 #endif

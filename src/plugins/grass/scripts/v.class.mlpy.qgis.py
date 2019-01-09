@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ############################################################################
 #
@@ -27,13 +27,13 @@
 #%end
 #%option G_OPT_V_MAP
 #%  key: input
-#%  description: Input vector map (attribut table required)
+#%  description: Input vector map (attribute table required)
 #%  required: yes
 #%  multiple: no
 #%end
 #%option G_OPT_V_MAP
 #%  key: training
-#%  description: Training vector map (attribut table required)
+#%  description: Training vector map (attribute table required)
 #%  required: yes
 #%  multiple: no
 #%end
@@ -60,7 +60,7 @@
 # TODO: improve doc
 # TODO: input/training could be multiple
 # TODO: handle layers
-# TODO: ouput to new map (all classes/one class), depens what is faster
+# TODO: output to new map (all classes/one class), depens what is faster
 
 
 import grass.script as grass
@@ -78,7 +78,7 @@ def addColumn(mapName, columnName, columnType):
 def hasColumn(tableDescription, column):
     """Checks if the column is in the table description
 
-    @todo This should be part of some object in the lib.
+    \todo This should be part of some object in the lib.
     """
     for col in tableDescription['cols']:
         if col[0] == column:
@@ -244,8 +244,8 @@ def main():
     # TODO: allow same input and output map only if --overwrite was specified
     # TODO: is adding column overwriting or overwriting is only updating of existing?
 
-    # variable names conected to training dataset have training prefix
-    # variable names conected to classified dataset have no prefix
+    # variable names connected to training dataset have training prefix
+    # variable names connected to classified dataset have no prefix
 
     # checking database connection (if map has a table)
     # TODO: layer

@@ -38,17 +38,16 @@ class QgsOwsProvider : public QgsDataProvider
     Q_OBJECT
 
   public:
+
     /**
      * Constructor for the provider.
      *
      * \param   uri   HTTP URL of the Web Server.  If needed a proxy will be used
      *                otherwise we contact the host directly.
+     * \param options generic data provider options
      *
      */
-    explicit QgsOwsProvider( const QString & uri = QString() );
-
-    //! Destructor
-    ~QgsOwsProvider();
+    explicit QgsOwsProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options );
 
     /* Pure virtuals */
 

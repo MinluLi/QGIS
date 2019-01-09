@@ -14,14 +14,15 @@
  ***************************************************************************/
 
 #include <QDir>
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 #include "qgshistogram.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for QgsHistogram
  */
 class TestQgsHistogram : public QObject
@@ -46,10 +47,7 @@ class TestQgsHistogram : public QObject
 
 };
 
-TestQgsHistogram::TestQgsHistogram()
-{
-
-}
+TestQgsHistogram::TestQgsHistogram() = default;
 
 void TestQgsHistogram::initTestCase()
 {
@@ -70,7 +68,7 @@ void TestQgsHistogram::optimalBinWidth()
 
   QgsHistogram h;
   h.setValues( vals );
-  QVERIFY( qgsDoubleNear( h.optimalBinWidth(), 4.641, 0.001 ) );
+  QGSCOMPARENEAR( h.optimalBinWidth(), 4.641, 0.001 );
 }
 
 void TestQgsHistogram::optimalBinCount()
@@ -130,9 +128,9 @@ void TestQgsHistogram::fromLayer()
 {
   QgsHistogram h;
 
-  QVERIFY( !h.setValues( 0, QString() ) );
+  QVERIFY( !h.setValues( nullptr, QString() ) );
 
-  QgsVectorLayer* layer = new QgsVectorLayer( QStringLiteral( "Point?field=col1:real" ), QStringLiteral( "layer" ), QStringLiteral( "memory" ) );
+  QgsVectorLayer *layer = new QgsVectorLayer( QStringLiteral( "Point?field=col1:real" ), QStringLiteral( "layer" ), QStringLiteral( "memory" ) );
   QVERIFY( layer->isValid() );
   QgsFeatureList features;
   for ( int i = 1; i <= 10; ++i )
@@ -153,5 +151,5 @@ void TestQgsHistogram::fromLayer()
   delete layer;
 }
 
-QTEST_MAIN( TestQgsHistogram )
+QGSTEST_MAIN( TestQgsHistogram )
 #include "testqgshistogram.moc"

@@ -24,26 +24,26 @@
 
 
 
-QgsAggregateCalculator::QgsAggregateCalculator( const QgsVectorLayer* layer )
-    : mLayer( layer )
+QgsAggregateCalculator::QgsAggregateCalculator( const QgsVectorLayer *layer )
+  : mLayer( layer )
 {
 
 }
 
-const QgsVectorLayer* QgsAggregateCalculator::layer() const
+const QgsVectorLayer *QgsAggregateCalculator::layer() const
 {
   return mLayer;
 }
 
-void QgsAggregateCalculator::setParameters( const AggregateParameters& parameters )
+void QgsAggregateCalculator::setParameters( const AggregateParameters &parameters )
 {
   mFilterExpression = parameters.filter;
   mDelimiter = parameters.delimiter;
 }
 
 QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate aggregate,
-    const QString& fieldOrExpression,
-    QgsExpressionContext* context, bool* ok ) const
+    const QString &fieldOrExpression,
+    QgsExpressionContext *context, bool *ok ) const
 {
   if ( ok )
     *ok = false;
@@ -54,7 +54,7 @@ QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate ag
   QgsExpressionContext defaultContext = mLayer->createExpressionContext();
   context = context ? context : &defaultContext;
 
-  QScopedPointer<QgsExpression> expression;
+  std::unique_ptr<QgsExpression> expression;
 
   int attrNum = mLayer->fields().lookupField( fieldOrExpression );
 
@@ -72,15 +72,15 @@ QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate ag
   }
 
   QSet<QString> lst;
-  if ( expression.isNull() )
+  if ( !expression )
     lst.insert( fieldOrExpression );
   else
     lst = expression->referencedColumns();
 
   QgsFeatureRequest request = QgsFeatureRequest()
-                              .setFlags(( expression.data() && expression->needsGeometry() ) ?
-                                        QgsFeatureRequest::NoFlags :
-                                        QgsFeatureRequest::NoGeometry )
+                              .setFlags( ( expression && expression->needsGeometry() ) ?
+                                         QgsFeatureRequest::NoFlags :
+                                         QgsFeatureRequest::NoGeometry )
                               .setSubsetOfAttributes( lst, mLayer->fields() );
   if ( !mFilterExpression.isEmpty() )
     request.setFilterExpression( mFilterExpression );
@@ -115,10 +115,10 @@ QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate ag
   }
 
   QgsFeatureIterator fit = mLayer->getFeatures( request );
-  return calculate( aggregate, fit, resultType, attrNum, expression.data(), mDelimiter, context, ok );
+  return calculate( aggregate, fit, resultType, attrNum, expression.get(), mDelimiter, context, ok );
 }
 
-QgsAggregateCalculator::Aggregate QgsAggregateCalculator::stringToAggregate( const QString& string, bool* ok )
+QgsAggregateCalculator::Aggregate QgsAggregateCalculator::stringToAggregate( const QString &string, bool *ok )
 {
   QString normalized = string.trimmed().toLower();
 
@@ -165,6 +165,8 @@ QgsAggregateCalculator::Aggregate QgsAggregateCalculator::stringToAggregate( con
     return StringConcatenate;
   else if ( normalized == QLatin1String( "collect" ) )
     return GeometryCollect;
+  else if ( normalized == QLatin1String( "array_agg" ) )
+    return ArrayAggregate;
 
   if ( ok )
     *ok = false;
@@ -172,11 +174,246 @@ QgsAggregateCalculator::Aggregate QgsAggregateCalculator::stringToAggregate( con
   return Count;
 }
 
-QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate aggregate, QgsFeatureIterator& fit, QVariant::Type resultType,
-    int attr, QgsExpression* expression, const QString& delimiter, QgsExpressionContext* context, bool* ok )
+QList<QgsAggregateCalculator::AggregateInfo> QgsAggregateCalculator::aggregates()
+{
+  QList< AggregateInfo > aggregates;
+  aggregates
+      << AggregateInfo
+  {
+    QStringLiteral( "count" ),
+    QCoreApplication::tr( "Count" ),
+    QSet<QVariant::Type>()
+        << QVariant::DateTime
+        << QVariant::Date
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "count_distinct" ),
+    QCoreApplication::tr( "Count Distinct" ),
+    QSet<QVariant::Type>()
+        << QVariant::DateTime
+        << QVariant::Date
+        << QVariant::UInt
+        << QVariant::Int
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "count_missing" ),
+    QCoreApplication::tr( "Count Missing" ),
+    QSet<QVariant::Type>()
+        << QVariant::DateTime
+        << QVariant::Date
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "min" ),
+    QCoreApplication::tr( "Min" ),
+    QSet<QVariant::Type>()
+        << QVariant::DateTime
+        << QVariant::Date
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "max" ),
+    QCoreApplication::tr( "Max" ),
+    QSet<QVariant::Type>()
+        << QVariant::DateTime
+        << QVariant::Date
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "sum" ),
+    QCoreApplication::tr( "Sum" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "mean" ),
+    QCoreApplication::tr( "Mean" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "median" ),
+    QCoreApplication::tr( "Median" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "stdev" ),
+    QCoreApplication::tr( "Stdev" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "stdevsample" ),
+    QCoreApplication::tr( "Stdev Sample" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "range" ),
+    QCoreApplication::tr( "Range" ),
+    QSet<QVariant::Type>()
+        << QVariant::Date
+        << QVariant::DateTime
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "minority" ),
+    QCoreApplication::tr( "Minority" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "majority" ),
+    QCoreApplication::tr( "Majority" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "q1" ),
+    QCoreApplication::tr( "Q1" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "q3" ),
+    QCoreApplication::tr( "Q3" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "iqr" ),
+    QCoreApplication::tr( "InterQuartileRange" ),
+    QSet<QVariant::Type>()
+        << QVariant::Int
+        << QVariant::UInt
+        << QVariant::LongLong
+        << QVariant::ULongLong
+        << QVariant::Double
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "min_length" ),
+    QCoreApplication::tr( "Min Length" ),
+    QSet<QVariant::Type>()
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "max_length" ),
+    QCoreApplication::tr( "Max Length" ),
+    QSet<QVariant::Type>()
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "concatenate" ),
+    QCoreApplication::tr( "Concatenate" ),
+    QSet<QVariant::Type>()
+        << QVariant::String
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "collect" ),
+    QCoreApplication::tr( "Collect" ),
+    QSet<QVariant::Type>()
+  }
+      << AggregateInfo
+  {
+    QStringLiteral( "array_agg" ),
+    QCoreApplication::tr( "Array Aggregate" ),
+    QSet<QVariant::Type>()
+  };
+
+  return aggregates;
+}
+
+QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate aggregate, QgsFeatureIterator &fit, QVariant::Type resultType,
+    int attr, QgsExpression *expression, const QString &delimiter, QgsExpressionContext *context, bool *ok )
 {
   if ( ok )
     *ok = false;
+
+  if ( aggregate == QgsAggregateCalculator::ArrayAggregate )
+  {
+    if ( ok )
+      *ok = true;
+    return calculateArrayAggregate( fit, attr, expression, context );
+  }
 
   switch ( resultType )
   {
@@ -250,7 +487,7 @@ QVariant QgsAggregateCalculator::calculate( QgsAggregateCalculator::Aggregate ag
 #endif
 }
 
-QgsStatisticalSummary::Statistic QgsAggregateCalculator::numericStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool* ok )
+QgsStatisticalSummary::Statistic QgsAggregateCalculator::numericStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool *ok )
 {
   if ( ok )
     *ok = true;
@@ -293,6 +530,7 @@ QgsStatisticalSummary::Statistic QgsAggregateCalculator::numericStatFromAggregat
     case StringMaximumLength:
     case StringConcatenate:
     case GeometryCollect:
+    case ArrayAggregate:
     {
       if ( ok )
         *ok = false;
@@ -305,7 +543,7 @@ QgsStatisticalSummary::Statistic QgsAggregateCalculator::numericStatFromAggregat
   return QgsStatisticalSummary::Count;
 }
 
-QgsStringStatisticalSummary::Statistic QgsAggregateCalculator::stringStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool* ok )
+QgsStringStatisticalSummary::Statistic QgsAggregateCalculator::stringStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool *ok )
 {
   if ( ok )
     *ok = true;
@@ -340,6 +578,7 @@ QgsStringStatisticalSummary::Statistic QgsAggregateCalculator::stringStatFromAgg
     case InterQuartileRange:
     case StringConcatenate:
     case GeometryCollect:
+    case ArrayAggregate:
     {
       if ( ok )
         *ok = false;
@@ -352,7 +591,7 @@ QgsStringStatisticalSummary::Statistic QgsAggregateCalculator::stringStatFromAgg
   return QgsStringStatisticalSummary::Count;
 }
 
-QgsDateTimeStatisticalSummary::Statistic QgsAggregateCalculator::dateTimeStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool* ok )
+QgsDateTimeStatisticalSummary::Statistic QgsAggregateCalculator::dateTimeStatFromAggregate( QgsAggregateCalculator::Aggregate aggregate, bool *ok )
 {
   if ( ok )
     *ok = true;
@@ -386,6 +625,7 @@ QgsDateTimeStatisticalSummary::Statistic QgsAggregateCalculator::dateTimeStatFro
     case StringMaximumLength:
     case StringConcatenate:
     case GeometryCollect:
+    case ArrayAggregate:
     {
       if ( ok )
         *ok = false;
@@ -398,8 +638,8 @@ QgsDateTimeStatisticalSummary::Statistic QgsAggregateCalculator::dateTimeStatFro
   return QgsDateTimeStatisticalSummary::Count;
 }
 
-QVariant QgsAggregateCalculator::calculateNumericAggregate( QgsFeatureIterator& fit, int attr, QgsExpression* expression,
-    QgsExpressionContext* context, QgsStatisticalSummary::Statistic stat )
+QVariant QgsAggregateCalculator::calculateNumericAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
+    QgsExpressionContext *context, QgsStatisticalSummary::Statistic stat )
 {
   Q_ASSERT( expression || attr >= 0 );
 
@@ -421,11 +661,12 @@ QVariant QgsAggregateCalculator::calculateNumericAggregate( QgsFeatureIterator& 
     }
   }
   s.finalize();
-  return s.statistic( stat );
+  double val = s.statistic( stat );
+  return std::isnan( val ) ? QVariant() : val;
 }
 
-QVariant QgsAggregateCalculator::calculateStringAggregate( QgsFeatureIterator& fit, int attr, QgsExpression* expression,
-    QgsExpressionContext* context, QgsStringStatisticalSummary::Statistic stat )
+QVariant QgsAggregateCalculator::calculateStringAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
+    QgsExpressionContext *context, QgsStringStatisticalSummary::Statistic stat )
 {
   Q_ASSERT( expression || attr >= 0 );
 
@@ -450,12 +691,12 @@ QVariant QgsAggregateCalculator::calculateStringAggregate( QgsFeatureIterator& f
   return s.statistic( stat );
 }
 
-QVariant QgsAggregateCalculator::calculateGeometryAggregate( QgsFeatureIterator& fit, QgsExpression* expression, QgsExpressionContext* context )
+QVariant QgsAggregateCalculator::calculateGeometryAggregate( QgsFeatureIterator &fit, QgsExpression *expression, QgsExpressionContext *context )
 {
   Q_ASSERT( expression );
 
   QgsFeature f;
-  QList< QgsGeometry > geometries;
+  QVector< QgsGeometry > geometries;
   while ( fit.nextFeature( f ) )
   {
     Q_ASSERT( context );
@@ -470,8 +711,8 @@ QVariant QgsAggregateCalculator::calculateGeometryAggregate( QgsFeatureIterator&
   return QVariant::fromValue( QgsGeometry::collectGeometry( geometries ) );
 }
 
-QVariant QgsAggregateCalculator::concatenateStrings( QgsFeatureIterator& fit, int attr, QgsExpression* expression,
-    QgsExpressionContext* context, const QString& delimiter )
+QVariant QgsAggregateCalculator::concatenateStrings( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
+    QgsExpressionContext *context, const QString &delimiter )
 {
   Q_ASSERT( expression || attr >= 0 );
 
@@ -502,7 +743,7 @@ QVariant QgsAggregateCalculator::defaultValue( QgsAggregateCalculator::Aggregate
   // value to return when NO features are aggregated:
   switch ( aggregate )
   {
-      // sensible values:
+    // sensible values:
     case Count:
     case CountDistinct:
     case CountMissing:
@@ -511,7 +752,10 @@ QVariant QgsAggregateCalculator::defaultValue( QgsAggregateCalculator::Aggregate
     case StringConcatenate:
       return ""; // zero length string - not null!
 
-      // undefined - nothing makes sense here
+    case ArrayAggregate:
+      return QVariantList(); // empty list
+
+    // undefined - nothing makes sense here
     case Sum:
     case Min:
     case Max:
@@ -533,8 +777,8 @@ QVariant QgsAggregateCalculator::defaultValue( QgsAggregateCalculator::Aggregate
   return QVariant();
 }
 
-QVariant QgsAggregateCalculator::calculateDateTimeAggregate( QgsFeatureIterator& fit, int attr, QgsExpression* expression,
-    QgsExpressionContext* context, QgsDateTimeStatisticalSummary::Statistic stat )
+QVariant QgsAggregateCalculator::calculateDateTimeAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
+    QgsExpressionContext *context, QgsDateTimeStatisticalSummary::Statistic stat )
 {
   Q_ASSERT( expression || attr >= 0 );
 
@@ -557,4 +801,30 @@ QVariant QgsAggregateCalculator::calculateDateTimeAggregate( QgsFeatureIterator&
   }
   s.finalize();
   return s.statistic( stat );
+}
+
+QVariant QgsAggregateCalculator::calculateArrayAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
+    QgsExpressionContext *context )
+{
+  Q_ASSERT( expression || attr >= 0 );
+
+  QgsFeature f;
+
+  QVariantList array;
+
+  while ( fit.nextFeature( f ) )
+  {
+    if ( expression )
+    {
+      Q_ASSERT( context );
+      context->setFeature( f );
+      QVariant v = expression->evaluate( context );
+      array.append( v );
+    }
+    else
+    {
+      array.append( f.attribute( attr ) );
+    }
+  }
+  return array;
 }

@@ -16,40 +16,71 @@ email                : marco.hugentobler at sourcepole dot com
 #ifndef QGSMULTILINESTRINGV2_H
 #define QGSMULTILINESTRINGV2_H
 
+#include "qgis_core.h"
+#include "qgis.h"
 #include "qgsmulticurve.h"
 
-/** \ingroup core
+/**
+ * \ingroup core
  * \class QgsMultiLineString
  * \brief Multi line string geometry collection.
- * \note added in QGIS 2.10
- * \note this API is not considered stable and may change for 2.12
+ * \since QGIS 2.10
  */
 class CORE_EXPORT QgsMultiLineString: public QgsMultiCurve
 {
   public:
     QgsMultiLineString();
-    virtual QString geometryType() const override { return QStringLiteral( "MultiLineString" ); }
-    QgsMultiLineString* clone() const override;
 
-    bool fromWkt( const QString& wkt ) override;
+    QString geometryType() const override;
+    QgsMultiLineString *clone() const override SIP_FACTORY;
+    void clear() override;
+    bool fromWkt( const QString &wkt ) override;
+    QDomElement asGml2( QDomDocument &doc, int precision = 17, const QString &ns = "gml", QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) const override;
+    QDomElement asGml3( QDomDocument &doc, int precision = 17, const QString &ns = "gml", QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) const override;
+    QString asJson( int precision = 17 ) const override;
+    bool addGeometry( QgsAbstractGeometry *g SIP_TRANSFER ) override;
+    bool insertGeometry( QgsAbstractGeometry *g SIP_TRANSFER, int index ) override;
 
-    // inherited: int wkbSize() const;
-    // inherited: unsigned char* asWkb( int& binarySize ) const;
-    // inherited: QString asWkt( int precision = 17 ) const;
-    QDomElement asGML2( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
-    QDomElement asGML3( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
-    QString asJSON( int precision = 17 ) const override;
+    /**
+     * Returns the geometry converted to the more generic curve type QgsMultiCurve
+    \returns the converted geometry. Caller takes ownership*/
+    QgsMultiCurve *toCurveType() const override SIP_FACTORY;
 
-    //! Adds a geometry and takes ownership. Returns true in case of success
-    virtual bool addGeometry( QgsAbstractGeometry* g ) override;
+#ifndef SIP_RUN
 
-    /** Returns the geometry converted to the more generic curve type QgsMultiCurve
-    @return the converted geometry. Caller takes ownership*/
-    QgsAbstractGeometry* toCurveType() const override;
+    /**
+     * Cast the \a geom to a QgsMultiLineString.
+     * Should be used by qgsgeometry_cast<QgsMultiLineString *>( geometry ).
+     *
+     * \note Not available in Python. Objects will be automatically be converted to the appropriate target type.
+     * \since QGIS 3.0
+     */
+    inline const QgsMultiLineString *cast( const QgsAbstractGeometry *geom ) const
+    {
+      if ( geom && QgsWkbTypes::flatType( geom->wkbType() ) == QgsWkbTypes::MultiLineString )
+        return static_cast<const QgsMultiLineString *>( geom );
+      return nullptr;
+    }
+#endif
+
+    QgsMultiLineString *createEmptyWithSameType() const override SIP_FACTORY;
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString wkt = sipCpp->asWkt();
+    if ( wkt.length() > 1000 )
+      wkt = wkt.left( 1000 ) + QStringLiteral( "..." );
+    QString str = QStringLiteral( "<QgsMultiLineString: %1>" ).arg( wkt );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
   protected:
 
-    virtual bool wktOmitChildType() const override { return true; }
+    bool wktOmitChildType() const override;
 };
+
+// clazy:excludeall=qstring-allocations
 
 #endif // QGSMULTILINESTRINGV2_H

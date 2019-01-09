@@ -16,56 +16,31 @@
 #include "qgsrasterblock.h"
 #include "qgsrastermatrix.h"
 #include <cfloat>
-
-QgsRasterCalcNode::QgsRasterCalcNode()
-    : mType( tNumber )
-    , mLeft( nullptr )
-    , mRight( nullptr )
-    , mNumber( 0 )
-    , mMatrix( nullptr )
-    , mOperator( opNONE )
-{
-}
+#include <QtDebug>
 
 QgsRasterCalcNode::QgsRasterCalcNode( double number )
-    : mType( tNumber )
-    , mLeft( nullptr )
-    , mRight( nullptr )
-    , mNumber( number )
-    , mMatrix( nullptr )
-    , mOperator( opNONE )
+  : mNumber( number )
 {
 }
 
-QgsRasterCalcNode::QgsRasterCalcNode( QgsRasterMatrix* matrix )
-    : mType( tMatrix )
-    , mLeft( nullptr )
-    , mRight( nullptr )
-    , mNumber( 0 )
-    , mMatrix( matrix )
-    , mOperator( opNONE )
+QgsRasterCalcNode::QgsRasterCalcNode( QgsRasterMatrix *matrix )
+  : mType( tMatrix )
+  , mMatrix( matrix )
 {
 
 }
 
-QgsRasterCalcNode::QgsRasterCalcNode( Operator op, QgsRasterCalcNode* left, QgsRasterCalcNode* right )
-    : mType( tOperator )
-    , mLeft( left )
-    , mRight( right )
-    , mNumber( 0 )
-    , mMatrix( nullptr )
-    , mOperator( op )
+QgsRasterCalcNode::QgsRasterCalcNode( Operator op, QgsRasterCalcNode *left, QgsRasterCalcNode *right )
+  : mType( tOperator )
+  , mLeft( left )
+  , mRight( right )
+  , mOperator( op )
 {
 }
 
-QgsRasterCalcNode::QgsRasterCalcNode( const QString& rasterName )
-    : mType( tRasterRef )
-    , mLeft( nullptr )
-    , mRight( nullptr )
-    , mNumber( 0 )
-    , mRasterName( rasterName )
-    , mMatrix( nullptr )
-    , mOperator( opNONE )
+QgsRasterCalcNode::QgsRasterCalcNode( const QString &rasterName )
+  : mType( tRasterRef )
+  , mRasterName( rasterName )
 {
   if ( mRasterName.startsWith( '"' ) && mRasterName.endsWith( '"' ) )
     mRasterName = mRasterName.mid( 1, mRasterName.size() - 2 );
@@ -73,24 +48,18 @@ QgsRasterCalcNode::QgsRasterCalcNode( const QString& rasterName )
 
 QgsRasterCalcNode::~QgsRasterCalcNode()
 {
-  if ( mLeft )
-  {
-    delete mLeft;
-  }
-  if ( mRight )
-  {
-    delete mRight;
-  }
+  delete mLeft;
+  delete mRight;
 }
 
-bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, QgsRasterMatrix& result, int row ) const
+bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock * > &rasterData, QgsRasterMatrix &result, int row ) const
 {
   //if type is raster ref: return a copy of the corresponding matrix
 
   //if type is operator, call the proper matrix operations
   if ( mType == tRasterRef )
   {
-    QMap<QString, QgsRasterBlock*>::iterator it = rasterData.find( mRasterName );
+    QMap<QString, QgsRasterBlock *>::iterator it = rasterData.find( mRasterName );
     if ( it == rasterData.end() )
     {
       return false;
@@ -101,7 +70,7 @@ bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, 
     int endRow = startRow + nRows;
     int nCols = ( *it )->width();
     int nEntries = nCols * nRows;
-    double* data = new double[nEntries];
+    double *data = new double[nEntries];
 
     //convert input raster values to double, also convert input no data to result no data
 
@@ -110,7 +79,7 @@ bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, 
     {
       for ( int dataCol = 0; dataCol < nCols; ++dataCol )
       {
-        data[ dataCol + nCols * outRow] = ( *it )->isNoData( dataRow , dataCol ) ? result.nodataValue() : ( *it )->value( dataRow, dataCol );
+        data[ dataCol + nCols * outRow] = ( *it )->isNoData( dataRow, dataCol ) ? result.nodataValue() : ( *it )->value( dataRow, dataCol );
       }
     }
     result.setData( nCols, nRows, data, result.nodataValue() );
@@ -212,7 +181,7 @@ bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, 
   }
   else if ( mType == tNumber )
   {
-    double* data = new double[1];
+    double *data = new double[1];
     data[0] = mNumber;
     result.setData( 1, 1, data, result.nodataValue() );
     return true;
@@ -220,7 +189,7 @@ bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, 
   else if ( mType == tMatrix )
   {
     int nEntries = mMatrix->nColumns() * mMatrix->nRows();
-    double* data = new double[nEntries];
+    double *data = new double[nEntries];
     for ( int i = 0; i < nEntries; ++i )
     {
       data[i] = mMatrix->data()[i] == mMatrix->nodataValue() ? result.nodataValue() : mMatrix->data()[i];
@@ -231,9 +200,130 @@ bool QgsRasterCalcNode::calculate( QMap<QString, QgsRasterBlock* >& rasterData, 
   return false;
 }
 
-QgsRasterCalcNode* QgsRasterCalcNode::parseRasterCalcString( const QString& str, QString& parserErrorMsg )
+QString QgsRasterCalcNode::toString( bool cStyle ) const
 {
-  extern QgsRasterCalcNode* localParseRasterCalcString( const QString & str, QString & parserErrorMsg );
+  QString result;
+  QString left;
+  QString right;
+  if ( mLeft )
+    left = mLeft->toString( cStyle );
+  if ( mRight )
+    right = mRight->toString( cStyle );
+  switch ( mType )
+  {
+    case tOperator:
+      switch ( mOperator )
+      {
+        case opPLUS:
+          result = QStringLiteral( "%1 + %2" ).arg( left ).arg( right );
+          break;
+        case opMINUS:
+        case opSIGN:
+          result = QStringLiteral( "%1 - %2" ).arg( left ).arg( right );
+          break;
+        case opMUL:
+          result = QStringLiteral( "%1 * %2" ).arg( left ).arg( right );
+          break;
+        case opDIV:
+          result = QStringLiteral( "%1 / %2" ).arg( left ).arg( right );
+          break;
+        case opPOW:
+          if ( cStyle )
+            result = QStringLiteral( "pow( %1, %2 )" ).arg( left ).arg( right );
+          else
+            result = QStringLiteral( "%1^%2" ).arg( left ).arg( right );
+          break;
+        case opEQ:
+          if ( cStyle )
+            result = QStringLiteral( "%1 == %2" ).arg( left ).arg( right );
+          else
+            result = QStringLiteral( "%1 = %2" ).arg( left ).arg( right );
+          break;
+        case opNE:
+          result = QStringLiteral( "%1 != %2" ).arg( left ).arg( right );
+          break;
+        case opGT:
+          result = QStringLiteral( "%1 > %2" ).arg( left ).arg( right );
+          break;
+        case opLT:
+          result = QStringLiteral( "%1 < %2" ).arg( left ).arg( right );
+          break;
+        case opGE:
+          result = QStringLiteral( "%1 >= %2" ).arg( left ).arg( right );
+          break;
+        case opLE:
+          result = QStringLiteral( "%1 <= %2" ).arg( left ).arg( right );
+          break;
+        case opAND:
+          if ( cStyle )
+            result = QStringLiteral( "%1 && %2" ).arg( left ).arg( right );
+          else
+            result = QStringLiteral( "%1 AND %2" ).arg( left ).arg( right );
+          break;
+        case opOR:
+          if ( cStyle )
+            result = QStringLiteral( "%1 || %2" ).arg( left ).arg( right );
+          else
+            result = QStringLiteral( "%1 OR %2" ).arg( left ).arg( right );
+          break;
+        case opSQRT:
+          result = QStringLiteral( "sqrt( %1 )" ).arg( left );
+          break;
+        case opSIN:
+          result = QStringLiteral( "sin( %1 )" ).arg( left );
+          break;
+        case opCOS:
+          result = QStringLiteral( "cos( %1 )" ).arg( left );
+          break;
+        case opTAN:
+          result = QStringLiteral( "tan( %1 )" ).arg( left );
+          break;
+        case opASIN:
+          result = QStringLiteral( "asin( %1 )" ).arg( left );
+          break;
+        case opACOS:
+          result = QStringLiteral( "acos( %1 )" ).arg( left );
+          break;
+        case opATAN:
+          result = QStringLiteral( "atan( %1 )" ).arg( left );
+          break;
+        case opLOG:
+          result = QStringLiteral( "log( %1 )" ).arg( left );
+          break;
+        case opLOG10:
+          result = QStringLiteral( "log10( %1 )" ).arg( left );
+          break;
+        case opNONE:
+          break;
+      }
+      break;
+    case tRasterRef:
+      result = QStringLiteral( "\"%1\"" ).arg( mRasterName );
+      break;
+    case tNumber:
+      result = QString::number( mNumber );
+      break;
+    case tMatrix:
+      break;
+  }
+  return result;
+}
+
+QList<const QgsRasterCalcNode *> QgsRasterCalcNode::findNodes( const QgsRasterCalcNode::Type type ) const
+{
+  QList<const QgsRasterCalcNode *> nodeList;
+  if ( mType == type )
+    nodeList.push_back( this );
+  if ( mLeft )
+    nodeList.append( mLeft->findNodes( type ) );
+  if ( mRight )
+    nodeList.append( mRight->findNodes( type ) );
+  return nodeList;
+}
+
+QgsRasterCalcNode *QgsRasterCalcNode::parseRasterCalcString( const QString &str, QString &parserErrorMsg )
+{
+  extern QgsRasterCalcNode *localParseRasterCalcString( const QString & str, QString & parserErrorMsg );
   return localParseRasterCalcString( str, parserErrorMsg );
 }
 

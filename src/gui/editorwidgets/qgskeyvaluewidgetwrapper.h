@@ -17,22 +17,27 @@
 #define QGSKEYVALUEWIDGETWRAPPER_H
 
 #include "qgseditorwidgetwrapper.h"
+#include "qgis_gui.h"
+
+SIP_NO_FILE
 
 class QgsKeyValueWidget;
 
-/** @ingroup gui
+/**
+ * \ingroup gui
  * Wraps a key/value widget.
- * @note added in QGIS 3.0
- * @note not available in Python bindings
+ * \note not available in Python bindings
+ * \since QGIS 3.0
  */
 class GUI_EXPORT QgsKeyValueWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
+
     /**
      * Constructor.
      */
-    explicit QgsKeyValueWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = nullptr, QWidget* parent = nullptr );
+    explicit QgsKeyValueWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor = nullptr, QWidget *parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
@@ -40,20 +45,20 @@ class GUI_EXPORT QgsKeyValueWidgetWrapper : public QgsEditorWidgetWrapper
     void showIndeterminateState() override;
 
   protected:
-    QWidget* createWidget( QWidget* parent ) override;
-    void initWidget( QWidget* editor ) override;
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
     bool valid() const override;
 
   public slots:
-    void setValue( const QVariant& value ) override;
+    void setValue( const QVariant &value ) override;
 
   private slots:
     void onValueChanged();
 
   private:
-    void updateConstraintWidgetStatus( bool constraintValid ) override;
+    void updateConstraintWidgetStatus() override;
 
-    QgsKeyValueWidget* mWidget;
+    QgsKeyValueWidget *mWidget = nullptr;
 };
 
 #endif // QGSKEYVALUEWIDGETWRAPPER_H

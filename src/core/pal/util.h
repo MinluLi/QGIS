@@ -30,6 +30,9 @@
 #ifndef PAL_UTIL_H
 #define PAL_UTIL_H
 
+#define SIP_NO_FILE
+
+
 #include <QList>
 
 namespace pal
@@ -47,16 +50,13 @@ namespace pal
   class Feats
   {
     public:
-      Feats()
-          : feature( nullptr )
-          , shape( nullptr )
-          , priority( 0 )
-      {}
+      //! Constructor for Feats
+      Feats() = default;
 
-      FeaturePart *feature;
-      PointSet *shape;
-      double priority;
-      QList< LabelPosition*> lPos;
+      FeaturePart *feature = nullptr;
+      PointSet *shape = nullptr;
+      double priority = 0;
+      QList< LabelPosition *> lPos;
   };
 
 
@@ -82,15 +82,16 @@ namespace pal
   class Util
   {
     public:
+
       /**
        * \brief Sort an array of pointers
        * \param items arays of pointers to sort
        * \param N number of items
        * \param greater function to compare two items
        **/
-      static void sort( void** items, int N, bool ( *greater )( void *l, void *r ) );
+      static void sort( void **items, int N, bool ( *greater )( void *l, void *r ) );
 
-      static QLinkedList<const GEOSGeometry*>* unmulti( const GEOSGeometry* the_geom );
+      static QLinkedList<const GEOSGeometry *> *unmulti( const GEOSGeometry *the_geom );
   };
 
 

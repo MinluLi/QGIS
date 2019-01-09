@@ -42,6 +42,9 @@ class DBConnector(object):
     def uri(self):
         return QgsDataSourceUri(self._uri.uri(False))
 
+    def cancel(self):
+        pass
+
     def publicUri(self):
         publicUri = QgsDataSourceUri.removePassword(self._uri.uri(False))
         return QgsDataSourceUri(publicUri)
@@ -80,7 +83,7 @@ class DBConnector(object):
         if cursor is None:
             cursor = self._get_cursor()
         try:
-            cursor.execute(str(sql))
+            cursor.execute(sql)
 
         except self.connection_error_types() as e:
             raise ConnectionError(e)
@@ -169,8 +172,6 @@ class DBConnector(object):
             raise ConnectionError(e)
 
         except self.execution_error_types() as e:
-            # do the rollback to avoid a "current transaction aborted, commands ignored" errors
-            self._rollback()
             raise DbError(e)
 
     def _get_cursor_columns(self, c):
@@ -213,7 +214,9 @@ class DBConnector(object):
     def getSchemaTableName(self, table):
         if not hasattr(table, '__iter__') and not isinstance(table, str):
             return (None, table)
-        elif len(table) < 2:
+        if isinstance(table, str):
+            table = table.split('.')
+        if len(table) < 2:
             return (None, table[0])
         else:
             return (table[0], table[1])

@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import absolute_import
 
 __author__ = 'Médéric Ribreux'
 __date__ = 'March 2016'
@@ -29,6 +28,7 @@ __revision__ = '$Format:%H$'
 from .i import regroupRasters
 
 
-def processCommand(alg):
+def processCommand(alg, parameters, context, feedback):
     # Regroup rasters
-    regroupRasters(alg, 'input', 'group')
+    regroupRasters(alg, parameters, context, 'input', 'group')
+    alg.processCommand(parameters, context, feedback)

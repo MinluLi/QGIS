@@ -19,39 +19,6 @@
 
 #include "qgsraster.h"
 
-QString QgsRaster::contrastEnhancementLimitsAsString( ContrastEnhancementLimits theLimits )
-{
-  switch ( theLimits )
-  {
-    case QgsRaster::ContrastEnhancementMinMax:
-      return QStringLiteral( "MinMax" );
-    case QgsRaster::ContrastEnhancementStdDev:
-      return QStringLiteral( "StdDev" );
-    case QgsRaster::ContrastEnhancementCumulativeCut:
-      return QStringLiteral( "CumulativeCut" );
-    default:
-      break;
-  }
-  return QStringLiteral( "None" );
-}
-
-QgsRaster::ContrastEnhancementLimits QgsRaster::contrastEnhancementLimitsFromString( const QString& theLimits )
-{
-  if ( theLimits == QLatin1String( "MinMax" ) )
-  {
-    return ContrastEnhancementMinMax;
-  }
-  else if ( theLimits == QLatin1String( "StdDev" ) )
-  {
-    return ContrastEnhancementStdDev;
-  }
-  else if ( theLimits == QLatin1String( "CumulativeCut" ) )
-  {
-    return ContrastEnhancementCumulativeCut;
-  }
-  return ContrastEnhancementNone;
-}
-
 bool QgsRaster::isRepresentableValue( double value, Qgis::DataType dataType )
 {
   switch ( dataType )
@@ -67,7 +34,7 @@ bool QgsRaster::isRepresentableValue( double value, Qgis::DataType dataType )
     case Qgis::Int32:
       return value >= std::numeric_limits<qint32>::min() && value <= std::numeric_limits<qint32>::max();
     case Qgis::Float32:
-      return qIsNaN( value ) || qIsInf( value ) ||
+      return std::isnan( value ) || std::isinf( value ) ||
              ( value >= -std::numeric_limits<float>::max() && value <= std::numeric_limits<float>::max() );
     default:
       return true;

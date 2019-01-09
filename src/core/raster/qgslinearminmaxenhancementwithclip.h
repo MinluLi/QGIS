@@ -19,9 +19,11 @@ email                : ersts@amnh.org
 #ifndef QGSLINEARMINMAXENHANCEMENTWITHCLIP_H
 #define QGSLINEARMINMAXENHANCEMENTWITHCLIP_H
 
+#include "qgis_core.h"
 #include "qgscontrastenhancementfunction.h"
 
-/** \ingroup core
+/**
+ * \ingroup core
  * A linear enhanceContrast enhancement that first clips to min max and then enhanceContrastes
  * linearly between min and max.
  */

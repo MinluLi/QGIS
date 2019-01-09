@@ -20,10 +20,10 @@ email                : brush.tyler@gmail.com
  ***************************************************************************/
 """
 from builtins import str
-from builtins import map
 
 from functools import cmp_to_key
 
+from qgis.core import Qgis
 from qgis.PyQt.QtCore import QFile
 from qgis.PyQt.QtWidgets import QApplication
 
@@ -59,6 +59,12 @@ class SpatiaLiteDBConnector(DBConnector):
     def _connectionInfo(self):
         return str(self.dbname)
 
+    def cancel(self):
+        # https://www.sqlite.org/c3ref/interrupt.html
+        # This function causes any pending database operation to abort and return at its earliest opportunity.
+        if self.connection:
+            self.connection.interrupt()
+
     @classmethod
     def isValidDatabase(self, path):
         if not QFile.exists(path):
@@ -82,7 +88,7 @@ class SpatiaLiteDBConnector(DBConnector):
         return isValid
 
     def _checkSpatial(self):
-        """ check if it's a valid spatialite db """
+        """ check if it's a valid SpatiaLite db """
         self.has_spatial = self._checkGeometryColumnsTable()
         return self.has_spatial
 
@@ -118,7 +124,7 @@ class SpatiaLiteDBConnector(DBConnector):
         return c.fetchone()
 
     def getSpatialInfo(self):
-        """ returns tuple about spatialite support:
+        """ returns tuple about SpatiaLite support:
                 - lib version
                 - geos version
                 - proj version
@@ -141,8 +147,6 @@ class SpatiaLiteDBConnector(DBConnector):
         return self.has_raster
 
     def hasCustomQuerySupport(self):
-        from qgis.core import Qgis, QgsWkbTypes
-
         return Qgis.QGIS_VERSION[0:3] >= "1.6"
 
     def hasTableColumnEditingSupport(self):
@@ -168,8 +172,8 @@ class SpatiaLiteDBConnector(DBConnector):
         items = []
 
         sys_tables = ["SpatialIndex", "geom_cols_ref_sys", "geometry_columns", "geometry_columns_auth",
-                      "views_geometry_columns", "virts_geometry_columns", "spatial_ref_sys",
-                      "sqlite_sequence",  # "tableprefix_metadata", "tableprefix_rasters",
+                      "views_geometry_columns", "virts_geometry_columns", "spatial_ref_sys", "spatial_ref_sys_all", "spatial_ref_sys_aux",
+                      "sqlite_sequence", "tableprefix_metadata", "tableprefix_rasters",
                       "layer_params", "layer_statistics", "layer_sub_classes", "layer_table_layout",
                       "pattern_bitmaps", "symbol_bitmaps", "project_defs", "raster_pyramids",
                       "sqlite_stat1", "sqlite_stat2", "spatialite_history",
@@ -177,7 +181,8 @@ class SpatiaLiteDBConnector(DBConnector):
                       "geometry_columns_statistics", "geometry_columns_time",
                       "sql_statements_log", "vector_layers", "vector_layers_auth", "vector_layers_field_infos", "vector_layers_statistics",
                       "views_geometry_columns_auth", "views_geometry_columns_field_infos", "views_geometry_columns_statistics",
-                      "virts_geometry_columns_auth", "virts_geometry_columns_field_infos", "virts_geometry_columns_statistics"
+                      "virts_geometry_columns_auth", "virts_geometry_columns_field_infos", "virts_geometry_columns_statistics",
+                      "virts_layer_statistics", "views_layer_statistics", "ElementaryGeometries"
                       ]
 
         try:
@@ -339,7 +344,7 @@ class SpatiaLiteDBConnector(DBConnector):
 
         for i, idx in enumerate(indexes):
             # sqlite has changed the number of columns returned by index_list since 3.8.9
-            # I am not using self.getInfo() here because this behaviour
+            # I am not using self.getInfo() here because this behavior
             # can be changed back without notice as done for index_info, see:
             # http://repo.or.cz/sqlite.git/commit/53555d6da78e52a430b1884b5971fef33e9ccca4
             if len(idx) == 3:
@@ -557,7 +562,11 @@ class SpatiaLiteDBConnector(DBConnector):
 
     def runVacuum(self):
         """ run vacuum on the db """
-        self._execute_and_commit("VACUUM")
+        # Workaround http://bugs.python.org/issue28518
+        self.connection.isolation_level = None
+        c = self._get_cursor()
+        c.execute('VACUUM')
+        self.connection.isolation_level = '' # reset to default isolation
 
     def addTableColumn(self, table, field_def):
         """ add a column to table """

@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QStringList>
 #include <QApplication>
@@ -26,14 +26,16 @@
 #include "qgscolorramp.h"
 #include "qgscptcityarchive.h"
 #include "qgsvectorlayer.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgslinesymbollayer.h"
 #include "qgsfillsymbollayer.h"
 #include "qgssinglesymbolrenderer.h"
+#include "qgsmarkersymbollayer.h"
 
 #include "qgsstyle.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test to verify that symbols are working correctly
  */
 class TestQgsSymbol : public QObject
@@ -49,9 +51,9 @@ class TestQgsSymbol : public QObject
     QString mReport;
     QString mTestDataDir;
 
-    QgsVectorLayer * mpPointsLayer;
-    QgsVectorLayer * mpLinesLayer;
-    QgsVectorLayer * mpPolysLayer;
+    QgsVectorLayer *mpPointsLayer = nullptr;
+    QgsVectorLayer *mpLinesLayer = nullptr;
+    QgsVectorLayer *mpPolysLayer = nullptr;
 
     bool imageCheck( QgsMapSettings &ms, const QString &testName );
 
@@ -70,13 +72,7 @@ class TestQgsSymbol : public QObject
     void symbolProperties();
 };
 
-TestQgsSymbol::TestQgsSymbol()
-    : mpPointsLayer( 0 )
-    , mpLinesLayer( 0 )
-    , mpPolysLayer( 0 )
-{
-
-}
+TestQgsSymbol::TestQgsSymbol() = default;
 
 // slots
 void TestQgsSymbol::initTestCase()
@@ -84,13 +80,13 @@ void TestQgsSymbol::initTestCase()
   // initialize with test settings directory so we don't mess with user's stuff
   QgsApplication::init( QDir::tempPath() + "/dot-qgis" );
   QgsApplication::initQgis();
-  QgsApplication::createDB();
+  QgsApplication::createDatabase();
   mTestDataDir = QStringLiteral( TEST_DATA_DIR ) + '/'; //defined in CmakeLists.txt
 
   // output test environment
   QgsApplication::showSettings();
 
-  // Set up the QSettings environment
+  // Set up the QgsSettings environment
   QCoreApplication::setOrganizationName( QStringLiteral( "QGIS" ) );
   QCoreApplication::setOrganizationDomain( QStringLiteral( "qgis.org" ) );
   QCoreApplication::setApplicationName( QStringLiteral( "QGIS-TEST" ) );
@@ -113,7 +109,7 @@ void TestQgsSymbol::initTestCase()
   mpPointsLayer = new QgsVectorLayer( myPointFileInfo.filePath(),
                                       myPointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
   // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
+  QgsProject::instance()->addMapLayers(
     QList<QgsMapLayer *>() << mpPointsLayer );
 
   //
@@ -124,7 +120,7 @@ void TestQgsSymbol::initTestCase()
   mpPolysLayer = new QgsVectorLayer( myPolyFileInfo.filePath(),
                                      myPolyFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
   // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
+  QgsProject::instance()->addMapLayers(
     QList<QgsMapLayer *>() << mpPolysLayer );
 
 
@@ -136,7 +132,7 @@ void TestQgsSymbol::initTestCase()
   mpLinesLayer = new QgsVectorLayer( myLineFileInfo.filePath(),
                                      myLineFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
   // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
+  QgsProject::instance()->addMapLayers(
     QList<QgsMapLayer *>() << mpLinesLayer );
 
   mReport += QLatin1String( "<h1>StyleV2 Tests</h1>\n" );
@@ -157,7 +153,7 @@ void TestQgsSymbol::cleanupTestCase()
   }
 }
 
-bool TestQgsSymbol::imageCheck( QgsMapSettings& ms, const QString& testName )
+bool TestQgsSymbol::imageCheck( QgsMapSettings &ms, const QString &testName )
 {
   QgsMultiRenderChecker checker;
   ms.setOutputDpi( 96 );
@@ -178,13 +174,14 @@ void TestQgsSymbol::testCanvasClip()
 
   //line
   mReport += QLatin1String( "<h2>Line canvas clip</h2>\n" );
-  ms.setLayers( QStringList() << mpLinesLayer->id() );
+  ms.setLayers( QList<QgsMapLayer *>() << mpLinesLayer );
 
-  QgsMarkerLineSymbolLayer* markerLine = new QgsMarkerLineSymbolLayer();
+  QgsMarkerLineSymbolLayer *markerLine = new QgsMarkerLineSymbolLayer();
   markerLine->setPlacement( QgsMarkerLineSymbolLayer:: CentralPoint );
-  QgsLineSymbol* lineSymbol = new QgsLineSymbol();
+  static_cast< QgsSimpleMarkerSymbolLayer *>( markerLine->subSymbol()->symbolLayer( 0 ) )->setStrokeColor( Qt::black );
+  QgsLineSymbol *lineSymbol = new QgsLineSymbol();
   lineSymbol->changeSymbolLayer( 0, markerLine );
-  QgsSingleSymbolRenderer* renderer = new QgsSingleSymbolRenderer( lineSymbol );
+  QgsSingleSymbolRenderer *renderer = new QgsSingleSymbolRenderer( lineSymbol );
   mpLinesLayer->setRenderer( renderer );
   bool result;
 
@@ -198,10 +195,11 @@ void TestQgsSymbol::testCanvasClip()
 
   //poly
   mReport += QLatin1String( "<h2>Polygon canvas clip</h2>\n" );
-  ms.setLayers( QStringList() << mpPolysLayer->id() );
+  ms.setLayers( QList<QgsMapLayer *>() << mpPolysLayer );
 
-  QgsCentroidFillSymbolLayer* centroidFill = new QgsCentroidFillSymbolLayer();
-  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
+  QgsCentroidFillSymbolLayer *centroidFill = new QgsCentroidFillSymbolLayer();
+  static_cast< QgsSimpleMarkerSymbolLayer * >( centroidFill->subSymbol()->symbolLayer( 0 ) )->setStrokeColor( Qt::black );
+  QgsFillSymbol *fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, centroidFill );
   renderer = new QgsSingleSymbolRenderer( fillSymbol );
   mpPolysLayer->setRenderer( renderer );
@@ -410,8 +408,8 @@ void TestQgsSymbol::testParseColorList()
   while ( it != colorListTests.constEnd() )
   {
     QgsDebugMsg( "color list string: " + ( *it ).first );
-    QList< QColor > result = QgsSymbolLayerUtils::parseColorList(( *it ).first );
-    if (( *it ).second.length() > 0 )
+    QList< QColor > result = QgsSymbolLayerUtils::parseColorList( ( *it ).first );
+    if ( ( *it ).second.length() > 0 )
     {
       QCOMPARE( result.length(), ( *it ).second.length() );
       int index = 0;
@@ -435,12 +433,12 @@ void TestQgsSymbol::symbolProperties()
   //test QgsSymbolLayerUtils::symbolProperties
 
   //make a symbol
-  QgsSimpleFillSymbolLayer* fill = new QgsSimpleFillSymbolLayer();
+  QgsSimpleFillSymbolLayer *fill = new QgsSimpleFillSymbolLayer();
   fill->setColor( QColor( 25, 125, 225 ) );
-  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
+  QgsFillSymbol *fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, fill );
 
-  QgsFillSymbol* fillSymbol2 = static_cast< QgsFillSymbol* >( fillSymbol->clone() );
+  QgsFillSymbol *fillSymbol2 = static_cast< QgsFillSymbol * >( fillSymbol->clone() );
 
   //test that two different symbol pointers return same properties
   QCOMPARE( QgsSymbolLayerUtils::symbolProperties( fillSymbol ),
@@ -455,5 +453,5 @@ void TestQgsSymbol::symbolProperties()
   delete fillSymbol2;
 }
 
-QTEST_MAIN( TestQgsSymbol )
+QGSTEST_MAIN( TestQgsSymbol )
 #include "testqgssymbol.moc"

@@ -15,6 +15,8 @@ SET(PYQT_COMPAT_FILES
   QtTest.py
   QtSvg.py
   Qsci.py
+  Qt.py
+  sip.py
   uic/__init__.py
   uic/pyuic.py
   uic/properties.py

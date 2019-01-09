@@ -17,11 +17,14 @@
 #define QGSEFFECTSTACKPROPERTIESWIDGET_H
 
 #include "qgsdialog.h"
+#include "qgis_sip.h"
+#include "qgis.h"
 #include <QWidget>
 #include <QStandardItemModel>
-#include <qgspanelwidget.h>
+#include "qgspanelwidget.h"
 
 #include "ui_qgseffectstackpropertieswidgetbase.h"
+#include "qgis_gui.h"
 
 class EffectItem;
 class QgsPaintEffect;
@@ -31,15 +34,16 @@ class QgsPanelWidget;
 class QgsEffectStack;
 class QgsPaintEffect;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsEffectStackPropertiesWidget
  * \brief A widget for modifying the properties of a QgsEffectStack, including adding
  * and reordering effects within the stack.
  *
- * \note Added in version 2.9
  * \see QgsEffectStack
  * \see QgsEffectStackPropertiesDialog
  * \see QgsEffectStackCompactWidget
+ * \since QGIS 2.9
  */
 
 class GUI_EXPORT QgsEffectStackPropertiesWidget : public QgsPanelWidget, private Ui::QgsEffectStackPropertiesWidgetBase
@@ -48,100 +52,117 @@ class GUI_EXPORT QgsEffectStackPropertiesWidget : public QgsPanelWidget, private
 
   public:
 
-    /** QgsEffectStackPropertiesWidget constructor
-     * @param stack QgsEffectStack to modify in the widget
-     * @param parent parent widget
+    /**
+     * QgsEffectStackPropertiesWidget constructor
+     * \param stack QgsEffectStack to modify in the widget
+     * \param parent parent widget
      */
-    QgsEffectStackPropertiesWidget( QgsEffectStack* stack, QWidget* parent = nullptr );
+    QgsEffectStackPropertiesWidget( QgsEffectStack *stack, QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
-    ~QgsEffectStackPropertiesWidget();
+    ~QgsEffectStackPropertiesWidget() override;
 
-    /** Returns effect stack attached to the widget
-     * @returns QgsEffectStack modified by the widget
+    /**
+     * Returns effect stack attached to the widget
+     * \returns QgsEffectStack modified by the widget
      */
-    QgsEffectStack* stack() { return mStack; }
+    QgsEffectStack *stack() { return mStack; }
 
-    /** Sets the picture to use for effect previews for the dialog
-     * @param picture preview picture
+    /**
+     * Sets the picture to use for effect previews for the dialog
+     * \param picture preview picture
      */
-    void setPreviewPicture( const QPicture& picture );
+    void setPreviewPicture( const QPicture &picture );
 
   public slots:
 
-    /** Moves the currently selected effect down in the stack.
+    /**
+     * Moves the currently selected effect down in the stack.
      */
     void moveEffectDown();
 
-    /** Moves the currently selected effect up in the stack.
+    /**
+     * Moves the currently selected effect up in the stack.
      */
     void moveEffectUp();
 
-    /** Adds a new effect to the stack.
+    /**
+     * Adds a new effect to the stack.
      */
     void addEffect();
 
-    /** Removes the currently selected effect from the stack.
+    /**
+     * Removes the currently selected effect from the stack.
      */
     void removeEffect();
 
-    /** Updates the widget when the selected effect changes type.
+    /**
+     * Updates the widget when the selected effect changes type.
      */
     void effectChanged();
 
-    /** Updates the effect preview icon.
+    /**
+     * Updates the effect preview icon.
      */
     void updatePreview();
 
-    /** Updates the effect stack when the currently selected effect changes properties.
-     * @param newEffect new effect to replace existing effect at selected position within the stack.
+    /**
+     * Updates the effect stack when the currently selected effect changes properties.
+     * \param newEffect new effect to replace existing effect at selected position within the stack.
      */
-    void changeEffect( QgsPaintEffect* newEffect );
+    void changeEffect( QgsPaintEffect *newEffect );
 
   protected:
 
-    QgsEffectStack* mStack;
-    QStandardItemModel* mModel;
-    QWidget* mPresentWidget;
-    QPicture* mPreviewPicture;
+    QgsEffectStack *mStack = nullptr;
+    QStandardItemModel *mModel = nullptr;
+    QWidget *mPresentWidget = nullptr;
+    QPicture *mPreviewPicture = nullptr;
 
-    /** Refreshes the widget to reflect the current state of the stack.
+    /**
+     * Refreshes the widget to reflect the current state of the stack.
      */
     void loadStack();
 
-    /** Refreshes the widget to reflect the current state of a specified stack.
-     * @param stack QgsEffectStack for widget
+    /**
+     * Refreshes the widget to reflect the current state of a specified stack.
+     * \param stack QgsEffectStack for widget
      */
-    void loadStack( QgsEffectStack* stack );
+    void loadStack( QgsEffectStack *stack );
 
-    /** Enables or disables widgets depending on the selected effect within the stack.
+    /**
+     * Enables or disables widgets depending on the selected effect within the stack.
      */
     void updateUi();
 
-    /** Returns the currently selected effect within the stack.
-     * @note not available in python bindings
+    /**
+     * Returns the currently selected effect within the stack.
+     * \note not available in Python bindings
      */
-    EffectItem* currentEffectItem();
+    EffectItem *currentEffectItem() SIP_SKIP;
 
-    /** Moves the currently selected effect within the stack by a specified offset
+    /**
+     * Moves the currently selected effect within the stack by a specified offset
      */
     void moveEffectByOffset( int offset );
 
-    /** Sets the effect properties widget
+    /**
+     * Sets the effect properties widget
      */
-    void setWidget( QWidget* widget );
+    void setWidget( QWidget *widget );
 
 };
 
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsEffectStackPropertiesDialog
  * \brief A dialog for modifying the properties of a QgsEffectStack, including adding
  * and reordering effects within the stack.
  *
- * \note Added in version 2.9
  * \see QgsEffectStack
  * \see QgsEffectStackPropertiesWidget
  * \see QgsEffectStackCompactWidget
+ * \since QGIS 2.9
  */
 
 class GUI_EXPORT QgsEffectStackPropertiesDialog: public QgsDialog
@@ -150,40 +171,43 @@ class GUI_EXPORT QgsEffectStackPropertiesDialog: public QgsDialog
 
   public:
 
-    /** QgsEffectStackPropertiesDialog constructor
-     * @param stack QgsEffectStack to modify in the dialog
-     * @param parent parent widget
-     * @param f window flags
+    /**
+     * QgsEffectStackPropertiesDialog constructor
+     * \param stack QgsEffectStack to modify in the dialog
+     * \param parent parent widget
+     * \param f window flags
      */
-    QgsEffectStackPropertiesDialog( QgsEffectStack* stack, QWidget* parent = nullptr, Qt::WindowFlags f = 0 );
-    ~QgsEffectStackPropertiesDialog();
+    QgsEffectStackPropertiesDialog( QgsEffectStack *stack, QWidget *parent SIP_TRANSFERTHIS = nullptr, Qt::WindowFlags f = nullptr );
 
-    /** Returns effect stack attached to the dialog
-     * @returns QgsEffectStack modified by the dialog
+    /**
+     * Returns effect stack attached to the dialog
+     * \returns QgsEffectStack modified by the dialog
      */
-    QgsEffectStack* stack();
+    QgsEffectStack *stack();
 
-    /** Sets the picture to use for effect previews for the dialog
-     * @param picture preview picture
+    /**
+     * Sets the picture to use for effect previews for the dialog
+     * \param picture preview picture
      */
-    void setPreviewPicture( const QPicture& picture );
+    void setPreviewPicture( const QPicture &picture );
 
   protected:
 
-    QgsEffectStackPropertiesWidget* mPropertiesWidget;
+    QgsEffectStackPropertiesWidget *mPropertiesWidget = nullptr;
 
 };
 
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsEffectStackCompactWidget
- * \brief A small widget consisting of a check box for enabling/disabling an effect stack
- * and a button for opening an effect stack customisation dialog.
+ * \brief A small widget consisting of a checkbox for enabling/disabling an effect stack
+ * and a button for opening an effect stack customization dialog.
  *
- * \note Added in version 2.9
  * \see QgsEffectStack
  * \see QgsEffectStackPropertiesWidget
  * \see QgsEffectStackPropertiesDialog
+ * \since QGIS 2.9
  */
 
 class GUI_EXPORT QgsEffectStackCompactWidget: public QgsPanelWidget
@@ -192,37 +216,42 @@ class GUI_EXPORT QgsEffectStackCompactWidget: public QgsPanelWidget
 
   public:
 
-    /** QgsEffectStackCompactWidget constructor
-     * @param parent parent widget
-     * @param effect QgsPaintEffect for modification by the widget. If the effect
+    /**
+     * QgsEffectStackCompactWidget constructor
+     * \param parent parent widget
+     * \param effect QgsPaintEffect for modification by the widget. If the effect
      * is not a QgsEffectStack, it will be automatically converted to an effect
      * stack consisting of the original effect
      */
-    QgsEffectStackCompactWidget( QWidget* parent = nullptr, QgsPaintEffect* effect = nullptr );
-    ~QgsEffectStackCompactWidget();
+    QgsEffectStackCompactWidget( QWidget *parent SIP_TRANSFERTHIS = nullptr, QgsPaintEffect *effect = nullptr );
+    ~QgsEffectStackCompactWidget() override;
 
-    /** Sets paint effect attached to the widget,
-     * @param effect QgsPaintEffect for modification by the widget. If the effect
+    /**
+     * Sets paint effect attached to the widget,
+     * \param effect QgsPaintEffect for modification by the widget. If the effect
      * is not a QgsEffectStack, it will be automatically converted to an effect
      * stack consisting of the original effect
-     * @see paintEffect
+     * \see paintEffect
      */
-    void setPaintEffect( QgsPaintEffect* effect );
+    void setPaintEffect( QgsPaintEffect *effect );
 
-    /** Returns paint effect attached to the widget
-     * @returns QgsPaintEffect modified by the widget
-     * @see setPaintEffect
+    /**
+     * Returns paint effect attached to the widget
+     * \returns QgsPaintEffect modified by the widget
+     * \see setPaintEffect
      */
-    QgsPaintEffect* paintEffect() const;
+    QgsPaintEffect *paintEffect() const;
 
-    /** Sets the picture to use for effect previews for the dialog
-     * @param picture preview picture
+    /**
+     * Sets the picture to use for effect previews for the dialog
+     * \param picture preview picture
      */
     void setPreviewPicture( const QPicture &picture );
 
   signals:
 
-    /** Emitted when the paint effect properties change
+    /**
+     * Emitted when the paint effect properties change
      */
     void changed();
 
@@ -232,14 +261,14 @@ class GUI_EXPORT QgsEffectStackCompactWidget: public QgsPanelWidget
 
     void enableToggled( bool checked );
 
-    void updateAcceptWidget( QgsPanelWidget* panel );
+    void updateAcceptWidget( QgsPanelWidget *panel );
     void updateEffectLive();
 
   private:
-    QgsEffectStack* mStack;
-    QCheckBox* mEnabledCheckBox;
-    QToolButton* mButton;
-    QPicture* mPreviewPicture;
+    QgsEffectStack *mStack = nullptr;
+    QCheckBox *mEnabledCheckBox = nullptr;
+    QToolButton *mButton = nullptr;
+    QPicture *mPreviewPicture = nullptr;
 
 };
 

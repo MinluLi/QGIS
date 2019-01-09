@@ -12,11 +12,13 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include "qgseditorwidgetregistry.h"
 #include "qgseditorwidgetautoconf.h"
-
+#include "qgsproject.h"
+#include "qgsrelationmanager.h"
+#include "qgsgui.h"
 
 class TestQgsEditorWidgetRegistry: public QObject
 {
@@ -25,13 +27,13 @@ class TestQgsEditorWidgetRegistry: public QObject
     class DummyPlugin: public QgsEditorWidgetAutoConfPlugin
     {
       public:
-        QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer* vl, const QString& fieldName, int& score ) const override
+        QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer *vl, const QString &fieldName, int &score ) const override
         {
           Q_UNUSED( vl )
           if ( fieldName == QLatin1String( "special" ) )
           {
             score = 100;
-            return QgsEditorWidgetSetup( QStringLiteral( "Special" ), QgsEditorWidgetConfig() );
+            return QgsEditorWidgetSetup( QStringLiteral( "Special" ), QVariantMap() );
           }
           score = 0;
           return QgsEditorWidgetSetup();
@@ -44,8 +46,8 @@ class TestQgsEditorWidgetRegistry: public QObject
     {
       QgsApplication::init();
       QgsApplication::initQgis();
-      QgsEditorWidgetRegistry::initEditors();
-      QgsEditorWidgetRegistry::instance()->registerAutoConfPlugin( new DummyPlugin() );
+      QgsGui::editorWidgetRegistry()->initEditors();
+      QgsGui::editorWidgetRegistry()->registerAutoConfPlugin( new DummyPlugin() );
     }
 
     void cleanupTestCase()
@@ -75,7 +77,7 @@ class TestQgsEditorWidgetRegistry: public QObject
 
     void doubleType()
     {
-      checkSimple( QStringLiteral( "double" ), QStringLiteral( "Range" ) );
+      checkSimple( QStringLiteral( "double" ), QStringLiteral( "TextEdit" ) );
     }
 
     void arrayType()
@@ -88,14 +90,14 @@ class TestQgsEditorWidgetRegistry: public QObject
     void configuredType()
     {
       QgsVectorLayer vl( QStringLiteral( "LineString?crs=epsg:3111&field=pk:int&field=col1:string" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) );
-      QgsEditFormConfig formConfig = vl.editFormConfig();
-      formConfig.setWidgetType( QStringLiteral( "col1" ), QStringLiteral( "FooEdit" ) );
-      QgsEditorWidgetConfig config;
+
+      QVariantMap config;
       config[QStringLiteral( "a" )] = QVariant( 12 );
       config[QStringLiteral( "b" )] = QVariant( "bar" );
-      formConfig.setWidgetConfig( QStringLiteral( "col1" ), config );
-      vl.setEditFormConfig( formConfig );
-      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( &vl, QStringLiteral( "col1" ) );
+
+      vl.setEditorWidgetSetup( 1, QgsEditorWidgetSetup( QStringLiteral( "FooEdit" ), config ) );
+
+      const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( &vl, QStringLiteral( "col1" ) );
       QCOMPARE( setup.type(), QString( "FooEdit" ) );
       QCOMPARE( setup.config(), config );
     }
@@ -103,29 +105,53 @@ class TestQgsEditorWidgetRegistry: public QObject
     void wrongFieldName()
     {
       const QgsVectorLayer vl( QStringLiteral( "LineString?crs=epsg:3111&field=pk:int&field=col1:string" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) );
-      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( &vl, QStringLiteral( "col2" ) );
+      const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( &vl, QStringLiteral( "col2" ) );
       // an unknown fields leads to a default setup with a TextEdit
       QCOMPARE( setup.type(), QString( "TextEdit" ) );
       QCOMPARE( setup.config().count(), 0 );
     }
 
+    void referencedLayers()
+    {
+      //build two layers
+      QgsVectorLayer vl1( QStringLiteral( "LineString?crs=epsg:3111&field=pk:int&field=name:string&field=fk:int" ), QStringLiteral( "vl1" ), QStringLiteral( "memory" ) );
+      QgsVectorLayer vl2( QStringLiteral( "LineString?crs=epsg:3111&field=pk:int&field=col1:string" ), QStringLiteral( "vl2" ), QStringLiteral( "memory" ) );
+      QgsProject::instance()->addMapLayer( &vl1, false, false );
+      QgsProject::instance()->addMapLayer( &vl2, false, false );
+
+      //create a relation between them
+      QgsRelation relation;
+      relation.setId( QStringLiteral( "vl1->vl2" ) );
+      relation.setName( QStringLiteral( "vl1->vl2" ) );
+      relation.setReferencingLayer( vl1.id() );
+      relation.setReferencedLayer( vl2.id() );
+      relation.addFieldPair( QStringLiteral( "fk" ), QStringLiteral( "pk" ) );
+      QVERIFY( relation.isValid() );
+      QgsProject::instance()->relationManager()->addRelation( relation );
+
+      //check the guessed editor widget type for vl1.fk is RelationReference
+      const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( &vl1, QStringLiteral( "fk" ) );
+      QCOMPARE( setup.type(), QString( "RelationReference" ) );
+      QCOMPARE( setup.config(), QVariantMap() );
+    }
+
     void typeFromPlugin()
     {
       const QgsVectorLayer vl( QStringLiteral( "LineString?crs=epsg:3111&field=pk:int&field=special:string" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) );
-      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( &vl, QStringLiteral( "special" ) );
+      const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( &vl, QStringLiteral( "special" ) );
       QCOMPARE( setup.type(), QString( "Special" ) );
     }
 
   private:
 
-    static void checkSimple( const QString& dataType, const QString& widgetType )
+    static void checkSimple( const QString &dataType, const QString &widgetType )
     {
       const QgsVectorLayer vl( "LineString?crs=epsg:3111&field=pk:int&field=col1:" + dataType, QStringLiteral( "vl" ), QStringLiteral( "memory" ) );
-      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( &vl, QStringLiteral( "col1" ) );
+      const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( &vl, QStringLiteral( "col1" ) );
       QCOMPARE( setup.type(), widgetType );
       QCOMPARE( setup.config().count(), 0 );
     }
 };
 
-QTEST_MAIN( TestQgsEditorWidgetRegistry )
+QGSTEST_MAIN( TestQgsEditorWidgetRegistry )
 #include "testqgseditorwidgetregistry.moc"

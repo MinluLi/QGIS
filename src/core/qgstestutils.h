@@ -1,9 +1,9 @@
 /***************************************************************************
-    qgstestutils.h
-    ---------------------
-    begin                : June 2016
-    copyright            : (C) 2016 by Nyall Dawson
-    email                : nyalld dot dawson at gmail dot com
+                                  qgstestutils.h
+                              ---------------------
+    begin                : January 2018
+    copyright            : (C) 2018 by Nyall Dawson
+    email                : nyall.dawson@gmail.com
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -12,36 +12,37 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+
 #ifndef QGSTESTUTILS_H
 #define QGSTESTUTILS_H
 
+#include "qgis_core.h"
 #include "qgis.h"
-#include "QtTest/qtestcase.h"
+#include "qgsfeaturerequest.h"
 
-/** \ingroup core
- * Assorted helper methods for unit testing.
- * @note added in QGIS 2.16
- */
+class QgsVectorDataProvider;
 
-#define QGSCOMPARENEAR(value,expected,epsilon) { \
-    bool _xxxresult = qgsDoubleNear( value, expected, epsilon ); \
-    if ( !_xxxresult  ) \
-    { \
-      qDebug( "Expecting %f got %f (diff %f > %f)", static_cast< double >( expected ), static_cast< double >( value ), qAbs( static_cast< double >( expected ) - value ), static_cast< double >( epsilon ) ); \
-    } \
-    QVERIFY( qgsDoubleNear( value, expected, epsilon ) ); \
-  }
+#ifdef SIP_RUN
+% ModuleHeaderCode
+#include "qgstestutils.h"
+% End
+#endif
 
-#define QGSCOMPARENEARPOINT(point1,point2,epsilon) { \
-    QGSCOMPARENEAR( point1.x(), point2.x(), epsilon ); \
-    QGSCOMPARENEAR( point1.y(), point2.y(), epsilon ); \
-  }
+///@cond PRIVATE
 
-#define QGSCOMPARENEARRECTANGLE(rectangle1,rectangle2,epsilon) { \
-    QGSCOMPARENEAR( rectangle1.xMinimum(), rectangle2.xMinimum(), epsilon ); \
-    QGSCOMPARENEAR( rectangle1.xMaximum(), rectangle2.xMaximum(), epsilon ); \
-    QGSCOMPARENEAR( rectangle1.yMinimum(), rectangle2.yMinimum(), epsilon ); \
-    QGSCOMPARENEAR( rectangle1.yMaximum(), rectangle2.yMaximum(), epsilon ); \
-  }
+// Used only for utilities required for the QGIS Python unit tests - not stable or public API
+namespace QgsTestUtils
+{
 
-#endif // QGSTESTUTILS_H
+  /**
+   * Runs a thready safety test on iterators from a vector data \a provider, by concurrently
+   * requesting features from the provider.
+   *
+   * This method returns true... or it segfaults.
+   */
+  CORE_EXPORT bool testProviderIteratorThreadSafety( QgsVectorDataProvider *provider, const QgsFeatureRequest &request = QgsFeatureRequest() );
+
+};
+
+///@endcond
+#endif //QGSTESTUTILS_H

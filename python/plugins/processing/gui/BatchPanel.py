@@ -16,8 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import str
-from builtins import range
 
 __author__ = 'Alexander Bruy'
 __date__ = 'November 2014'
@@ -29,32 +27,29 @@ __revision__ = '$Format:%H$'
 
 import os
 import json
+import warnings
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QTableWidgetItem, QComboBox, QLineEdit, QHeaderView, QFileDialog, QMessageBox
+from qgis.PyQt.QtWidgets import QTableWidgetItem, QComboBox, QHeaderView, QFileDialog, QMessageBox
+from qgis.PyQt.QtCore import QDir, QFileInfo
+from qgis.core import (Qgis,
+                       QgsApplication,
+                       QgsSettings,
+                       QgsProcessingParameterDefinition)
+from qgis.gui import QgsProcessingParameterWidgetContext
+from qgis.utils import iface
 
-from qgis.core import QgsApplication
-from qgis.gui import QgsMessageBar
-
+from processing.gui.wrappers import WidgetWrapperFactory, WidgetWrapper
 from processing.gui.BatchOutputSelectionPanel import BatchOutputSelectionPanel
-from processing.gui.GeometryPredicateSelectionPanel import GeometryPredicateSelectionPanel
 
-from processing.core.parameters import ParameterFile
-from processing.core.parameters import ParameterRaster
-from processing.core.parameters import ParameterTable
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterExtent
-from processing.core.parameters import ParameterCrs
-from processing.core.parameters import ParameterPoint
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterFixedTable
-from processing.core.parameters import ParameterMultipleInput
-from processing.core.parameters import ParameterGeometryPredicate
+from processing.tools import dataobjects
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
-WIDGET, BASE = uic.loadUiType(
-    os.path.join(pluginPath, 'ui', 'widgetBatchPanel.ui'))
+
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    WIDGET, BASE = uic.loadUiType(
+        os.path.join(pluginPath, 'ui', 'widgetBatchPanel.ui'))
 
 
 class BatchPanel(BASE, WIDGET):
@@ -75,7 +70,7 @@ class BatchPanel(BASE, WIDGET):
         self.btnRemove.setIcon(QgsApplication.getThemeIcon('/symbologyRemove.svg'))
         self.btnOpen.setIcon(QgsApplication.getThemeIcon('/mActionFileOpen.svg'))
         self.btnSave.setIcon(QgsApplication.getThemeIcon('/mActionFileSave.svg'))
-        self.btnAdvanced.setIcon(QIcon(os.path.join(pluginPath, 'images', 'alg.png')))
+        self.btnAdvanced.setIcon(QgsApplication.getThemeIcon("/processingAlgorithm.svg"))
 
         self.alg = alg
         self.parent = parent
@@ -88,6 +83,10 @@ class BatchPanel(BASE, WIDGET):
         self.tblParameters.horizontalHeader().sectionDoubleClicked.connect(
             self.fillParameterValues)
 
+        self.tblParameters.horizontalHeader().resizeSections(QHeaderView.ResizeToContents)
+        self.tblParameters.horizontalHeader().setDefaultSectionSize(250)
+        self.tblParameters.horizontalHeader().setMinimumSectionSize(150)
+
         self.initWidgets()
 
     def layerRegistryChanged(self):
@@ -95,55 +94,58 @@ class BatchPanel(BASE, WIDGET):
 
     def initWidgets(self):
         # If there are advanced parameters — show corresponding button
-        for param in self.alg.parameters:
-            if param.isAdvanced:
+        for param in self.alg.parameterDefinitions():
+            if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                 self.btnAdvanced.show()
                 break
 
         # Determine column count
-        nOutputs = self.alg.getVisibleOutputsCount() + 1
+        nOutputs = len(self.alg.destinationParameterDefinitions()) + 1
         if nOutputs == 1:
             nOutputs = 0
 
         self.tblParameters.setColumnCount(
-            self.alg.getVisibleParametersCount() + nOutputs)
+            self.alg.countVisibleParameters())
 
         # Table headers
         column = 0
-        for param in self.alg.parameters:
+        for param in self.alg.parameterDefinitions():
+            if param.isDestination():
+                continue
             self.tblParameters.setHorizontalHeaderItem(
-                column, QTableWidgetItem(param.description))
-            if param.isAdvanced:
+                column, QTableWidgetItem(param.description()))
+            if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                 self.tblParameters.setColumnHidden(column, True)
             column += 1
 
-        for out in self.alg.outputs:
-            if not out.hidden:
+        for out in self.alg.destinationParameterDefinitions():
+            if not out.flags() & QgsProcessingParameterDefinition.FlagHidden:
                 self.tblParameters.setHorizontalHeaderItem(
-                    column, QTableWidgetItem(out.description))
+                    column, QTableWidgetItem(out.description()))
                 column += 1
 
         # Last column for indicating if output will be added to canvas
-        if self.alg.getVisibleOutputsCount():
+        if len(self.alg.destinationParameterDefinitions()) > 0:
             self.tblParameters.setHorizontalHeaderItem(
                 column, QTableWidgetItem(self.tr('Load in QGIS')))
 
-        # Add three empty rows by default
-        for i in range(3):
-            self.addRow()
+        # Add an empty row to begin
+        self.addRow()
 
-        self.tblParameters.horizontalHeader().setResizeMode(QHeaderView.Interactive)
-        self.tblParameters.horizontalHeader().setDefaultSectionSize(250)
-        self.tblParameters.horizontalHeader().setMinimumSectionSize(150)
-        self.tblParameters.horizontalHeader().setResizeMode(QHeaderView.ResizeToContents)
-        self.tblParameters.verticalHeader().setResizeMode(QHeaderView.ResizeToContents)
+        self.tblParameters.horizontalHeader().resizeSections(QHeaderView.ResizeToContents)
+        self.tblParameters.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tblParameters.horizontalHeader().setStretchLastSection(True)
 
     def load(self):
+        context = dataobjects.createContext()
+        settings = QgsSettings()
+        last_path = settings.value("/Processing/LastBatchPath", QDir.homePath())
         filename, selected_filter = QFileDialog.getOpenFileName(self,
-                                                                self.tr('Open batch'), None,
+                                                                self.tr('Open Batch'), last_path,
                                                                 self.tr('JSON files (*.json)'))
         if filename:
+            last_path = QFileInfo(filename).path()
+            settings.setValue('/Processing/LastBatchPath', last_path)
             with open(filename) as f:
                 values = json.load(f)
         else:
@@ -157,20 +159,22 @@ class BatchPanel(BASE, WIDGET):
                 params = alg[self.PARAMETERS]
                 outputs = alg[self.OUTPUTS]
                 column = 0
-                for param in self.alg.parameters:
-                    if param.hidden:
+                for param in self.alg.parameterDefinitions():
+                    if param.flags() & QgsProcessingParameterDefinition.FlagHidden:
                         continue
-                    if param.name in params:
-                        value = params[param.name]
+                    if param.isDestination():
+                        continue
+                    if param.name() in params:
+                        value = eval(params[param.name()])
                         wrapper = self.wrappers[row][column]
-                        wrapper.setValue(value)
+                        wrapper.setParameterValue(value, context)
                     column += 1
 
-                for out in self.alg.outputs:
-                    if out.hidden:
+                for out in self.alg.destinationParameterDefinitions():
+                    if out.flags() & QgsProcessingParameterDefinition.FlagHidden:
                         continue
-                    if out.name in outputs:
-                        value = outputs[out.name]
+                    if out.name() in outputs:
+                        value = outputs[out.name()].strip("'")
                         widget = self.tblParameters.cellWidget(row, column)
                         widget.setValue(value)
                     column += 1
@@ -182,72 +186,105 @@ class BatchPanel(BASE, WIDGET):
 
     def save(self):
         toSave = []
+        context = dataobjects.createContext()
         for row in range(self.tblParameters.rowCount()):
             algParams = {}
             algOutputs = {}
             col = 0
-            alg = self.alg.getCopy()
-            for param in alg.parameters:
-                if param.hidden:
+            alg = self.alg
+            for param in alg.parameterDefinitions():
+                if param.flags() & QgsProcessingParameterDefinition.FlagHidden:
+                    continue
+                if param.isDestination():
                     continue
                 wrapper = self.wrappers[row][col]
-                if not self.setParamValue(param, wrapper, alg):
-                    self.parent.bar.pushMessage("", self.tr('Wrong or missing parameter value: %s (row %d)')
-                                                % (param.description, row + 1),
-                                                level=QgsMessageBar.WARNING, duration=5)
+
+                # For compatibility with 3.x API, we need to check whether the wrapper is
+                # the deprecated WidgetWrapper class. If not, it's the newer
+                # QgsAbstractProcessingParameterWidgetWrapper class
+                # TODO QGIS 4.0 - remove
+                if issubclass(wrapper.__class__, WidgetWrapper):
+                    widget = wrapper.widget
+                else:
+                    widget = wrapper.wrappedWidget()
+
+                value = wrapper.parameterValue()
+
+                if not param.checkValueIsAcceptable(value, context):
+                    self.parent.messageBar().pushMessage("", self.tr('Wrong or missing parameter value: {0} (row {1})').format(
+                        param.description(), row + 1),
+                        level=Qgis.Warning, duration=5)
                     return
-                algParams[param.name] = param.getValueAsCommandLineParameter()
+                algParams[param.name()] = param.valueAsPythonString(value, context)
                 col += 1
-            for out in alg.outputs:
-                if out.hidden:
+            for out in alg.destinationParameterDefinitions():
+                if out.flags() & QgsProcessingParameterDefinition.FlagHidden:
                     continue
                 widget = self.tblParameters.cellWidget(row, col)
                 text = widget.getValue()
                 if text.strip() != '':
-                    algOutputs[out.name] = text.strip()
+                    algOutputs[out.name()] = text.strip()
                     col += 1
                 else:
-                    self.parent.bar.pushMessage("", self.tr('Wrong or missing output value: %s (row %d)')
-                                                % (out.description, row + 1),
-                                                level=QgsMessageBar.WARNING, duration=5)
+                    self.parent.messageBar().pushMessage("", self.tr('Wrong or missing output value: {0} (row {1})').format(
+                        out.description(), row + 1),
+                        level=Qgis.Warning, duration=5)
                     return
             toSave.append({self.PARAMETERS: algParams, self.OUTPUTS: algOutputs})
 
-        filename, __ = str(QFileDialog.getSaveFileName(self,
-                                                       self.tr('Save batch'),
-                                                       None,
-                                                       self.tr('JSON files (*.json)')))
+        settings = QgsSettings()
+        last_path = settings.value("/Processing/LastBatchPath", QDir.homePath())
+        filename, __ = QFileDialog.getSaveFileName(self,
+                                                   self.tr('Save Batch'),
+                                                   last_path,
+                                                   self.tr('JSON files (*.json)'))
         if filename:
             if not filename.endswith('.json'):
                 filename += '.json'
+            last_path = QFileInfo(filename).path()
+            settings.setValue('/Processing/LastBatchPath', last_path)
             with open(filename, 'w') as f:
                 json.dump(toSave, f)
 
-    def setParamValue(self, param, wrapper, alg=None):
-        return param.setValue(wrapper.value())
-
-    def setCellWrapper(self, row, column, wrapper):
+    def setCellWrapper(self, row, column, wrapper, context):
         self.wrappers[row][column] = wrapper
-        self.tblParameters.setCellWidget(row, column, wrapper.widget)
+
+        # For compatibility with 3.x API, we need to check whether the wrapper is
+        # the deprecated WidgetWrapper class. If not, it's the newer
+        # QgsAbstractProcessingParameterWidgetWrapper class
+        # TODO QGIS 4.0 - remove
+        is_cpp_wrapper = not issubclass(wrapper.__class__, WidgetWrapper)
+        if is_cpp_wrapper:
+            widget_context = QgsProcessingParameterWidgetContext()
+            if iface is not None:
+                widget_context.setMapCanvas(iface.mapCanvas())
+            wrapper.setWidgetContext(widget_context)
+            widget = wrapper.createWrappedWidget(context)
+        else:
+            widget = wrapper.widget
+
+        self.tblParameters.setCellWidget(row, column, widget)
 
     def addRow(self):
         self.wrappers.append([None] * self.tblParameters.columnCount())
         self.tblParameters.setRowCount(self.tblParameters.rowCount() + 1)
 
+        context = dataobjects.createContext()
+
         wrappers = {}
         row = self.tblParameters.rowCount() - 1
         column = 0
-        for param in self.alg.parameters:
-            if param.hidden:
+        for param in self.alg.parameterDefinitions():
+            if param.flags() & QgsProcessingParameterDefinition.FlagHidden or param.isDestination():
                 continue
 
-            wrapper = param.wrapper(self.parent, row, column)
-            wrappers[param.name] = wrapper
-            self.setCellWrapper(row, column, wrapper)
+            wrapper = WidgetWrapperFactory.create_wrapper(param, self.parent, row, column)
+            wrappers[param.name()] = wrapper
+            self.setCellWrapper(row, column, wrapper, context)
             column += 1
 
-        for out in self.alg.outputs:
-            if out.hidden:
+        for out in self.alg.destinationParameterDefinitions():
+            if out.flags() & QgsProcessingParameterDefinition.FlagHidden:
                 continue
 
             self.tblParameters.setCellWidget(
@@ -255,7 +292,7 @@ class BatchPanel(BASE, WIDGET):
                     out, self.alg, row, column, self))
             column += 1
 
-        if self.alg.getVisibleOutputsCount():
+        if len(self.alg.destinationParameterDefinitions()) > 0:
             item = QComboBox()
             item.addItem(self.tr('Yes'))
             item.addItem(self.tr('No'))
@@ -266,16 +303,22 @@ class BatchPanel(BASE, WIDGET):
             wrapper.postInitialize(list(wrappers.values()))
 
     def removeRows(self):
-        if self.tblParameters.rowCount() > 2:
+        if self.tblParameters.rowCount() > 1:
             self.wrappers.pop()
             self.tblParameters.setRowCount(self.tblParameters.rowCount() - 1)
 
     def fillParameterValues(self, column):
+        context = dataobjects.createContext()
+
         wrapper = self.wrappers[0][column]
+        if wrapper is None:
+            # e.g. double clicking on a destination header
+            return
+
         for row in range(1, self.tblParameters.rowCount()):
-            self.wrappers[row][column].setValue(wrapper.value())
+            self.wrappers[row][column].setParameterValue(wrapper.parameterValue(), context)
 
     def toggleAdvancedMode(self, checked):
-        for column, param in enumerate(self.alg.parameters):
-            if param.isAdvanced:
+        for column, param in enumerate(self.alg.parameterDefinitions()):
+            if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                 self.tblParameters.setColumnHidden(column, not checked)

@@ -1,21 +1,32 @@
+# -*- coding: utf-8 -*-
+
 """
-allows multiple selection in a large list
-
-Contact : marco@opengis.ch
-
-.. note:: This program is free software; you can redistribute it and/or modify
-     it under the terms of the GNU General Public License as published by
-     the Free Software Foundation; either version 2 of the License, or
-     (at your option) any later version.
+***************************************************************************
+    ListMultiSelectWidget.py
+    ---------------------
+    Date                 : June 2016
+    Copyright            : (C) 2016 by Marco Bernasocchi
+    Email                : marco at opengis.ch
+***************************************************************************
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************
 """
-from builtins import range
 
-__author__ = 'marco@opengis.ch'
+__author__ = 'Marco Bernasocchi'
+__date__ = 'June 2016'
+__copyright__ = '(C) 2016, Marco Bernasocchi'
+
+# This will get replaced with a git SHA1 when you do a git archive
+
 __revision__ = '$Format:%H$'
-__date__ = '9/07/2013'
+
 
 from qgis.PyQt.QtWidgets import (QGroupBox,
-                                 QListWidget,
                                  QPushButton,
                                  QSizePolicy,
                                  QLabel,
@@ -47,7 +58,7 @@ class ListMultiSelectWidget(QGroupBox):
         self.setTitle(title)
 
         self.selected_widget = None
-        self.unselected_widget = None
+        self.deselected_widget = None
         self._setupUI()
 
         # connect actions
@@ -56,7 +67,7 @@ class ListMultiSelectWidget(QGroupBox):
         self.select_btn.clicked.connect(self._select)
         self.deselect_btn.clicked.connect(self._deselect)
 
-        self.unselected_widget.itemDoubleClicked.connect(self._select)
+        self.deselected_widget.itemDoubleClicked.connect(self._select)
         self.selected_widget.itemDoubleClicked.connect(self._deselect)
 
     def get_selected_items(self):
@@ -65,11 +76,11 @@ class ListMultiSelectWidget(QGroupBox):
         """
         return self._get_items(self.selected_widget)
 
-    def get_unselected_items(self):
+    def get_deselected_items(self):
         """
-        :return list with all the unselected items text
+        :return list with all the deselected items text
         """
-        return self._get_items(self.unselected_widget)
+        return self._get_items(self.deselected_widget)
 
     def add_selected_items(self, items):
         """
@@ -77,11 +88,11 @@ class ListMultiSelectWidget(QGroupBox):
         """
         self._add_items(self.selected_widget, items)
 
-    def add_unselected_items(self, items):
+    def add_deselected_items(self, items):
         """
-        :param items list of strings to be added in the unselected list
+        :param items list of strings to be added in the deselected list
         """
-        self._add_items(self.unselected_widget, items)
+        self._add_items(self.deselected_widget, items)
 
     def set_selected_items(self, items):
         """
@@ -89,32 +100,32 @@ class ListMultiSelectWidget(QGroupBox):
         """
         self._set_items(self.selected_widget, items)
 
-    def set_unselected_items(self, items):
+    def set_deselected_items(self, items):
         """
-        :param items list of strings to be set as the unselected list
+        :param items list of strings to be set as the deselected list
         """
-        self._set_items(self.unselected_widget, items)
+        self._set_items(self.deselected_widget, items)
 
     def clear(self):
         """
-        removes all items from selected and unselected
+        removes all items from selected and deselected
         """
         self.set_selected_items([])
-        self.set_unselected_items([])
+        self.set_deselected_items([])
 
     def addItem(self, item):
         """
         This is for Processing
-        :param item: string to be added in the unselected list
+        :param item: string to be added in the deselected list
         """
-        self.add_unselected_items([item])
+        self.add_deselected_items([item])
 
     def addItems(self, items):
         """
         This is for Processing
-        :param items: list of strings to be added in the unselected list
+        :param items: list of strings to be added in the deselected list
         """
-        self.add_unselected_items(items)
+        self.add_deselected_items(items)
 
     def _get_items(self, widget):
         for i in range(widget.count()):
@@ -128,18 +139,18 @@ class ListMultiSelectWidget(QGroupBox):
         widget.addItems(items)
 
     def _select_all(self):
-        self.unselected_widget.selectAll()
-        self._do_move(self.unselected_widget, self.selected_widget)
+        self.deselected_widget.selectAll()
+        self._do_move(self.deselected_widget, self.selected_widget)
 
     def _deselect_all(self):
         self.selected_widget.selectAll()
-        self._do_move(self.selected_widget, self.unselected_widget)
+        self._do_move(self.selected_widget, self.deselected_widget)
 
     def _select(self):
-        self._do_move(self.unselected_widget, self.selected_widget)
+        self._do_move(self.deselected_widget, self.selected_widget)
 
     def _deselect(self):
-        self._do_move(self.selected_widget, self.unselected_widget)
+        self._do_move(self.selected_widget, self.deselected_widget)
 
     def _do_move(self, fromList, toList):
         for item in fromList.selectedItems():
@@ -159,16 +170,16 @@ class ListMultiSelectWidget(QGroupBox):
         italic_font = QFont()
         italic_font.setItalic(True)
 
-        # unselected widget
-        self.unselected_widget = QListWidget(self)
-        self._set_list_widget_defaults(self.unselected_widget)
-        unselected_label = QLabel()
-        unselected_label.setText('Unselected')
-        unselected_label.setAlignment(Qt.AlignCenter)
-        unselected_label.setFont(italic_font)
-        unselected_v_layout = QVBoxLayout()
-        unselected_v_layout.addWidget(unselected_label)
-        unselected_v_layout.addWidget(self.unselected_widget)
+        # deselected widget
+        self.deselected_widget = QListWidget(self)
+        self._set_list_widget_defaults(self.deselected_widget)
+        deselected_label = QLabel()
+        deselected_label.setText('Deselected')
+        deselected_label.setAlignment(Qt.AlignCenter)
+        deselected_label.setFont(italic_font)
+        deselected_v_layout = QVBoxLayout()
+        deselected_v_layout.addWidget(deselected_label)
+        deselected_v_layout.addWidget(self.deselected_widget)
 
         # selected widget
         self.selected_widget = QListWidget(self)
@@ -206,7 +217,7 @@ class ListMultiSelectWidget(QGroupBox):
         self.buttons_vertical_layout.addWidget(self.deselect_all_btn)
 
         # add sub widgets
-        self.main_horizontal_layout.addLayout(unselected_v_layout)
+        self.main_horizontal_layout.addLayout(deselected_v_layout)
         self.main_horizontal_layout.addLayout(self.buttons_vertical_layout)
         self.main_horizontal_layout.addLayout(selected_v_layout)
 

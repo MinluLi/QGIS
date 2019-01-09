@@ -18,31 +18,28 @@
 #include "qgsfeedback.h"
 #include "qgslabelingengine.h"
 #include "qgslogger.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsmaplayerrenderer.h"
-#include "qgspallabeling.h"
 #include "qgsvectorlayer.h"
 #include "qgsrenderer.h"
+#include "qgsmaplayerlistutils.h"
 
+#include <QtConcurrentRun>
 
-QgsMapRendererCustomPainterJob::QgsMapRendererCustomPainterJob( const QgsMapSettings& settings, QPainter* painter )
-    : QgsMapRendererJob( settings )
-    , mPainter( painter )
-    , mLabelingEngineV2( nullptr )
-    , mActive( false )
-    , mRenderSynchronously( false )
+QgsMapRendererCustomPainterJob::QgsMapRendererCustomPainterJob( const QgsMapSettings &settings, QPainter *painter )
+  : QgsMapRendererJob( settings )
+  , mPainter( painter )
+  , mActive( false )
+  , mRenderSynchronously( false )
 {
-  QgsDebugMsg( "QPAINTER construct" );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER construct" ), 5 );
 }
 
 QgsMapRendererCustomPainterJob::~QgsMapRendererCustomPainterJob()
 {
-  QgsDebugMsg( "QPAINTER destruct" );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER destruct" ), 5 );
   Q_ASSERT( !mFutureWatcher.isRunning() );
   //cancel();
-
-  delete mLabelingEngineV2;
-  mLabelingEngineV2 = nullptr;
 }
 
 void QgsMapRendererCustomPainterJob::start()
@@ -56,36 +53,39 @@ void QgsMapRendererCustomPainterJob::start()
 
   mErrors.clear();
 
-  QgsDebugMsg( "QPAINTER run!" );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER run!" ), 5 );
 
-  QgsDebugMsg( "Preparing list of layer jobs for rendering" );
+  QgsDebugMsgLevel( QStringLiteral( "Preparing list of layer jobs for rendering" ), 5 );
   QTime prepareTime;
   prepareTime.start();
 
   // clear the background
-  mPainter->fillRect( 0, 0, mSettings.outputSize().width(), mSettings.outputSize().height(), mSettings.backgroundColor() );
+  mPainter->fillRect( 0, 0, mSettings.deviceOutputSize().width(), mSettings.deviceOutputSize().height(), mSettings.backgroundColor() );
 
   mPainter->setRenderHint( QPainter::Antialiasing, mSettings.testFlag( QgsMapSettings::Antialiasing ) );
 
 #ifndef QT_NO_DEBUG
-  QPaintDevice* thePaintDevice = mPainter->device();
-  QString errMsg = QStringLiteral( "pre-set DPI not equal to painter's DPI (%1 vs %2)" ).arg( thePaintDevice->logicalDpiX() ).arg( mSettings.outputDpi() );
-  Q_ASSERT_X( qgsDoubleNear( thePaintDevice->logicalDpiX(), mSettings.outputDpi() ), "Job::startRender()", errMsg.toLatin1().data() );
+  QPaintDevice *paintDevice = mPainter->device();
+  QString errMsg = QStringLiteral( "pre-set DPI not equal to painter's DPI (%1 vs %2)" )
+                   .arg( paintDevice->logicalDpiX() )
+                   .arg( mSettings.outputDpi() * mSettings.devicePixelRatio() );
+  Q_ASSERT_X( qgsDoubleNear( paintDevice->logicalDpiX(), mSettings.outputDpi() * mSettings.devicePixelRatio() ),
+              "Job::startRender()", errMsg.toLatin1().data() );
 #endif
 
-  delete mLabelingEngineV2;
-  mLabelingEngineV2 = nullptr;
+  mLabelingEngineV2.reset();
 
   if ( mSettings.testFlag( QgsMapSettings::DrawLabeling ) )
   {
-    mLabelingEngineV2 = new QgsLabelingEngine();
-    mLabelingEngineV2->readSettingsFromProject();
+    mLabelingEngineV2.reset( new QgsLabelingEngine() );
     mLabelingEngineV2->setMapSettings( mSettings );
   }
 
-  mLayerJobs = prepareJobs( mPainter, mLabelingEngineV2 );
+  bool canUseLabelCache = prepareLabelCache();
+  mLayerJobs = prepareJobs( mPainter, mLabelingEngineV2.get() );
+  mLabelJob = prepareLabelingJob( mPainter, mLabelingEngineV2.get(), canUseLabelCache );
 
-  QgsDebugMsg( "Rendering prepared in (seconds): " + QString( "%1" ).arg( prepareTime.elapsed() / 1000.0 ) );
+  QgsDebugMsgLevel( "Rendering prepared in (seconds): " + QString( "%1" ).arg( prepareTime.elapsed() / 1000.0 ), 4 );
 
   if ( mRenderSynchronously )
   {
@@ -95,7 +95,7 @@ void QgsMapRendererCustomPainterJob::start()
   }
 
   // now we are ready to start rendering!
-  connect( &mFutureWatcher, SIGNAL( finished() ), SLOT( futureFinished() ) );
+  connect( &mFutureWatcher, &QFutureWatcher<void>::finished, this, &QgsMapRendererCustomPainterJob::futureFinished );
 
   mFuture = QtConcurrent::run( staticRender, this );
   mFutureWatcher.setFuture( mFuture );
@@ -106,31 +106,41 @@ void QgsMapRendererCustomPainterJob::cancel()
 {
   if ( !isActive() )
   {
-    QgsDebugMsg( "QPAINTER not running!" );
+    QgsDebugMsgLevel( QStringLiteral( "QPAINTER not running!" ), 4 );
     return;
   }
 
-  QgsDebugMsg( "QPAINTER cancelling" );
-  disconnect( &mFutureWatcher, SIGNAL( finished() ), this, SLOT( futureFinished() ) );
-
-  mLabelingRenderContext.setRenderingStopped( true );
-  for ( LayerRenderJobs::iterator it = mLayerJobs.begin(); it != mLayerJobs.end(); ++it )
-  {
-    it->context.setRenderingStopped( true );
-    if ( it->renderer && it->renderer->feedback() )
-      it->renderer->feedback()->cancel();
-  }
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER canceling" ), 5 );
+  disconnect( &mFutureWatcher, &QFutureWatcher<void>::finished, this, &QgsMapRendererCustomPainterJob::futureFinished );
+  cancelWithoutBlocking();
 
   QTime t;
   t.start();
 
   mFutureWatcher.waitForFinished();
 
-  QgsDebugMsg( QString( "QPAINER cancel waited %1 ms" ).arg( t.elapsed() / 1000.0 ) );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINER cancel waited %1 ms" ).arg( t.elapsed() / 1000.0 ), 5 );
 
   futureFinished();
 
-  QgsDebugMsg( "QPAINTER cancelled" );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER canceled" ), 5 );
+}
+
+void QgsMapRendererCustomPainterJob::cancelWithoutBlocking()
+{
+  if ( !isActive() )
+  {
+    QgsDebugMsg( QStringLiteral( "QPAINTER not running!" ) );
+    return;
+  }
+
+  mLabelJob.context.setRenderingStopped( true );
+  for ( LayerRenderJobs::iterator it = mLayerJobs.begin(); it != mLayerJobs.end(); ++it )
+  {
+    it->context.setRenderingStopped( true );
+    if ( it->renderer && it->renderer->feedback() )
+      it->renderer->feedback()->cancel();
+  }
 }
 
 void QgsMapRendererCustomPainterJob::waitForFinished()
@@ -138,14 +148,14 @@ void QgsMapRendererCustomPainterJob::waitForFinished()
   if ( !isActive() )
     return;
 
-  disconnect( &mFutureWatcher, SIGNAL( finished() ), this, SLOT( futureFinished() ) );
+  disconnect( &mFutureWatcher, &QFutureWatcher<void>::finished, this, &QgsMapRendererCustomPainterJob::futureFinished );
 
   QTime t;
   t.start();
 
   mFutureWatcher.waitForFinished();
 
-  QgsDebugMsg( QString( "waitForFinished: %1 ms" ).arg( t.elapsed() / 1000.0 ) );
+  QgsDebugMsgLevel( QStringLiteral( "waitForFinished: %1 ms" ).arg( t.elapsed() / 1000.0 ), 4 );
 
   futureFinished();
 }
@@ -155,8 +165,12 @@ bool QgsMapRendererCustomPainterJob::isActive() const
   return mActive;
 }
 
+bool QgsMapRendererCustomPainterJob::usedCachedLabels() const
+{
+  return mLabelJob.cached;
+}
 
-QgsLabelingResults* QgsMapRendererCustomPainterJob::takeLabelingResults()
+QgsLabelingResults *QgsMapRendererCustomPainterJob::takeLabelingResults()
 {
   if ( mLabelingEngineV2 )
     return mLabelingEngineV2->takeResults();
@@ -168,7 +182,7 @@ QgsLabelingResults* QgsMapRendererCustomPainterJob::takeLabelingResults()
 void QgsMapRendererCustomPainterJob::waitForFinishedWithEventLoop( QEventLoop::ProcessEventsFlags flags )
 {
   QEventLoop loop;
-  connect( &mFutureWatcher, SIGNAL( finished() ), &loop, SLOT( quit() ) );
+  connect( &mFutureWatcher, &QFutureWatcher<void>::finished, &loop, &QEventLoop::quit );
   loop.exec( flags );
 }
 
@@ -186,48 +200,49 @@ void QgsMapRendererCustomPainterJob::futureFinished()
 {
   mActive = false;
   mRenderingTime = mRenderingStart.elapsed();
-  QgsDebugMsg( "QPAINTER futureFinished" );
+  QgsDebugMsgLevel( QStringLiteral( "QPAINTER futureFinished" ), 5 );
 
-  logRenderingTime( mLayerJobs );
+  logRenderingTime( mLayerJobs, mLabelJob );
 
   // final cleanup
   cleanupJobs( mLayerJobs );
+  cleanupLabelJob( mLabelJob );
 
   emit finished();
 }
 
 
-void QgsMapRendererCustomPainterJob::staticRender( QgsMapRendererCustomPainterJob* self )
+void QgsMapRendererCustomPainterJob::staticRender( QgsMapRendererCustomPainterJob *self )
 {
   try
   {
     self->doRender();
   }
-  catch ( QgsException & e )
+  catch ( QgsException &e )
   {
     Q_UNUSED( e );
     QgsDebugMsg( "Caught unhandled QgsException: " + e.what() );
   }
-  catch ( std::exception & e )
+  catch ( std::exception &e )
   {
     Q_UNUSED( e );
-    QgsDebugMsg( "Caught unhandled std::exception: " + QString::fromAscii( e.what() ) );
+    QgsDebugMsg( "Caught unhandled std::exception: " + QString::fromLatin1( e.what() ) );
   }
   catch ( ... )
   {
-    QgsDebugMsg( "Caught unhandled unknown exception" );
+    QgsDebugMsg( QStringLiteral( "Caught unhandled unknown exception" ) );
   }
 }
 
 void QgsMapRendererCustomPainterJob::doRender()
 {
-  QgsDebugMsg( "Starting to render layer stack." );
+  QgsDebugMsgLevel( QStringLiteral( "Starting to render layer stack." ), 5 );
   QTime renderTime;
   renderTime.start();
 
   for ( LayerRenderJobs::iterator it = mLayerJobs.begin(); it != mLayerJobs.end(); ++it )
   {
-    LayerRenderJob& job = *it;
+    LayerRenderJob &job = *it;
 
     if ( job.context.renderingStopped() )
       break;
@@ -244,9 +259,15 @@ void QgsMapRendererCustomPainterJob::doRender()
       QTime layerTime;
       layerTime.start();
 
+      if ( job.img )
+      {
+        job.img->fill( 0 );
+        job.imageInitialized = true;
+      }
+
       job.renderer->render();
 
-      job.renderingTime = layerTime.elapsed();
+      job.renderingTime += layerTime.elapsed();
     }
 
     if ( job.img )
@@ -259,18 +280,48 @@ void QgsMapRendererCustomPainterJob::doRender()
 
   }
 
-  QgsDebugMsg( "Done rendering map layers" );
+  QgsDebugMsgLevel( QStringLiteral( "Done rendering map layers" ), 5 );
 
-  if ( mSettings.testFlag( QgsMapSettings::DrawLabeling ) && !mLabelingRenderContext.renderingStopped() )
-    drawLabeling( mSettings, mLabelingRenderContext, mLabelingEngineV2, mPainter );
+  if ( mSettings.testFlag( QgsMapSettings::DrawLabeling ) && !mLabelJob.context.renderingStopped() )
+  {
+    if ( !mLabelJob.cached )
+    {
+      QTime labelTime;
+      labelTime.start();
 
-  QgsDebugMsg( "Rendering completed in (seconds): " + QString( "%1" ).arg( renderTime.elapsed() / 1000.0 ) );
+      if ( mLabelJob.img )
+      {
+        QPainter painter;
+        mLabelJob.img->fill( 0 );
+        painter.begin( mLabelJob.img );
+        mLabelJob.context.setPainter( &painter );
+        drawLabeling( mSettings, mLabelJob.context, mLabelingEngineV2.get(), &painter );
+        painter.end();
+      }
+      else
+      {
+        drawLabeling( mSettings, mLabelJob.context, mLabelingEngineV2.get(), mPainter );
+      }
+
+      mLabelJob.complete = true;
+      mLabelJob.renderingTime = labelTime.elapsed();
+      mLabelJob.participatingLayers = _qgis_listRawToQPointer( mLabelingEngineV2->participatingLayers() );
+    }
+  }
+  if ( mLabelJob.img && mLabelJob.complete )
+  {
+    mPainter->setCompositionMode( QPainter::CompositionMode_SourceOver );
+    mPainter->setOpacity( 1.0 );
+    mPainter->drawImage( 0, 0, *mLabelJob.img );
+  }
+
+  QgsDebugMsgLevel( "Rendering completed in (seconds): " + QString( "%1" ).arg( renderTime.elapsed() / 1000.0 ), 2 );
 }
 
 
-void QgsMapRendererJob::drawLabeling( const QgsMapSettings& settings, QgsRenderContext& renderContext, QgsLabelingEngine* labelingEngine2, QPainter* painter )
+void QgsMapRendererJob::drawLabeling( const QgsMapSettings &settings, QgsRenderContext &renderContext, QgsLabelingEngine *labelingEngine2, QPainter *painter )
 {
-  QgsDebugMsg( "Draw labeling start" );
+  QgsDebugMsgLevel( QStringLiteral( "Draw labeling start" ), 5 );
 
   QTime t;
   t.start();
@@ -291,39 +342,26 @@ void QgsMapRendererJob::drawLabeling( const QgsMapSettings& settings, QgsRenderC
     labelingEngine2->run( renderContext );
   }
 
-  QgsDebugMsg( QString( "Draw labeling took (seconds): %1" ).arg( t.elapsed() / 1000. ) );
+  QgsDebugMsg( QStringLiteral( "Draw labeling took (seconds): %1" ).arg( t.elapsed() / 1000. ) );
 }
 
 
-void QgsMapRendererJob::updateLayerGeometryCaches()
-{
-  QMap<QString, QgsGeometryCache>::const_iterator it = mGeometryCaches.constBegin();
-  for ( ; it != mGeometryCaches.constEnd(); ++it )
-  {
-    const QgsGeometryCache& cache = it.value();
-    if ( QgsVectorLayer* vl = qobject_cast<QgsVectorLayer*>( QgsMapLayerRegistry::instance()->mapLayer( it.key() ) ) )
-      * vl->cache() = cache;
-  }
-  mGeometryCaches.clear();
-}
-
-
-bool QgsMapRendererJob::needTemporaryImage( QgsMapLayer* ml )
+bool QgsMapRendererJob::needTemporaryImage( QgsMapLayer *ml )
 {
   if ( ml->type() == QgsMapLayer::VectorLayer )
   {
-    QgsVectorLayer* vl = qobject_cast<QgsVectorLayer *>( ml );
+    QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( ml );
     if ( vl->renderer() && vl->renderer()->forceRasterRender() )
     {
       //raster rendering is forced for this layer
       return true;
     }
     if ( mSettings.testFlag( QgsMapSettings::UseAdvancedEffects ) &&
-         (( vl->blendMode() != QPainter::CompositionMode_SourceOver )
-          || ( vl->featureBlendMode() != QPainter::CompositionMode_SourceOver )
-          || ( vl->layerTransparency() != 0 ) ) )
+         ( ( vl->blendMode() != QPainter::CompositionMode_SourceOver )
+           || ( vl->featureBlendMode() != QPainter::CompositionMode_SourceOver )
+           || ( !qgsDoubleNear( vl->opacity(), 1.0 ) ) ) )
     {
-      //layer properties require rasterisation
+      //layer properties require rasterization
       return true;
     }
   }

@@ -14,7 +14,7 @@
  ***************************************************************************/
 #include <cmath>
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -29,7 +29,8 @@
 
 #define TINY_VALUE  std::numeric_limits<double>::epsilon() * 20
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for the QgsRasterLayer class.
  */
 class TestQgsWcsProvider: public QObject
@@ -43,7 +44,7 @@ class TestQgsWcsProvider: public QObject
 
     void read();
   private:
-    bool read( const QString& theIdentifier, const QString& theWcsUri, const QString& theFilePath, QString & theReport );
+    bool read( const QString &identifier, const QString &wcsUri, const QString &filePath, QString &report );
     QString mTestDataDir;
     QString mReport;
     QString mUrl;
@@ -97,7 +98,7 @@ void TestQgsWcsProvider::read()
   bool ok = true;
   QStringList versions;
 
-  // TODO: 1.1 test disabled for now beacuse it was failing, UMN Mapserver is giving
+  // TODO: 1.1 test disabled for now because it was failing, UMN Mapserver is giving
   // 1x1 pixel response if GRIDORIGIN coordinate has a negative value, but it has to be
   // verified if the problem is really on Mapserver side
   //versions << "1.0" << "1.1";
@@ -114,13 +115,13 @@ void TestQgsWcsProvider::read()
   identifiers << QStringLiteral( "band3_float32_noct_epsg4326" );
 
   // How to reasonably log multiple fails within this loop?
-  QTemporaryFile* tmpFile = new QTemporaryFile( QStringLiteral( "qgis-wcs-test-XXXXXX.tif" ) );
+  QTemporaryFile *tmpFile = new QTemporaryFile( QStringLiteral( "qgis-wcs-test-XXXXXX.tif" ) );
   tmpFile->open();
   QString tmpFilePath = tmpFile->fileName();
   delete tmpFile; // removes the file
-  Q_FOREACH ( const QString& version, versions )
+  Q_FOREACH ( const QString &version, versions )
   {
-    Q_FOREACH ( const QString& identifier, identifiers )
+    Q_FOREACH ( const QString &identifier, identifiers )
     {
       // copy to temporary to avoid creation/changes/use of GDAL .aux.xml files
       QString testFilePath = mTestDataDir + '/' + identifier + ".tif";
@@ -149,16 +150,16 @@ void TestQgsWcsProvider::read()
   QVERIFY2( ok, "Reading data failed. See report for details." );
 }
 
-bool TestQgsWcsProvider::read( const QString& theIdentifier, const QString& theWcsUri, const QString& theFilePath, QString & theReport )
+bool TestQgsWcsProvider::read( const QString &identifier, const QString &wcsUri, const QString &filePath, QString &report )
 {
-  theReport += QStringLiteral( "<h2>Identifier (coverage): %1</h2>" ).arg( theIdentifier );
+  report += QStringLiteral( "<h2>Identifier (coverage): %1</h2>" ).arg( identifier );
 
   QgsRasterChecker checker;
-  bool ok = checker.runTest( QStringLiteral( "wcs" ), theWcsUri, QStringLiteral( "gdal" ), theFilePath );
+  bool ok = checker.runTest( QStringLiteral( "wcs" ), wcsUri, QStringLiteral( "gdal" ), filePath );
 
-  theReport += checker.report();
+  report += checker.report();
   return ok;
 }
 
-QTEST_MAIN( TestQgsWcsProvider )
+QGSTEST_MAIN( TestQgsWcsProvider )
 #include "testqgswcsprovider.moc"

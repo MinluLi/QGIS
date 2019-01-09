@@ -16,137 +16,313 @@ email                : marco.hugentobler at sourcepole dot com
 #ifndef QGSGEOMETRYCOLLECTIONV2_H
 #define QGSGEOMETRYCOLLECTIONV2_H
 
-#include "qgsabstractgeometry.h"
-#include "qgspointv2.h"
 #include <QVector>
 
-/** \ingroup core
+
+#include "qgis_core.h"
+#include "qgis.h"
+#include "qgsabstractgeometry.h"
+
+class QgsPoint;
+
+
+/**
+ * \ingroup core
  * \class QgsGeometryCollection
  * \brief Geometry collection
- * \note added in QGIS 2.10
- * \note this API is not considered stable and may change for 2.12
+ * \since QGIS 2.10
  */
 class CORE_EXPORT QgsGeometryCollection: public QgsAbstractGeometry
 {
   public:
     QgsGeometryCollection();
-    QgsGeometryCollection( const QgsGeometryCollection& c );
-    QgsGeometryCollection& operator=( const QgsGeometryCollection& c );
-    virtual ~QgsGeometryCollection();
+    QgsGeometryCollection( const QgsGeometryCollection &c );
+    QgsGeometryCollection &operator=( const QgsGeometryCollection &c );
+    ~QgsGeometryCollection() override;
 
-    virtual QgsGeometryCollection* clone() const override;
+    bool operator==( const QgsAbstractGeometry &other ) const override;
+    bool operator!=( const QgsAbstractGeometry &other ) const override;
 
-    /** Returns the number of geometries within the collection.
+    QgsGeometryCollection *clone() const override SIP_FACTORY;
+
+    /**
+     * Returns the number of geometries within the collection.
      */
-    int numGeometries() const;
+    int numGeometries() const
+    {
+      return mGeometries.size();
+    }
 
-    /** Returns a const reference to a geometry from within the collection.
-     * @param n index of geometry to return
-     */
-    const QgsAbstractGeometry* geometryN( int n ) const;
+#ifdef SIP_RUN
 
-    /** Returns a geometry from within the collection.
-     * @param n index of geometry to return
+    /**
+     * Returns the number of geometries within the collection.
      */
-    QgsAbstractGeometry* geometryN( int n );
+    int __len__() const;
+    % MethodCode
+    sipRes = sipCpp->numGeometries();
+    % End
+
+    //! Ensures that bool(obj) returns true (otherwise __len__() would be used)
+    int __bool__() const;
+    % MethodCode
+    sipRes = true;
+    % End
+#endif
+
+
+    /**
+     * Returns a const reference to a geometry from within the collection.
+     * \param n index of geometry to return
+     * \note not available in Python bindings
+     */
+    const QgsAbstractGeometry *geometryN( int n ) const SIP_SKIP
+    {
+      return mGeometries.value( n );
+    }
+
+#ifndef SIP_RUN
+
+    /**
+     * Returns a geometry from within the collection.
+     * \param n index of geometry to return
+     */
+    QgsAbstractGeometry *geometryN( int n );
+#else
+
+    /**
+     * Returns a geometry from within the collection.
+     * \param n index of geometry to return. An IndexError will be raised if no geometry with the specified index exists.
+     */
+    SIP_PYOBJECT geometryN( int n ) SIP_TYPEHINT( QgsAbstractGeometry );
+    % MethodCode
+    if ( a0 < 0 || a0 >= sipCpp->numGeometries() )
+    {
+      PyErr_SetString( PyExc_IndexError, QByteArray::number( a0 ) );
+      sipIsErr = 1;
+    }
+    else
+    {
+      return sipConvertFromType( sipCpp->geometryN( a0 ), sipType_QgsAbstractGeometry, NULL );
+    }
+    % End
+#endif
+
 
     //methods inherited from QgsAbstractGeometry
-    virtual int dimension() const override;
-    virtual QString geometryType() const override { return QStringLiteral( "GeometryCollection" ); }
-    virtual void clear() override;
-    virtual QgsAbstractGeometry* boundary() const override;
+    bool isEmpty() const override;
+    int dimension() const override;
+    QString geometryType() const override;
+    void clear() override;
+    QgsGeometryCollection *snappedToGrid( double hSpacing, double vSpacing, double dSpacing = 0, double mSpacing = 0 ) const override SIP_FACTORY;
+    bool removeDuplicateNodes( double epsilon = 4 * std::numeric_limits<double>::epsilon(), bool useZValues = false ) override;
+    QgsAbstractGeometry *boundary() const override SIP_FACTORY;
+    void adjacentVertices( QgsVertexId vertex, QgsVertexId &previousVertex SIP_OUT, QgsVertexId &nextVertex SIP_OUT ) const override;
+    int vertexNumberFromVertexId( QgsVertexId id ) const override;
 
     //! Adds a geometry and takes ownership. Returns true in case of success.
-    virtual bool addGeometry( QgsAbstractGeometry* g );
+    virtual bool addGeometry( QgsAbstractGeometry *g SIP_TRANSFER );
 
-    /** Inserts a geometry before a specified index and takes ownership. Returns true in case of success.
-     * @param g geometry to insert. Ownership is transferred to the collection.
-     * @param index position to insert geometry before
+    /**
+     * Inserts a geometry before a specified index and takes ownership. Returns true in case of success.
+     * \param g geometry to insert. Ownership is transferred to the collection.
+     * \param index position to insert geometry before
      */
-    virtual bool insertGeometry( QgsAbstractGeometry* g, int index );
+    virtual bool insertGeometry( QgsAbstractGeometry *g SIP_TRANSFER, int index );
 
-    /** Removes a geometry from the collection.
-     * @param nr index of geometry to remove
-     * @returns true if removal was successful.
+#ifndef SIP_RUN
+
+    /**
+     * Removes a geometry from the collection.
+     * \param nr index of geometry to remove
+     * \returns true if removal was successful.
      */
     virtual bool removeGeometry( int nr );
+#else
 
-    virtual void transform( const QgsCoordinateTransform& ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform,
-                            bool transformZ = false ) override;
-    void transform( const QTransform& t ) override;
-#if 0
-    virtual void clip( const QgsRectangle& rect ) override;
+    /**
+     * Removes a geometry from the collection by index.
+     *
+     * An IndexError will be raised if no geometry with the specified index exists.
+     *
+     * \returns true if removal was successful.
+     */
+    virtual bool removeGeometry( int nr );
+    % MethodCode
+    const int count = sipCpp->numGeometries();
+    if ( a0 < 0 || a0 >= count )
+    {
+      PyErr_SetString( PyExc_IndexError, QByteArray::number( a0 ) );
+      sipIsErr = 1;
+    }
+    else
+    {
+      return PyBool_FromLong( sipCpp->removeGeometry( a0 ) );
+    }
+    % End
 #endif
-    virtual void draw( QPainter& p ) const override;
 
-    bool fromWkb( QgsConstWkbPtr wkb ) override;
-    virtual bool fromWkt( const QString& wkt ) override;
-    int wkbSize() const override;
-    unsigned char* asWkb( int& binarySize ) const override;
+    void transform( const QgsCoordinateTransform &ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform, bool transformZ = false ) override SIP_THROW( QgsCsException );
+    void transform( const QTransform &t, double zTranslate = 0.0, double zScale = 1.0, double mTranslate = 0.0, double mScale = 1.0 ) override;
+
+    void draw( QPainter &p ) const override;
+
+    bool fromWkb( QgsConstWkbPtr &wkb ) override;
+    bool fromWkt( const QString &wkt ) override;
+    QByteArray asWkb() const override;
     QString asWkt( int precision = 17 ) const override;
-    QDomElement asGML2( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
-    QDomElement asGML3( QDomDocument& doc, int precision = 17, const QString& ns = "gml" ) const override;
-    QString asJSON( int precision = 17 ) const override;
+    QDomElement asGml2( QDomDocument &doc, int precision = 17, const QString &ns = "gml", QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) const override;
+    QDomElement asGml3( QDomDocument &doc, int precision = 17, const QString &ns = "gml", QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) const override;
+    QString asJson( int precision = 17 ) const override;
 
-    virtual QgsRectangle boundingBox() const override;
+    QgsRectangle boundingBox() const override;
 
-    virtual QgsCoordinateSequence coordinateSequence() const override;
-    virtual int nCoordinates() const override;
+    QgsCoordinateSequence coordinateSequence() const override;
+    int nCoordinates() const override;
 
-    virtual double closestSegment( const QgsPointV2& pt, QgsPointV2& segmentPt,  QgsVertexId& vertexAfter, bool* leftOf, double epsilon ) const override;
-    bool nextVertex( QgsVertexId& id, QgsPointV2& vertex ) const override;
+    double closestSegment( const QgsPoint &pt, QgsPoint &segmentPt SIP_OUT, QgsVertexId &vertexAfter SIP_OUT, int *leftOf SIP_OUT = nullptr, double epsilon = 4 * std::numeric_limits<double>::epsilon() ) const override;
+    bool nextVertex( QgsVertexId &id, QgsPoint &vertex SIP_OUT ) const override;
 
     //low-level editing
-    virtual bool insertVertex( QgsVertexId position, const QgsPointV2& vertex ) override;
-    virtual bool moveVertex( QgsVertexId position, const QgsPointV2& newPos ) override;
-    virtual bool deleteVertex( QgsVertexId position ) override;
+    bool insertVertex( QgsVertexId position, const QgsPoint &vertex ) override;
+    bool moveVertex( QgsVertexId position, const QgsPoint &newPos ) override;
+    bool deleteVertex( QgsVertexId position ) override;
 
-    virtual double length() const override;
-    virtual double area() const override;
-    virtual double perimeter() const override;
+    double length() const override;
+    double area() const override;
+    double perimeter() const override;
 
     bool hasCurvedSegments() const override;
 
-    /** Returns a geometry without curves. Caller takes ownership
-     * @param tolerance segmentation tolerance
-     * @param toleranceType maximum segmentation angle or maximum difference between approximation and curve*/
-    QgsAbstractGeometry* segmentize( double tolerance = M_PI_2 / 90, SegmentationToleranceType toleranceType = MaximumAngle ) const override;
+    /**
+     * Returns a geometry without curves. Caller takes ownership
+     * \param tolerance segmentation tolerance
+     * \param toleranceType maximum segmentation angle or maximum difference between approximation and curve*/
+    QgsAbstractGeometry *segmentize( double tolerance = M_PI_2 / 90, SegmentationToleranceType toleranceType = MaximumAngle ) const override SIP_FACTORY;
 
-    /** Returns approximate rotation angle for a vertex. Usually average angle between adjacent segments.
-     * @param vertex the vertex id
-     * @return rotation in radians, clockwise from north
-     */
     double vertexAngle( QgsVertexId vertex ) const override;
+    double segmentLength( QgsVertexId startVertex ) const override;
+    int vertexCount( int part = 0, int ring = 0 ) const override;
+    int ringCount( int part = 0 ) const override;
+    int partCount() const override;
+    QgsPoint vertexAt( QgsVertexId id ) const override;
 
-    virtual int vertexCount( int part = 0, int ring = 0 ) const override { return mGeometries[part]->vertexCount( 0, ring ); }
-    virtual int ringCount( int part = 0 ) const override { return mGeometries[part]->ringCount(); }
-    virtual int partCount() const override { return mGeometries.size(); }
-    virtual QgsPointV2 vertexAt( QgsVertexId id ) const override { return mGeometries[id.part]->vertexAt( id ); }
+    bool addZValue( double zValue = 0 ) override;
+    bool addMValue( double mValue = 0 ) override;
+    bool dropZValue() override;
+    bool dropMValue() override;
+    void swapXy() override;
+    QgsGeometryCollection *toCurveType() const override SIP_FACTORY;
 
-    virtual bool addZValue( double zValue = 0 ) override;
-    virtual bool addMValue( double mValue = 0 ) override;
-    virtual bool dropZValue() override;
-    virtual bool dropMValue() override;
+#ifndef SIP_RUN
+    void filterVertices( const std::function< bool( const QgsPoint & ) > &filter ) override;
+    void transformVertices( const std::function< QgsPoint( const QgsPoint & ) > &transform ) override;
+
+    /**
+     * Cast the \a geom to a QgsGeometryCollection.
+     * Should be used by qgsgeometry_cast<QgsGeometryCollection *>( geometry ).
+     *
+     * \note Not available in Python. Objects will be automatically be converted to the appropriate target type.
+     * \since QGIS 3.0
+     */
+    inline const QgsGeometryCollection *cast( const QgsAbstractGeometry *geom ) const
+    {
+      if ( geom && QgsWkbTypes::isMultiType( geom->wkbType() ) )
+        return static_cast<const QgsGeometryCollection *>( geom );
+      return nullptr;
+    }
+#endif
+
+
+#ifdef SIP_RUN
+
+    /**
+    * Returns the geometry at the specified ``index``. An IndexError will be raised if no geometry with the specified ``index`` exists.
+    *
+    * Indexes can be less than 0, in which case they correspond to geometries from the end of the collect. E.g. an index of -1
+    * corresponds to the last geometry in the collection.
+    *
+    * \since QGIS 3.4.4
+    */
+    SIP_PYOBJECT __getitem__( int index ) SIP_TYPEHINT( QgsAbstractGeometry );
+    % MethodCode
+    const int count = sipCpp->numGeometries();
+    if ( a0 < -count || a0 >= count )
+    {
+      PyErr_SetString( PyExc_IndexError, QByteArray::number( a0 ) );
+      sipIsErr = 1;
+    }
+    else if ( a0 >= 0 )
+    {
+      return sipConvertFromType( sipCpp->geometryN( a0 ), sipType_QgsAbstractGeometry, NULL );
+    }
+    else
+    {
+      return sipConvertFromType( sipCpp->geometryN( count + a0 ), sipType_QgsAbstractGeometry, NULL );
+    }
+    % End
+
+    /**
+     * Deletes the geometry at the specified ``index``. A geometry at the ``index`` must already exist or an IndexError will be raised.
+     *
+     * Indexes can be less than 0, in which case they correspond to geometries from the end of the collection. E.g. an index of -1
+     * corresponds to the last geometry in the collection.
+     *
+     * \since QGIS 3.4.4
+     */
+    void __delitem__( int index );
+    % MethodCode
+    const int count = sipCpp->numGeometries();
+    if ( a0 >= 0 && a0 < count )
+      sipCpp->removeGeometry( a0 );
+    else if ( a0 < 0 && a0 >= -count )
+      sipCpp->removeGeometry( count + a0 );
+    else
+    {
+      PyErr_SetString( PyExc_IndexError, QByteArray::number( a0 ) );
+      sipIsErr = 1;
+    }
+    % End
+
+    /**
+     * Iterates through all geometries in the collection.
+     *
+     * \since QGIS 3.4.4
+     */
+    SIP_PYOBJECT __iter__() SIP_TYPEHINT( QgsGeometryPartIterator );
+    % MethodCode
+    sipRes = sipConvertFromNewType( new QgsGeometryPartIterator( sipCpp ), sipType_QgsGeometryPartIterator, Py_None );
+    % End
+#endif
+
+    QgsGeometryCollection *createEmptyWithSameType() const override SIP_FACTORY;
 
   protected:
-    QVector< QgsAbstractGeometry* > mGeometries;
+    int childCount() const override;
+    QgsAbstractGeometry *childGeometry( int index ) const override;
 
-    /** Returns whether child type names are omitted from Wkt representations of the collection
-     * @note added in QGIS 2.12
+  protected:
+    QVector< QgsAbstractGeometry * > mGeometries;
+
+    /**
+     * Returns whether child type names are omitted from Wkt representations of the collection
+     * \since QGIS 2.12
      */
-    virtual bool wktOmitChildType() const { return false; }
+    virtual bool wktOmitChildType() const;
 
-    /** Reads a collection from a WKT string.
+    /**
+     * Reads a collection from a WKT string.
      */
-    bool fromCollectionWkt( const QString &wkt, const QList<QgsAbstractGeometry*>& subtypes, const QString& defaultChildWkbType = QString() );
+    bool fromCollectionWkt( const QString &wkt, const QVector<QgsAbstractGeometry *> &subtypes, const QString &defaultChildWkbType = QString() );
 
-    virtual QgsRectangle calculateBoundingBox() const override;
-    virtual void clearCache() const override { mBoundingBox = QgsRectangle(); mCoordinateSequence.clear(); QgsAbstractGeometry::clearCache(); }
+    QgsRectangle calculateBoundingBox() const override;
+    void clearCache() const override;
 
   private:
 
     mutable QgsRectangle mBoundingBox;
-    mutable QgsCoordinateSequence mCoordinateSequence;
 };
+
+// clazy:excludeall=qstring-allocations
 
 #endif // QGSGEOMETRYCOLLECTIONV2_H

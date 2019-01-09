@@ -16,11 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import print_function
-from builtins import map
-from builtins import str
-from builtins import range
-from builtins import object
 
 __author__ = 'Martin Dobias'
 __date__ = 'November 2012'
@@ -33,9 +28,14 @@ __revision__ = '$Format:%H$'
 import psycopg2
 import psycopg2.extensions  # For isolation levels
 import re
+import os
 
-from qgis.PyQt.QtCore import QSettings
-from qgis.core import QgsDataSourceUri, QgsCredentials
+from qgis.core import (QgsProcessingException,
+                       QgsDataSourceUri,
+                       QgsCredentials,
+                       QgsSettings)
+
+from qgis.PyQt.QtCore import QCoreApplication
 
 
 # Use unicode!
@@ -43,11 +43,11 @@ psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
 
 
 def uri_from_name(conn_name):
-    settings = QSettings()
+    settings = QgsSettings()
     settings.beginGroup(u"/PostgreSQL/connections/%s" % conn_name)
 
     if not settings.contains("database"):  # non-existent entry?
-        raise DbError('There is no defined database connection "%s".' % conn_name)
+        raise QgsProcessingException(QCoreApplication.translate("PostGIS", 'There is no defined database connection "{0}".').format(conn_name))
 
     uri = QgsDataSourceUri()
 
@@ -55,9 +55,15 @@ def uri_from_name(conn_name):
     service, host, port, database, username, password, authcfg = [settings.value(x, "", type=str) for x in settingsList]
 
     useEstimatedMetadata = settings.value("estimatedMetadata", False, type=bool)
-    sslmode = settings.value("sslmode", QgsDataSourceUri.SslPrefer, type=int)
+    try:
+        sslmode = settings.value("sslmode", QgsDataSourceUri.SslPrefer, type=int)
+    except TypeError:
+        sslmode = QgsDataSourceUri.SslPrefer
 
     settings.endGroup()
+
+    if hasattr(authcfg, 'isNull') and authcfg.isNull():
+        authcfg = ''
 
     if service:
         uri.setConnection(service, database, username, password, sslmode, authcfg)
@@ -126,22 +132,6 @@ class TableIndex(object):
         self.columns = list(map(int, columns.split(' ')))
 
 
-class DbError(Exception):
-
-    def __init__(self, message, query=None):
-        self.message = message
-        self.query = query
-
-    def __str__(self):
-        return str(self).encode('utf-8')
-
-    def __unicode__(self):
-        text = u'MESSAGE: %s' % self.message
-        if self.query:
-            text += u'\nQUERY: %s' % self.query
-        return text
-
-
 class TableField(object):
 
     def __init__(self, name, data_type, is_null=None, default=None,
@@ -160,8 +150,8 @@ class TableField(object):
         ALTER TABLE command.
         """
 
-        data_type = (self.data_type if not self.modifier or self.modifier
-                     < 0 else '%s(%d)' % (self.data_type, self.modifier))
+        data_type = (self.data_type if not self.modifier or self.modifier <
+                     0 else '%s(%d)' % (self.data_type, self.modifier))
         txt = '%s %s %s' % (self._quote(self.name), data_type,
                             self.is_null_txt())
         if self.default and len(self.default) > 0:
@@ -202,7 +192,7 @@ class GeoDB(object):
         for i in range(4):
             expandedConnInfo = self.uri.connectionInfo(True)
             try:
-                self.con = psycopg2.connect(expandedConnInfo.encode('utf-8'))
+                self.con = psycopg2.connect(expandedConnInfo)
                 if err is not None:
                     QgsCredentials.instance().put(conninfo,
                                                   self.uri.username(),
@@ -210,7 +200,7 @@ class GeoDB(object):
                 break
             except psycopg2.OperationalError as e:
                 if i == 3:
-                    raise DbError(str(e))
+                    raise QgsProcessingException(str(e))
 
                 err = str(e)
                 user = self.uri.username()
@@ -220,7 +210,7 @@ class GeoDB(object):
                                                                      password,
                                                                      err)
                 if not ok:
-                    raise DbError(u'Action cancelled by user')
+                    raise QgsProcessingException(QCoreApplication.translate("PostGIS", 'Action canceled by user'))
                 if user:
                     self.uri.setUsername(user)
                 if password:
@@ -261,7 +251,7 @@ class GeoDB(object):
         return c.fetchone()[0] > 0
 
     def get_postgis_info(self):
-        """Returns tuple about postgis support:
+        """Returns tuple about PostGIS support:
               - lib version
               - installed scripts version
               - released scripts version
@@ -312,7 +302,7 @@ class GeoDB(object):
         # LEFT OUTER JOIN: like LEFT JOIN but if there are more matches,
         # for join, all are used (not only one)
 
-        # First find out whether postgis is enabled
+        # First find out whether PostGIS is enabled
         if not self.has_postgis:
             # Get all tables and views
             sql = """SELECT pg_class.relname, pg_namespace.nspname,
@@ -320,7 +310,7 @@ class GeoDB(object):
                             reltuples, relpages, NULL, NULL, NULL, NULL
                   FROM pg_class
                   JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-                  WHERE pg_class.relkind IN ('v', 'r')""" \
+                  WHERE pg_class.relkind IN ('v', 'r', 'm', 'p')""" \
                   + schema_where + 'ORDER BY nspname, relname'
         else:
             # Discovery of all tables and whether they contain a
@@ -337,7 +327,7 @@ class GeoDB(object):
                       OR pg_attribute.atttypid IN
                           (SELECT oid FROM pg_type
                            WHERE typbasetype='geometry'::regtype))
-                  WHERE pg_class.relkind IN ('v', 'r') """ \
+                  WHERE pg_class.relkind IN ('v', 'r', 'm', 'p') """ \
                   + schema_where + 'ORDER BY nspname, relname, attname'
 
         self._exec_sql(c, sql)
@@ -355,7 +345,7 @@ class GeoDB(object):
                   JOIN pg_namespace ON relnamespace=pg_namespace.oid
                   LEFT OUTER JOIN geometry_columns ON
                       relname=f_table_name AND nspname=f_table_schema
-                  WHERE (relkind = 'r' or relkind='v') """ \
+                  WHERE relkind IN ('r','v','m','p') """ \
                   + schema_where + 'ORDER BY nspname, relname, \
                   f_geometry_column'
             self._exec_sql(c, sql)
@@ -408,7 +398,7 @@ class GeoDB(object):
 
     def get_table_indexes(self, table, schema=None):
         """Get info about table's indexes. ignore primary key and unique
-        index, they get listed in constaints.
+        index, they get listed in constraints.
         """
 
         c = self.con.cursor()
@@ -465,7 +455,7 @@ class GeoDB(object):
         sql = """SELECT pg_get_viewdef(c.oid)
               FROM pg_class c
               JOIN pg_namespace nsp ON c.relnamespace = nsp.oid
-              WHERE relname='%s' %s AND relkind='v'""" \
+              WHERE relname='%s' %s AND relkind IN ('v','m')""" \
               % (self._quote_unicode(view), schema_where)
         c = self.con.cursor()
         self._exec_sql(c, sql)
@@ -500,7 +490,7 @@ class GeoDB(object):
         self._exec_sql_and_commit(sql)
 
     def delete_geometry_table(self, table, schema=None):
-        """Delete table with one or more geometries using postgis function."""
+        """Delete table with one or more geometries using PostGIS function."""
 
         if schema:
             schema_part = "'%s', " % self._quote_unicode(schema)
@@ -553,7 +543,7 @@ class GeoDB(object):
                                                self._quote(new_table))
         self._exec_sql_and_commit(sql)
 
-        # Update geometry_columns if postgis is enabled
+        # Update geometry_columns if PostGIS is enabled
         if self.has_postgis:
             sql = "UPDATE geometry_columns SET f_table_name='%s' \
                    WHERE f_table_name='%s'" \
@@ -596,7 +586,7 @@ class GeoDB(object):
                                                 self._quote(new_schema))
         self._exec_sql_and_commit(sql)
 
-        # Update geometry_columns if postgis is enabled
+        # Update geometry_columns if PostGIS is enabled
         if self.has_postgis:
             sql = \
                 "UPDATE geometry_columns SET f_table_schema='%s' \
@@ -626,7 +616,7 @@ class GeoDB(object):
                                                   self._quote(name), self._quote(new_name))
         self._exec_sql_and_commit(sql)
 
-        # Update geometry_columns if postgis is enabled
+        # Update geometry_columns if PostGIS is enabled
         if self.has_postgis:
             sql = "UPDATE geometry_columns SET f_geometry_column='%s' \
                    WHERE f_geometry_column='%s' AND f_table_name='%s'" \
@@ -702,7 +692,7 @@ class GeoDB(object):
                                                 self._quote(new_schema))
         self._exec_sql_and_commit(sql)
 
-        # Update geometry_columns if postgis is enabled
+        # Update geometry_columns if PostGIS is enabled
         if self.has_postgis:
             sql = "UPDATE geometry_columns SET f_table_schema='%s' \
                    WHERE f_table_name='%s'" \
@@ -738,7 +728,7 @@ class GeoDB(object):
 
         sql = "SELECT has_database_privilege('%(d)s', 'CREATE'), \
                       has_database_privilege('%(d)s', 'TEMP')" \
-              % {'d': self._quote_unicode(self.dbname)}
+              % {'d': self._quote_unicode(self.uri.database())}
         c = self.con.cursor()
         self._exec_sql(c, sql)
         return c.fetchone()
@@ -793,7 +783,7 @@ class GeoDB(object):
                            % srid)
             srtext = c.fetchone()[0]
 
-            # Try to extract just SR name (should be qouted in double
+            # Try to extract just SR name (should be quoted in double
             # quotes)
             x = re.search('"([^"]+)"', srtext)
             if x is not None:
@@ -826,7 +816,8 @@ class GeoDB(object):
         try:
             cursor.execute(sql)
         except psycopg2.Error as e:
-            raise DbError(str(e), e.cursor.query)
+            raise QgsProcessingException(str(e) + ' QUERY: ' +
+                                         e.cursor.query.decode(e.cursor.connection.encoding))
 
     def _exec_sql_and_commit(self, sql):
         """Tries to execute and commit some action, on error it rolls

@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -26,16 +26,17 @@
 #include <qgsvectorlayer.h>
 #include <qgsapplication.h>
 #include <qgsproviderregistry.h>
-#include <qgsmaplayerregistry.h>
+#include <qgsproject.h>
 #include <qgssymbol.h>
 #include <qgssinglesymbolrenderer.h>
 #include "qgsmarkersymbollayer.h"
-#include "qgsdatadefined.h"
+#include "qgsproperty.h"
 
 //qgis test includes
 #include "qgsrenderchecker.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for simple marker symbol types.
  */
 class TestQgsSimpleMarkerSymbol : public QObject
@@ -43,13 +44,7 @@ class TestQgsSimpleMarkerSymbol : public QObject
     Q_OBJECT
 
   public:
-    TestQgsSimpleMarkerSymbol()
-        : mTestHasError( false )
-        , mpPointsLayer( 0 )
-        , mSimpleMarkerLayer( 0 )
-        , mMarkerSymbol( 0 )
-        , mSymbolRenderer( 0 )
-    {}
+    TestQgsSimpleMarkerSymbol() = default;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -68,14 +63,14 @@ class TestQgsSimpleMarkerSymbol : public QObject
     void colors();
 
   private:
-    bool mTestHasError;
+    bool mTestHasError =  false ;
 
-    bool imageCheck( const QString& theType );
+    bool imageCheck( const QString &type );
     QgsMapSettings mMapSettings;
-    QgsVectorLayer * mpPointsLayer;
-    QgsSimpleMarkerSymbolLayer* mSimpleMarkerLayer;
-    QgsMarkerSymbol* mMarkerSymbol;
-    QgsSingleSymbolRenderer* mSymbolRenderer;
+    QgsVectorLayer *mpPointsLayer = nullptr;
+    QgsSimpleMarkerSymbolLayer *mSimpleMarkerLayer = nullptr;
+    QgsMarkerSymbol *mMarkerSymbol = nullptr;
+    QgsSingleSymbolRenderer *mSymbolRenderer = nullptr;
     QString mTestDataDir;
     QString mReport;
 };
@@ -102,7 +97,7 @@ void TestQgsSimpleMarkerSymbol::initTestCase()
                                       pointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
 
   // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
+  QgsProject::instance()->addMapLayers(
     QList<QgsMapLayer *>() << mpPointsLayer );
 
   //setup symbol
@@ -116,7 +111,7 @@ void TestQgsSimpleMarkerSymbol::initTestCase()
   // since maprender does not require a qui
   // and is more light weight
   //
-  mMapSettings.setLayers( QStringList() << mpPointsLayer->id() );
+  mMapSettings.setLayers( QList<QgsMapLayer *>() << mpPointsLayer );
   mReport += QLatin1String( "<h1>Simple Marker Tests</h1>\n" );
 
 }
@@ -139,10 +134,10 @@ void TestQgsSimpleMarkerSymbol::simpleMarkerSymbol()
   mReport += QLatin1String( "<h2>Simple marker symbol layer test</h2>\n" );
 
   mSimpleMarkerLayer->setColor( Qt::blue );
-  mSimpleMarkerLayer->setBorderColor( Qt::black );
+  mSimpleMarkerLayer->setStrokeColor( Qt::black );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Circle );
   mSimpleMarkerLayer->setSize( 5 );
-  mSimpleMarkerLayer->setOutlineWidth( 1 );
+  mSimpleMarkerLayer->setStrokeWidth( 1 );
   QVERIFY( imageCheck( "simplemarker" ) );
 }
 
@@ -151,10 +146,10 @@ void TestQgsSimpleMarkerSymbol::simpleMarkerSymbolBevelJoin()
   mReport += QLatin1String( "<h2>Simple marker symbol layer test</h2>\n" );
 
   mSimpleMarkerLayer->setColor( Qt::blue );
-  mSimpleMarkerLayer->setBorderColor( Qt::black );
+  mSimpleMarkerLayer->setStrokeColor( Qt::black );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Triangle );
   mSimpleMarkerLayer->setSize( 25 );
-  mSimpleMarkerLayer->setOutlineWidth( 3 );
+  mSimpleMarkerLayer->setStrokeWidth( 3 );
   mSimpleMarkerLayer->setPenJoinStyle( Qt::BevelJoin );
   QVERIFY( imageCheck( "simplemarker_beveljoin" ) );
 }
@@ -164,10 +159,10 @@ void TestQgsSimpleMarkerSymbol::simpleMarkerSymbolMiterJoin()
   mReport += QLatin1String( "<h2>Simple marker symbol layer test</h2>\n" );
 
   mSimpleMarkerLayer->setColor( Qt::blue );
-  mSimpleMarkerLayer->setBorderColor( Qt::black );
+  mSimpleMarkerLayer->setStrokeColor( Qt::black );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Triangle );
   mSimpleMarkerLayer->setSize( 25 );
-  mSimpleMarkerLayer->setOutlineWidth( 3 );
+  mSimpleMarkerLayer->setStrokeWidth( 3 );
   mSimpleMarkerLayer->setPenJoinStyle( Qt::MiterJoin );
   QVERIFY( imageCheck( "simplemarker_miterjoin" ) );
 }
@@ -177,10 +172,10 @@ void TestQgsSimpleMarkerSymbol::simpleMarkerSymbolRoundJoin()
   mReport += QLatin1String( "<h2>Simple marker symbol layer test</h2>\n" );
 
   mSimpleMarkerLayer->setColor( Qt::blue );
-  mSimpleMarkerLayer->setBorderColor( Qt::black );
+  mSimpleMarkerLayer->setStrokeColor( Qt::black );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Triangle );
   mSimpleMarkerLayer->setSize( 25 );
-  mSimpleMarkerLayer->setOutlineWidth( 3 );
+  mSimpleMarkerLayer->setStrokeWidth( 3 );
   mSimpleMarkerLayer->setPenJoinStyle( Qt::RoundJoin );
   QVERIFY( imageCheck( "simplemarker_roundjoin" ) );
 }
@@ -188,66 +183,66 @@ void TestQgsSimpleMarkerSymbol::simpleMarkerSymbolRoundJoin()
 void TestQgsSimpleMarkerSymbol::bounds()
 {
   mSimpleMarkerLayer->setColor( QColor( 200, 200, 200 ) );
-  mSimpleMarkerLayer->setBorderColor( QColor( 0, 0, 0 ) );
+  mSimpleMarkerLayer->setStrokeColor( QColor( 0, 0, 0 ) );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Circle );
   mSimpleMarkerLayer->setSize( 5 );
-  mSimpleMarkerLayer->setDataDefinedProperty( QStringLiteral( "size" ), new QgsDataDefined( true, true, QStringLiteral( "min(\"importance\" * 2, 6)" ) ) );
-  mSimpleMarkerLayer->setOutlineWidth( 0.5 );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertySize, QgsProperty::fromExpression( QStringLiteral( "min(\"importance\" * 2, 6)" ) ) );
+  mSimpleMarkerLayer->setStrokeWidth( 0.5 );
 
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, true );
   bool result = imageCheck( QStringLiteral( "simplemarker_bounds" ) );
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, false );
-  mSimpleMarkerLayer->removeDataDefinedProperty( QStringLiteral( "size" ) );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertySize, QgsProperty() );
   QVERIFY( result );
 }
 
 void TestQgsSimpleMarkerSymbol::boundsWithOffset()
 {
   mSimpleMarkerLayer->setColor( QColor( 200, 200, 200 ) );
-  mSimpleMarkerLayer->setBorderColor( QColor( 0, 0, 0 ) );
+  mSimpleMarkerLayer->setStrokeColor( QColor( 0, 0, 0 ) );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Circle );
   mSimpleMarkerLayer->setSize( 5 );
-  mSimpleMarkerLayer->setDataDefinedProperty( QStringLiteral( "offset" ), new QgsDataDefined( true, true, QStringLiteral( "if(importance > 2, '5,10', '10, 5')" ) ) );
-  mSimpleMarkerLayer->setOutlineWidth( 0.5 );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyOffset, QgsProperty::fromExpression( QStringLiteral( "if(importance > 2, '5,10', '10, 5')" ) ) );
+  mSimpleMarkerLayer->setStrokeWidth( 0.5 );
 
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, true );
   bool result = imageCheck( QStringLiteral( "simplemarker_boundsoffset" ) );
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, false );
-  mSimpleMarkerLayer->removeDataDefinedProperty( QStringLiteral( "offset" ) );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyOffset, QgsProperty() );
   QVERIFY( result );
 }
 
 void TestQgsSimpleMarkerSymbol::boundsWithRotation()
 {
   mSimpleMarkerLayer->setColor( QColor( 200, 200, 200 ) );
-  mSimpleMarkerLayer->setBorderColor( QColor( 0, 0, 0 ) );
+  mSimpleMarkerLayer->setStrokeColor( QColor( 0, 0, 0 ) );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Square );
   mSimpleMarkerLayer->setSize( 5 );
-  mSimpleMarkerLayer->setDataDefinedProperty( QStringLiteral( "angle" ), new QgsDataDefined( true, true, QStringLiteral( "importance * 20" ) ) );
-  mSimpleMarkerLayer->setOutlineWidth( 0.5 );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyAngle, QgsProperty::fromExpression( QStringLiteral( "importance * 20" ) ) );
+  mSimpleMarkerLayer->setStrokeWidth( 0.5 );
 
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, true );
   bool result = imageCheck( QStringLiteral( "simplemarker_boundsrotation" ) );
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, false );
-  mSimpleMarkerLayer->removeDataDefinedProperty( QStringLiteral( "angle" ) );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyAngle, QgsProperty() );
   QVERIFY( result );
 }
 
 void TestQgsSimpleMarkerSymbol::boundsWithRotationAndOffset()
 {
   mSimpleMarkerLayer->setColor( QColor( 200, 200, 200 ) );
-  mSimpleMarkerLayer->setBorderColor( QColor( 0, 0, 0 ) );
+  mSimpleMarkerLayer->setStrokeColor( QColor( 0, 0, 0 ) );
   mSimpleMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Square );
   mSimpleMarkerLayer->setSize( 5 );
-  mSimpleMarkerLayer->setDataDefinedProperty( QStringLiteral( "offset" ), new QgsDataDefined( true, true, QStringLiteral( "if(importance > 2, '5,10', '10, 5')" ) ) );
-  mSimpleMarkerLayer->setDataDefinedProperty( QStringLiteral( "angle" ), new QgsDataDefined( true, false, QString(), QStringLiteral( "heading" ) ) );
-  mSimpleMarkerLayer->setOutlineWidth( 0.5 );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyOffset, QgsProperty::fromExpression( QStringLiteral( "if(importance > 2, '5,10', '10, 5')" ) ) );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyAngle, QgsProperty::fromExpression( QStringLiteral( "heading" ) ) );
+  mSimpleMarkerLayer->setStrokeWidth( 0.5 );
 
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, true );
   bool result = imageCheck( QStringLiteral( "simplemarker_boundsrotationoffset" ) );
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, false );
-  mSimpleMarkerLayer->removeDataDefinedProperty( QStringLiteral( "offset" ) );
-  mSimpleMarkerLayer->removeDataDefinedProperty( QStringLiteral( "angle" ) );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyOffset, QgsProperty() );
+  mSimpleMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyAngle, QgsProperty() );
   QVERIFY( result );
 }
 
@@ -256,7 +251,7 @@ void TestQgsSimpleMarkerSymbol::colors()
   //test logic for setting/retrieving symbol color
 
   QgsSimpleMarkerSymbolLayer marker;
-  marker.setOutlineColor( QColor( 200, 200, 200 ) );
+  marker.setStrokeColor( QColor( 200, 200, 200 ) );
   marker.setFillColor( QColor( 100, 100, 100 ) );
 
   //start with a filled shape - color should be fill color
@@ -265,11 +260,11 @@ void TestQgsSimpleMarkerSymbol::colors()
   marker.setColor( QColor( 150, 150, 150 ) );
   QCOMPARE( marker.fillColor(), QColor( 150, 150, 150 ) );
 
-  //now try with a non-filled (outline only) shape - color should be outline color
+  //now try with a non-filled (stroke only) shape - color should be stroke color
   marker.setShape( QgsSimpleMarkerSymbolLayerBase::Cross );
   QCOMPARE( marker.color(), QColor( 200, 200, 200 ) );
   marker.setColor( QColor( 250, 250, 250 ) );
-  QCOMPARE( marker.outlineColor(), QColor( 250, 250, 250 ) );
+  QCOMPARE( marker.strokeColor(), QColor( 250, 250, 250 ) );
 }
 
 //
@@ -277,7 +272,7 @@ void TestQgsSimpleMarkerSymbol::colors()
 //
 
 
-bool TestQgsSimpleMarkerSymbol::imageCheck( const QString& theTestType )
+bool TestQgsSimpleMarkerSymbol::imageCheck( const QString &testType )
 {
   //use the QgsRenderChecker test utility class to
   //ensure the rendered output matches our control image
@@ -285,12 +280,12 @@ bool TestQgsSimpleMarkerSymbol::imageCheck( const QString& theTestType )
   mMapSettings.setOutputDpi( 96 );
   QgsRenderChecker myChecker;
   myChecker.setControlPathPrefix( QStringLiteral( "symbol_simplemarker" ) );
-  myChecker.setControlName( "expected_" + theTestType );
+  myChecker.setControlName( "expected_" + testType );
   myChecker.setMapSettings( mMapSettings );
-  bool myResultFlag = myChecker.runTest( theTestType );
+  bool myResultFlag = myChecker.runTest( testType );
   mReport += myChecker.report();
   return myResultFlag;
 }
 
-QTEST_MAIN( TestQgsSimpleMarkerSymbol )
+QGSTEST_MAIN( TestQgsSimpleMarkerSymbol )
 #include "testqgssimplemarker.moc"

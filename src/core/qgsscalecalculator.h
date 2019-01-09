@@ -19,13 +19,15 @@
 #ifndef QGSSCALECALCULATOR_H
 #define QGSSCALECALCULATOR_H
 
-#include <qgis.h>
+#include "qgis_core.h"
+#include "qgis.h"
 #include "qgsunittypes.h"
 
 class QString;
 class QgsRectangle;
 
-/** \ingroup core
+/**
+ * \ingroup core
  * Calculates scale for a given combination of canvas size, map extent,
  * and monitor dpi.
  */
@@ -35,27 +37,27 @@ class CORE_EXPORT QgsScaleCalculator
 
     /**
      * Constructor
-     * @param dpi Monitor resolution in dots per inch
-     * @param mapUnits Units of the data on the map
+     * \param dpi Monitor resolution in dots per inch
+     * \param mapUnits Units of the data on the map
      */
     QgsScaleCalculator( double dpi = 0,
                         QgsUnitTypes::DistanceUnit mapUnits = QgsUnitTypes::DistanceMeters );
 
     /**
-     * Set the dpi to be used in scale calculations
-     * @param dpi Dots per inch of monitor resolution
+     * Sets the \a dpi (dots per inch) for the output resolution, to be used in scale calculations.
+     * \see dpi()
      */
     void setDpi( double dpi );
 
     /**
-     * Accessor for dpi used in scale calculations
-     * @return int the dpi used for scale calculations.
+     * Returns the DPI (dots per inch) used in scale calculations.
+     * \see setDpi()
      */
     double dpi();
 
     /**
      * Set the map units
-     * @param mapUnits Units of the data on the map. Must match a value from the
+     * \param mapUnits Units of the data on the map. Must match a value from the
      */
     void setMapUnits( QgsUnitTypes::DistanceUnit mapUnits );
 
@@ -64,17 +66,17 @@ class CORE_EXPORT QgsScaleCalculator
 
     /**
      * Calculate the scale denominator
-     * @param mapExtent QgsRectangle containing the current map extent
-     * @param canvasWidth Width of the map canvas in pixel (physical) units
-     * @return scale denominator of current map view
+     * \param mapExtent QgsRectangle containing the current map extent
+     * \param canvasWidth Width of the map canvas in pixel (physical) units
+     * \returns scale denominator of current map view, e.g. 1000.0 for a 1:1000 map.
      */
-    double calculate( const QgsRectangle &mapExtent, int canvasWidth );
+    double calculate( const QgsRectangle &mapExtent, double canvasWidth );
 
     /**
      * Calculate the distance between two points in geographic coordinates.
      * Used to calculate scale for map views with geographic (decimal degree)
      * data.
-     * @param mapExtent QgsRectangle containing the current map extent
+     * \param mapExtent QgsRectangle containing the current map extent
      */
     double calculateGeographicDistance( const QgsRectangle &mapExtent );
 

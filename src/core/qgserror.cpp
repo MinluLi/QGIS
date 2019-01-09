@@ -22,32 +22,31 @@
 
 #include <QRegExp>
 
-QgsErrorMessage::QgsErrorMessage( const QString & theMessage, const QString & theTag, const QString & theFile, const QString & theFunction, int theLine )
-    : mMessage( theMessage )
-    , mTag( theTag )
-    , mFile( theFile )
-    , mFunction( theFunction )
-    , mLine( theLine )
-    , mFormat( Text )
+QgsErrorMessage::QgsErrorMessage( const QString &message, const QString &tag, const QString &file, const QString &function, int line )
+  : mMessage( message )
+  , mTag( tag )
+  , mFile( file )
+  , mFunction( function )
+  , mLine( line )
 {
 }
 
-QgsError::QgsError( const QString & theMessage, const QString & theTag )
+QgsError::QgsError( const QString &message, const QString &tag )
 {
-  append( theMessage, theTag );
+  append( message, tag );
 }
 
-void QgsError::append( const QString & theMessage, const QString & theTag )
+void QgsError::append( const QString &message, const QString &tag )
 {
-  mMessageList.append( QgsErrorMessage( theMessage, theTag ) );
+  mMessageList.append( QgsErrorMessage( message, tag ) );
 }
 
-void QgsError::append( const QgsErrorMessage & theMessage )
+void QgsError::append( const QgsErrorMessage &message )
 {
-  mMessageList.append( theMessage );
+  mMessageList.append( message );
 }
 
-QString QgsError::message( QgsErrorMessage::Format theFormat ) const
+QString QgsError::message( QgsErrorMessage::Format format ) const
 {
   QString str;
 
@@ -57,7 +56,7 @@ QString QgsError::message( QgsErrorMessage::Format theFormat ) const
 
 #if defined(QGISDEBUG) && defined(QGS_GIT_REMOTE_URL)
   // TODO: verify if we are not ahead to origin (remote hash does not exist)
-  //       and there are no local not commited changes
+  //       and there are no local not committed changes
   QString hash = QString( Qgis::QGIS_DEV_VERSION );
   QString remote = QStringLiteral( QGS_GIT_REMOTE_URL );
   if ( !hash.isEmpty() && !remote.isEmpty() && remote.contains( QLatin1String( "github.com" ) ) )
@@ -67,7 +66,7 @@ QString QgsError::message( QgsErrorMessage::Format theFormat ) const
   }
 #endif
 
-  Q_FOREACH ( const QgsErrorMessage& m, mMessageList )
+  Q_FOREACH ( const QgsErrorMessage &m, mMessageList )
   {
 #ifdef QGISDEBUG
     QString file;
@@ -79,7 +78,7 @@ QString QgsError::message( QgsErrorMessage::Format theFormat ) const
 #endif
 #endif
 
-    if ( theFormat == QgsErrorMessage::Text )
+    if ( format == QgsErrorMessage::Text )
     {
       if ( !str.isEmpty() )
       {

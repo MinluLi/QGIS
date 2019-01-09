@@ -19,7 +19,7 @@
 #include "qgsapplication.h"
 #include "qgsdataitem.h" // for icons
 
-QgsSpatiaLiteTableModel::QgsSpatiaLiteTableModel(): QStandardItemModel(), mTableCount( 0 )
+QgsSpatiaLiteTableModel::QgsSpatiaLiteTableModel()
 {
   QStringList headerLabels;
   headerLabels << tr( "Table" );
@@ -29,15 +29,10 @@ QgsSpatiaLiteTableModel::QgsSpatiaLiteTableModel(): QStandardItemModel(), mTable
   setHorizontalHeaderLabels( headerLabels );
 }
 
-QgsSpatiaLiteTableModel::~QgsSpatiaLiteTableModel()
-{
-
-}
-
-void QgsSpatiaLiteTableModel::addTableEntry( const QString& type, const QString& tableName, const QString& geometryColName, const QString& sql )
+void QgsSpatiaLiteTableModel::addTableEntry( const QString &type, const QString &tableName, const QString &geometryColName, const QString &sql )
 {
   //is there already a root item ?
-  QStandardItem *dbItem;
+  QStandardItem *dbItem = nullptr;
   QList < QStandardItem * >dbItems = findItems( mSqliteDb, Qt::MatchExactly, 0 );
 
   //there is already an item
@@ -63,7 +58,7 @@ void QgsSpatiaLiteTableModel::addTableEntry( const QString& type, const QString&
   tableItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable );
   QStandardItem *geomItem = new QStandardItem( geometryColName );
   geomItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-  QStandardItem* sqlItem = new QStandardItem( sql );
+  QStandardItem *sqlItem = new QStandardItem( sql );
   sqlItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable );
 
 
@@ -99,16 +94,16 @@ void QgsSpatiaLiteTableModel::setSql( const QModelIndex &index, const QString &s
   }
 }
 
-void QgsSpatiaLiteTableModel::setGeometryTypesForTable( const QString & table, const QString & attribute, const QString & type )
+void QgsSpatiaLiteTableModel::setGeometryTypesForTable( const QString &table, const QString &attribute, const QString &type )
 {
   bool typeIsEmpty = type.isEmpty();  //true means the table has no valid geometry entry and the item for this table should be removed
   QStringList typeList = type.split( ',' );
 
   //find schema item and table item
-  QStandardItem *dbItem;
+  QStandardItem *dbItem = nullptr;
   QList < QStandardItem * >dbItems = findItems( mSqliteDb, Qt::MatchExactly, 0 );
 
-  if ( dbItems.size() < 1 )
+  if ( dbItems.empty() )
   {
     return;
   }
@@ -158,7 +153,7 @@ void QgsSpatiaLiteTableModel::setGeometryTypesForTable( const QString & table, c
       for ( int j = 1; j < typeList.size(); ++j )
       {
         //todo: add correct type
-        addTableEntry( typeList.at( j ), table, geomColText + " AS " + typeList.at( j ), QLatin1String( "" ) );
+        addTableEntry( typeList.at( j ), table, geomColText + " AS " + typeList.at( j ), QString() );
       }
     }
   }
@@ -213,7 +208,7 @@ QString QgsSpatiaLiteTableModel::displayStringForType( QgsWkbTypes::Type type ) 
   return QStringLiteral( "Unknown" );
 }
 
-QgsWkbTypes::Type QgsSpatiaLiteTableModel::qgisTypeFromDbType( const QString & dbType ) const
+QgsWkbTypes::Type QgsSpatiaLiteTableModel::qgisTypeFromDbType( const QString &dbType ) const
 {
   if ( dbType == QLatin1String( "POINT" ) )
   {

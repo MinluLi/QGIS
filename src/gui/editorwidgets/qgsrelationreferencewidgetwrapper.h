@@ -17,12 +17,15 @@
 #define QGSRELATIONREFERENCEWIDGETWRAPPER_H
 
 #include "qgseditorwidgetwrapper.h"
+#include "qgis.h"
+#include "qgis_gui.h"
 
 class QgsRelationReferenceWidget;
 class QgsMapCanvas;
 class QgsMessageBar;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Wraps a relation reference widget.
  *
  * Options:
@@ -41,44 +44,36 @@ class GUI_EXPORT QgsRelationReferenceWidgetWrapper : public QgsEditorWidgetWrapp
 {
     Q_OBJECT
   public:
-    explicit QgsRelationReferenceWidgetWrapper( QgsVectorLayer* vl,
-        int fieldIdx,
-        QWidget* editor,
-        QgsMapCanvas* canvas,
-        QgsMessageBar* messageBar,
-        QWidget* parent = nullptr );
 
-    virtual QWidget* createWidget( QWidget* parent ) override;
-    virtual void initWidget( QWidget* editor ) override;
-    virtual QVariant value() const override;
+    //! Constructor for QgsRelationReferenceWidgetWrapper
+    explicit QgsRelationReferenceWidgetWrapper( QgsVectorLayer *vl,
+        int fieldIdx,
+        QWidget *editor,
+        QgsMapCanvas *canvas,
+        QgsMessageBar *messageBar,
+        QWidget *parent SIP_TRANSFERTHIS = nullptr );
+
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
+    QVariant value() const override;
     bool valid() const override;
     void showIndeterminateState() override;
 
   public slots:
-    virtual void setValue( const QVariant& value ) override;
-    virtual void setEnabled( bool enabled ) override;
+    void setValue( const QVariant &value ) override;
+    void setEnabled( bool enabled ) override;
 
   private slots:
     void foreignKeyChanged( QVariant value );
 
   protected:
-    /**
-     * This should update the widget with a visual cue if a constraint status
-     * changed.
-     *
-     * By default a stylesheet will be applied on the widget that changes the
-     * background color to red.
-     *
-     * This can be overwritten in subclasses to allow individual widgets to
-     * change the visual cue.
-     * @note added in QGIS 2.16
-     */
-    void updateConstraintWidgetStatus( bool constraintValid ) override;
+
+    void updateConstraintWidgetStatus() override;
 
   private:
-    QgsRelationReferenceWidget* mWidget;
-    QgsMapCanvas* mCanvas;
-    QgsMessageBar* mMessageBar;
+    QgsRelationReferenceWidget *mWidget = nullptr;
+    QgsMapCanvas *mCanvas = nullptr;
+    QgsMessageBar *mMessageBar = nullptr;
     bool mIndeterminateState;
 };
 

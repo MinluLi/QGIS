@@ -23,11 +23,11 @@
   modify field dialog. #13089
 
 * Import Table does not work because of a problem in
-  QgsVectorLayerImport. After the creation of the table, QGIS tries to
+  QgsVectorLayerExporter. After the creation of the table, QGIS tries to
   open the layer but, as there is no geometries in it, QGIS can't
   determinate the geometry type of the layer and refuses to open
   it. Then, no data importation can occur. Must dig into
-  src/core/qgsvectorlayerimport.cpp and into the provider code.
+  src/core/qgsvectorlayerexporter.cpp and into the provider code.
   See #13096 .
 
 # Future work
@@ -104,7 +104,7 @@
 
 * Connector
   * getVectorTablesCache should present only one line per table (don't show tables more than once).
-  * correspondance between Oracle SDO_GTYPE and Qgis.WkbType in a class dict.
+  * correspondence between Oracle SDO_GTYPE and Qgis.WkbType in a class dict.
   * Show only one table/layer in the table tree even if entry is duplicated in cache. 
   * Reuse the pre-calculated extent metadata when updating.
   * Create a better privilege function using ALL_PRIVS_RECD
@@ -120,7 +120,7 @@
   * For rows estimation: use a query to scan nb_rows in object !
   * Refresh on the fly data that are not stored in cache (comments/table type/row counts).
   * Bad comparison between metadata extent and calculated extent (was format syntax).
-  * If user can't udpate metadata, don't pull the link for update action.
+  * If user can't update metadata, don't pull the link for update action.
   * Can't update metadata extent: find if table is in USER_SDO_GEOM_METADATA.
   * Print Qgis Geometry Type in string instead of int.
 

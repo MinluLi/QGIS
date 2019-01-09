@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -26,14 +26,15 @@
 #include <qgsvectorlayer.h>
 #include <qgsapplication.h>
 #include <qgsproviderregistry.h>
-#include <qgsmaplayerregistry.h>
+#include <qgsproject.h>
 #include <qgsmultibandcolorrenderer.h>
 #include <qgsrasterlayer.h>
 #include "qgsrasterdataprovider.h"
 //qgis test includes
 #include "qgsmultirenderchecker.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for layer blend modes
  */
 class TestQgsBlendModes : public QObject
@@ -41,15 +42,8 @@ class TestQgsBlendModes : public QObject
     Q_OBJECT
 
   public:
-    TestQgsBlendModes()
-        : mMapSettings( 0 )
-        , mpPointsLayer( 0 )
-        , mpPolysLayer( 0 )
-        , mpLinesLayer( 0 )
-        , mRasterLayer1( 0 )
-        , mRasterLayer2( 0 )
-    {}
-    ~TestQgsBlendModes()
+    TestQgsBlendModes() = default;
+    ~TestQgsBlendModes() override
     {
       delete mMapSettings;
     }
@@ -65,13 +59,13 @@ class TestQgsBlendModes : public QObject
     void vectorLayerTransparency();
     void rasterBlending();
   private:
-    bool imageCheck( const QString& theType ); //as above
-    QgsMapSettings *mMapSettings;
-    QgsMapLayer * mpPointsLayer;
-    QgsVectorLayer * mpPolysLayer;
-    QgsVectorLayer * mpLinesLayer;
-    QgsRasterLayer* mRasterLayer1;
-    QgsRasterLayer* mRasterLayer2;
+    bool imageCheck( const QString &type ); //as above
+    QgsMapSettings *mMapSettings = nullptr;
+    QgsMapLayer *mpPointsLayer = nullptr;
+    QgsVectorLayer *mpPolysLayer = nullptr;
+    QgsVectorLayer *mpLinesLayer = nullptr;
+    QgsRasterLayer *mRasterLayer1 = nullptr;
+    QgsRasterLayer *mRasterLayer2 = nullptr;
     QString mTestDataDir;
     QgsRectangle mExtent;
     QString mReport;
@@ -97,8 +91,6 @@ void TestQgsBlendModes::initTestCase()
   QFileInfo myPointFileInfo( myPointsFileName );
   mpPointsLayer = new QgsVectorLayer( myPointFileInfo.filePath(),
                                       myPointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPointsLayer );
 
   //create a poly layer that will be used in tests
   QString myPolysFileName = mTestDataDir + "polys.shp";
@@ -110,8 +102,6 @@ void TestQgsBlendModes::initTestCase()
   simplifyMethod.setSimplifyHints( QgsVectorSimplifyMethod::NoSimplification );
 
   mpPolysLayer->setSimplifyMethod( simplifyMethod );
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPolysLayer );
 
   //create a line layer that will be used in tests
   QString myLinesFileName = mTestDataDir + "lines.shp";
@@ -119,8 +109,6 @@ void TestQgsBlendModes::initTestCase()
   mpLinesLayer = new QgsVectorLayer( myLineFileInfo.filePath(),
                                      myLineFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
   mpLinesLayer->setSimplifyMethod( simplifyMethod );
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpLinesLayer );
 
   //create two raster layers
   QFileInfo rasterFileInfo( mTestDataDir + "rgb256x256.png" );
@@ -128,13 +116,9 @@ void TestQgsBlendModes::initTestCase()
                                       rasterFileInfo.completeBaseName() );
   mRasterLayer2 = new QgsRasterLayer( rasterFileInfo.filePath(),
                                       rasterFileInfo.completeBaseName() );
-  QgsMultiBandColorRenderer* rasterRenderer = new QgsMultiBandColorRenderer( mRasterLayer1->dataProvider(), 1, 2, 3 );
+  QgsMultiBandColorRenderer *rasterRenderer = new QgsMultiBandColorRenderer( mRasterLayer1->dataProvider(), 1, 2, 3 );
   mRasterLayer1->setRenderer( rasterRenderer );
-  mRasterLayer2->setRenderer(( QgsRasterRenderer* ) rasterRenderer->clone() );
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mRasterLayer1 );
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mRasterLayer2 );
+  mRasterLayer2->setRenderer( ( QgsRasterRenderer * ) rasterRenderer->clone() );
 
   // points extent was not always reliable
   mExtent = QgsRectangle( -118.8888888888887720, 22.8002070393376783, -83.3333333333331581, 46.8719806763287536 );
@@ -150,15 +134,21 @@ void TestQgsBlendModes::cleanupTestCase()
     myFile.close();
   }
 
+  delete mpPointsLayer;
+  delete mpPolysLayer;
+  delete mpLinesLayer;
+  delete mRasterLayer1;
+  delete mRasterLayer2;
+
   QgsApplication::exitQgis();
 }
 
 void TestQgsBlendModes::vectorBlending()
 {
   //Add two vector layers
-  QStringList myLayers;
-  myLayers << mpLinesLayer->id();
-  myLayers << mpPolysLayer->id();
+  QList<QgsMapLayer *> myLayers;
+  myLayers << mpLinesLayer;
+  myLayers << mpPolysLayer;
   mMapSettings->setLayers( myLayers );
 
   //Set blending modes for both layers
@@ -177,9 +167,9 @@ void TestQgsBlendModes::vectorBlending()
 void TestQgsBlendModes::featureBlending()
 {
   //Add two vector layers
-  QStringList myLayers;
-  myLayers << mpLinesLayer->id();
-  myLayers << mpPolysLayer->id();
+  QList<QgsMapLayer *> myLayers;
+  myLayers << mpLinesLayer;
+  myLayers << mpPolysLayer;
   mMapSettings->setLayers( myLayers );
 
   //Set feature blending modes for point layer
@@ -196,18 +186,18 @@ void TestQgsBlendModes::featureBlending()
 void TestQgsBlendModes::vectorLayerTransparency()
 {
   //Add two vector layers
-  QStringList myLayers;
-  myLayers << mpLinesLayer->id();
-  myLayers << mpPolysLayer->id();
+  QList<QgsMapLayer *> myLayers;
+  myLayers << mpLinesLayer;
+  myLayers << mpPolysLayer;
   mMapSettings->setLayers( myLayers );
 
   //Set feature blending modes for point layer
-  mpLinesLayer->setLayerTransparency( 50 );
+  mpLinesLayer->setOpacity( 0.50 );
   mMapSettings->setExtent( mExtent );
   bool res = imageCheck( QStringLiteral( "vector_layertransparency" ) );
 
   //Reset layers
-  mpLinesLayer->setLayerTransparency( 0 );
+  mpLinesLayer->setOpacity( 1.0 );
 
   QVERIFY( res );
 }
@@ -215,9 +205,9 @@ void TestQgsBlendModes::vectorLayerTransparency()
 void TestQgsBlendModes::rasterBlending()
 {
   //Add two raster layers to map renderer
-  QStringList myLayers;
-  myLayers << mRasterLayer1->id();
-  myLayers << mRasterLayer2->id();
+  QList<QgsMapLayer *> myLayers;
+  myLayers << mRasterLayer1;
+  myLayers << mRasterLayer2;
   mMapSettings->setLayers( myLayers );
   mMapSettings->setExtent( mRasterLayer1->extent() );
 
@@ -230,19 +220,19 @@ void TestQgsBlendModes::rasterBlending()
 // Private helper functions not called directly by CTest
 //
 
-bool TestQgsBlendModes::imageCheck( const QString& theTestType )
+bool TestQgsBlendModes::imageCheck( const QString &testType )
 {
   //use the QgsRenderChecker test utility class to
   //ensure the rendered output matches our control image
   mMapSettings->setOutputDpi( 96 );
   QgsMultiRenderChecker myChecker;
-  myChecker.setControlName( "expected_" + theTestType );
+  myChecker.setControlName( "expected_" + testType );
   myChecker.setMapSettings( *mMapSettings );
   myChecker.setColorTolerance( 5 );
-  bool myResultFlag = myChecker.runTest( theTestType, 20 );
+  bool myResultFlag = myChecker.runTest( testType, 20 );
   mReport += myChecker.report();
   return myResultFlag;
 }
 
-QTEST_MAIN( TestQgsBlendModes )
+QGSTEST_MAIN( TestQgsBlendModes )
 #include "testqgsblendmodes.moc"

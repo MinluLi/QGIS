@@ -12,7 +12,7 @@ Email                : nyall dot dawson at gmail dot com
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include "qgsrastercalculator.h"
 #include "qgsrastercalcnode.h"
@@ -20,20 +20,16 @@ Email                : nyall dot dawson at gmail dot com
 #include "qgsrasterlayer.h"
 #include "qgsrastermatrix.h"
 #include "qgsapplication.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 
 Q_DECLARE_METATYPE( QgsRasterCalcNode::Operator )
-
 
 class TestQgsRasterCalculator : public QObject
 {
     Q_OBJECT
 
   public:
-    TestQgsRasterCalculator()
-        : mpLandsatRasterLayer( 0 )
-        , mpLandsatRasterLayer4326( 0 )
-    {}
+    TestQgsRasterCalculator() = default;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -58,10 +54,14 @@ class TestQgsRasterCalculator : public QObject
     void calcWithLayers();
     void calcWithReprojectedLayers();
 
+    void errors();
+    void toString();
+    void findNodes();
+
   private:
 
-    QgsRasterLayer * mpLandsatRasterLayer;
-    QgsRasterLayer * mpLandsatRasterLayer4326;
+    QgsRasterLayer *mpLandsatRasterLayer = nullptr;
+    QgsRasterLayer *mpLandsatRasterLayer4326 = nullptr;
 };
 
 void  TestQgsRasterCalculator::initTestCase()
@@ -86,7 +86,7 @@ void  TestQgsRasterCalculator::initTestCase()
   mpLandsatRasterLayer4326 = new QgsRasterLayer( landsat4326RasterFileInfo.filePath(),
       landsat4326RasterFileInfo.completeBaseName() );
 
-  QgsMapLayerRegistry::instance()->addMapLayers(
+  QgsProject::instance()->addMapLayers(
     QList<QgsMapLayer *>() << mpLandsatRasterLayer << mpLandsatRasterLayer4326 );
 }
 
@@ -157,7 +157,7 @@ void TestQgsRasterCalculator::dualOp()
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
@@ -203,23 +203,23 @@ void TestQgsRasterCalculator::singleOp()
   QFETCH( double, value );
   QFETCH( double, expected );
 
-  QgsRasterCalcNode node( op, new QgsRasterCalcNode( value ), 0 );
+  QgsRasterCalcNode node( op, new QgsRasterCalcNode( value ), nullptr );
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
   qDebug() << "Result: " << result.number() << " expected: " << expected;
-  QVERIFY( qgsDoubleNear( result.number(), expected, 0.0000000001 ) );
+  QGSCOMPARENEAR( result.number(), expected, 0.0000000001 );
 
 }
 
 void TestQgsRasterCalculator::singleOpMatrices()
 {
   // test single op run on matrix
-  double* d = new double[6];
+  double *d = new double[6];
   d[0] = 1.0;
   d[1] = 2.0;
   d[2] = 3.0;
@@ -229,11 +229,11 @@ void TestQgsRasterCalculator::singleOpMatrices()
 
   QgsRasterMatrix m( 2, 3, d, -1.0 );
 
-  QgsRasterCalcNode node( QgsRasterCalcNode::opSIGN, new QgsRasterCalcNode( &m ) , 0 );
+  QgsRasterCalcNode node( QgsRasterCalcNode::opSIGN, new QgsRasterCalcNode( &m ), nullptr );
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
@@ -248,7 +248,7 @@ void TestQgsRasterCalculator::singleOpMatrices()
 void TestQgsRasterCalculator::dualOpNumberMatrix()
 {
   // test dual op run on number and matrix
-  double* d = new double[6];
+  double *d = new double[6];
   d[0] = 1.0;
   d[1] = 2.0;
   d[2] = 3.0;
@@ -262,7 +262,7 @@ void TestQgsRasterCalculator::dualOpNumberMatrix()
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
@@ -282,7 +282,7 @@ void TestQgsRasterCalculator::dualOpNumberMatrix()
 void TestQgsRasterCalculator::dualOpMatrixNumber()
 {
   // test dual op run on matrix and number
-  double* d = new double[6];
+  double *d = new double[6];
   d[0] = 1.0;
   d[1] = 2.0;
   d[2] = 3.0;
@@ -296,7 +296,7 @@ void TestQgsRasterCalculator::dualOpMatrixNumber()
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
@@ -316,7 +316,7 @@ void TestQgsRasterCalculator::dualOpMatrixNumber()
 void TestQgsRasterCalculator::dualOpMatrixMatrix()
 {
   // test dual op run on matrix and matrix
-  double* d = new double[6];
+  double *d = new double[6];
   d[0] = 1.0;
   d[1] = 2.0;
   d[2] = -2.0;
@@ -325,7 +325,7 @@ void TestQgsRasterCalculator::dualOpMatrixMatrix()
   d[5] = -1.0; //nodata
   QgsRasterMatrix m1( 2, 3, d, -1.0 );
 
-  double* d2 = new double[6];
+  double *d2 = new double[6];
   d2[0] = -1.0;
   d2[1] = -2.0; //nodata
   d2[2] = 13.0;
@@ -338,7 +338,7 @@ void TestQgsRasterCalculator::dualOpMatrixMatrix()
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   QVERIFY( node.calculate( rasterData, result ) );
 
@@ -353,17 +353,18 @@ void TestQgsRasterCalculator::dualOpMatrixMatrix()
 void TestQgsRasterCalculator::rasterRefOp()
 {
   // test single op run on raster ref
-  QgsRasterCalcNode node( QgsRasterCalcNode::opSIGN, new QgsRasterCalcNode( QStringLiteral( "raster" ) ), 0 );
+  QgsRasterCalcNode node( QgsRasterCalcNode::opSIGN, new QgsRasterCalcNode( QStringLiteral( "raster" ) ), nullptr );
 
   QgsRasterMatrix result;
   result.setNodataValue( -9999 );
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
 
   //first test invalid raster ref
   QVERIFY( !node.calculate( rasterData, result ) );
 
   //now create raster ref
-  QgsRasterBlock m( Qgis::Float32, 2, 3, -1.0 );
+  QgsRasterBlock m( Qgis::Float32, 2, 3 );
+  m.setNoDataValue( -1.0 );
   m.setValue( 0, 0, 1.0 );
   m.setValue( 0, 1, 2.0 );
   m.setValue( 1, 0, 3.0 );
@@ -385,17 +386,19 @@ void TestQgsRasterCalculator::dualOpRasterRaster()
 {
   // test dual op run on matrix and matrix
 
-  QgsRasterBlock m1( Qgis::Float32, 2, 3, -1.0 );
+  QgsRasterBlock m1( Qgis::Float32, 2, 3 );
+  m1.setNoDataValue( -1.0 );
   m1.setValue( 0, 0, 1.0 );
   m1.setValue( 0, 1, 2.0 );
   m1.setValue( 1, 0, -2.0 );
   m1.setValue( 1, 1, -1.0 ); //nodata
   m1.setValue( 2, 0, 5.0 );
   m1.setValue( 2, 1, -1.0 ); //nodata
-  QMap<QString, QgsRasterBlock*> rasterData;
+  QMap<QString, QgsRasterBlock *> rasterData;
   rasterData.insert( QStringLiteral( "raster1" ), &m1 );
 
-  QgsRasterBlock m2( Qgis::Float32, 2, 3, -2.0 ); //different no data value
+  QgsRasterBlock m2( Qgis::Float32, 2, 3 );
+  m2.setNoDataValue( -2.0 ); //different no data value
   m2.setValue( 0, 0, -1.0 );
   m2.setValue( 0, 1, -2.0 ); //nodata
   m2.setValue( 1, 0, 13.0 );
@@ -446,13 +449,13 @@ void TestQgsRasterCalculator::calcWithLayers()
                           tmpName,
                           QStringLiteral( "GTiff" ),
                           extent, crs, 2, 3, entries );
-  QCOMPARE( rc.processCalculation(), 0 );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 0 );
 
   //open output file and check results
-  QgsRasterLayer* result = new QgsRasterLayer( tmpName, QStringLiteral( "result" ) );
+  QgsRasterLayer *result = new QgsRasterLayer( tmpName, QStringLiteral( "result" ) );
   QCOMPARE( result->width(), 2 );
   QCOMPARE( result->height(), 3 );
-  QgsRasterBlock* block = result->dataProvider()->block( 1, extent, 2, 3 );
+  QgsRasterBlock *block = result->dataProvider()->block( 1, extent, 2, 3 );
   QCOMPARE( block->value( 0, 0 ), 127.0 );
   QCOMPARE( block->value( 0, 1 ), 127.0 );
   QCOMPARE( block->value( 1, 0 ), 126.0 );
@@ -467,7 +470,7 @@ void TestQgsRasterCalculator::calcWithLayers()
                            tmpName,
                            QStringLiteral( "GTiff" ),
                            extent, crs, 2, 3, entries );
-  QCOMPARE( rc2.processCalculation(), 0 );
+  QCOMPARE( static_cast< int >( rc2.processCalculation() ), 0 );
 
   //open output file and check results
   result = new QgsRasterLayer( tmpName, QStringLiteral( "result" ) );
@@ -504,7 +507,7 @@ void TestQgsRasterCalculator::calcWithReprojectedLayers()
   QgsRectangle extent( 783235, 3348110, 783350, 3347960 );
 
   QTemporaryFile tmpFile;
-  tmpFile.open(); // fileName is no avialable until open
+  tmpFile.open(); // fileName is not available until open
   QString tmpName = tmpFile.fileName();
   tmpFile.close();
 
@@ -512,13 +515,13 @@ void TestQgsRasterCalculator::calcWithReprojectedLayers()
                           tmpName,
                           QStringLiteral( "GTiff" ),
                           extent, crs, 2, 3, entries );
-  QCOMPARE( rc.processCalculation(), 0 );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 0 );
 
   //open output file and check results
-  QgsRasterLayer* result = new QgsRasterLayer( tmpName, QStringLiteral( "result" ) );
+  QgsRasterLayer *result = new QgsRasterLayer( tmpName, QStringLiteral( "result" ) );
   QCOMPARE( result->width(), 2 );
   QCOMPARE( result->height(), 3 );
-  QgsRasterBlock* block = result->dataProvider()->block( 1, extent, 2, 3 );
+  QgsRasterBlock *block = result->dataProvider()->block( 1, extent, 2, 3 );
   QCOMPARE( block->value( 0, 0 ), 264.0 );
   QCOMPARE( block->value( 0, 1 ), 263.0 );
   QCOMPARE( block->value( 1, 0 ), 264.0 );
@@ -529,5 +532,126 @@ void TestQgsRasterCalculator::calcWithReprojectedLayers()
   delete block;
 }
 
-QTEST_MAIN( TestQgsRasterCalculator )
+void TestQgsRasterCalculator::findNodes()
+{
+
+  std::unique_ptr< QgsRasterCalcNode > calcNode;
+
+  auto _test =
+    [ & ]( QString exp, const QgsRasterCalcNode::Type type ) -> QList<const QgsRasterCalcNode *>
+  {
+    QString error;
+    calcNode.reset( QgsRasterCalcNode::parseRasterCalcString( exp, error ) );
+    return calcNode->findNodes( type );
+  };
+
+  QCOMPARE( _test( QStringLiteral( "atan(\"raster@1\") * cos( 3  +  2 )" ), QgsRasterCalcNode::Type::tOperator ).length(), 4 );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\"" ), QgsRasterCalcNode::Type::tOperator ).length(), 0 );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\"" ), QgsRasterCalcNode::Type::tRasterRef ).length(), 1 );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\"" ), QgsRasterCalcNode::Type::tMatrix ).length(), 0 );
+  QCOMPARE( _test( QStringLiteral( "2 + 3" ), QgsRasterCalcNode::Type::tNumber ).length(), 2 );
+  QCOMPARE( _test( QStringLiteral( "2 + 3" ), QgsRasterCalcNode::Type::tOperator ).length(), 1 );
+
+}
+
+void TestQgsRasterCalculator::errors( )
+{
+  QgsRasterCalculatorEntry entry1;
+  entry1.bandNumber = 0; // bad band
+  entry1.raster = mpLandsatRasterLayer;
+  entry1.ref = QStringLiteral( "landsat@0" );
+
+  QVector<QgsRasterCalculatorEntry> entries;
+  entries << entry1;
+
+  QgsCoordinateReferenceSystem crs;
+  crs.createFromId( 32633, QgsCoordinateReferenceSystem::EpsgCrsId );
+  QgsRectangle extent( 783235, 3348110, 783350, 3347960 );
+
+  QTemporaryFile tmpFile;
+  tmpFile.open(); // fileName is not available until open
+  QString tmpName = tmpFile.fileName();
+  tmpFile.close();
+
+  QgsRasterCalculator rc( QStringLiteral( "\"landsat@0\"" ),
+                          tmpName,
+                          QStringLiteral( "GTiff" ),
+                          extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 6 );
+  QCOMPARE( rc.lastError(), QStringLiteral( "Band number 0 is not valid for entry landsat@0" ) );
+
+  entry1.bandNumber = 10; // bad band
+  entries.clear();
+  entries << entry1;
+  rc = QgsRasterCalculator( QStringLiteral( "\"landsat@0\"" ),
+                            tmpName,
+                            QStringLiteral( "GTiff" ),
+                            extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 6 );
+  QCOMPARE( rc.lastError(), QStringLiteral( "Band number 10 is not valid for entry landsat@0" ) );
+
+
+  // no raster
+  entry1.raster = nullptr;
+  entry1.bandNumber = 1;
+  entries.clear();
+  entries << entry1;
+  rc = QgsRasterCalculator( QStringLiteral( "\"landsat@0\"" ),
+                            tmpName,
+                            QStringLiteral( "GTiff" ),
+                            extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 2 );
+  QCOMPARE( rc.lastError(), QStringLiteral( "No raster layer for entry landsat@0" ) );
+
+  // bad driver
+  entry1.raster = mpLandsatRasterLayer;
+  entry1.bandNumber = 1;
+  entries.clear();
+  entries << entry1;
+  rc = QgsRasterCalculator( QStringLiteral( "\"landsat@0\"" ),
+                            tmpName,
+                            QStringLiteral( "xxxxx" ),
+                            extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 1 );
+  QCOMPARE( rc.lastError(), QStringLiteral( "Could not obtain driver for xxxxx" ) );
+
+  // bad filename
+  rc = QgsRasterCalculator( QStringLiteral( "\"landsat@0\"" ),
+                            QStringLiteral( "/goodluckwritinghere/blah/blah.tif" ),
+                            QStringLiteral( "GTiff" ),
+                            extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation() ), 1 );
+  QCOMPARE( rc.lastError(), QStringLiteral( "Could not create output /goodluckwritinghere/blah/blah.tif" ) );
+
+  // canceled
+  QgsFeedback feedback;
+  feedback.cancel();
+  rc = QgsRasterCalculator( QStringLiteral( "\"landsat@0\"" ),
+                            tmpName,
+                            QStringLiteral( "GTiff" ),
+                            extent, crs, 2, 3, entries );
+  QCOMPARE( static_cast< int >( rc.processCalculation( &feedback ) ), 3 );
+  QVERIFY( rc.lastError().isEmpty() );
+}
+
+void TestQgsRasterCalculator::toString()
+{
+  auto _test = [ ]( QString exp, bool cStyle ) -> QString
+  {
+    QString error;
+    std::unique_ptr< QgsRasterCalcNode > calcNode( QgsRasterCalcNode::parseRasterCalcString( exp, error ) );
+    if ( ! error.isEmpty() )
+      return error;
+    return calcNode->toString( cStyle );
+  };
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\"  +  2" ), false ), QString( "\"raster@1\" + 2" ) );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\"  +  2" ), true ), QString( "\"raster@1\" + 2" ) );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\" ^ 3  +  2" ), false ), QString( "\"raster@1\"^3 + 2" ) );
+  QCOMPARE( _test( QStringLiteral( "\"raster@1\" ^ 3  +  2" ), true ), QString( "pow( \"raster@1\", 3 ) + 2" ) );
+  QCOMPARE( _test( QStringLiteral( "atan(\"raster@1\") * cos( 3  +  2 )" ), false ), QString( "atan( \"raster@1\" ) * cos( 3 + 2 )" ) );
+  QCOMPARE( _test( QStringLiteral( "atan(\"raster@1\") * cos( 3  +  2 )" ), true ), QString( "atan( \"raster@1\" ) * cos( 3 + 2 )" ) );
+}
+
+
+QGSTEST_MAIN( TestQgsRasterCalculator )
 #include "testqgsrastercalculator.moc"

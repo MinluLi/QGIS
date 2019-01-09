@@ -19,10 +19,14 @@
 #include "ui_qgsvaluemapconfigdlgbase.h"
 
 #include "qgseditorconfigwidget.h"
+#include "qgis_gui.h"
 
-#define VALUEMAP_NULL_TEXT "{2839923C-8B7D-419E-B84B-CA2FE9B80EC7}"
+class QComboBox;
 
-/** \ingroup gui
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
  * \class QgsValueMapConfigDlg
  * \note not available in Python bindings
  */
@@ -32,16 +36,28 @@ class GUI_EXPORT QgsValueMapConfigDlg : public QgsEditorConfigWidget, private Ui
     Q_OBJECT
 
   public:
-    explicit QgsValueMapConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget* parent );
-    virtual QgsEditorWidgetConfig config() override;
-    virtual void setConfig( const QgsEditorWidgetConfig& config ) override;
+    explicit QgsValueMapConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent );
+    QVariantMap config() override;
+    void setConfig( const QVariantMap &config ) override;
 
     void updateMap( const QMap<QString, QVariant> &map, bool insertNull );
+
+    /**
+     * Populates a \a comboBox with the appropriate entries based on a value map \a configuration.
+     *
+     * If \a skipNull is true, then NULL entries will not be added.
+     *
+     * \since QGIS 3.0
+     */
+    static void populateComboBox( QComboBox *comboBox, const QVariantMap &configuration, bool skipNull );
+
+    bool eventFilter( QObject *watched, QEvent *event ) override;
 
   private:
     void setRow( int row, const QString &value, const QString &description );
 
   private slots:
+    void copySelectionToClipboard();
     void vCellChanged( int row, int column );
     void addNullButtonPushed();
     void removeSelectedButtonPushed();

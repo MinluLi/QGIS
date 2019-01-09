@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import absolute_import
 
 __author__ = 'Médéric Ribreux'
 __date__ = 'March 2016'
@@ -29,5 +28,5 @@ __revision__ = '$Format:%H$'
 from .i import verifyRasterNum
 
 
-def checkParameterValuesBeforeExecuting(alg):
-    return verifyRasterNum(alg, 'input', 2)
+def checkParameterValuesBeforeExecuting(alg, parameters, context):
+    return verifyRasterNum(alg, parameters, context, 'input', 2)

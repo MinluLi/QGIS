@@ -16,25 +16,23 @@
 #define QGSAFSFEATUREITERATOR_H
 
 #include "qgsfeatureiterator.h"
+#include "qgsafsshareddata.h"
+#include <memory>
 
-class QgsAfsProvider;
 class QgsSpatialIndex;
 
+typedef QMap<QgsFeatureId, QgsFeature> QgsFeatureMap;
 
-class QgsAfsFeatureSource : public QObject, public QgsAbstractFeatureSource
+class QgsAfsFeatureSource : public QgsAbstractFeatureSource
 {
-    Q_OBJECT
 
   public:
-    QgsAfsFeatureSource( const QgsAfsProvider* provider );
-    QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) override;
-    QgsAfsProvider* provider() const;
-
-  signals:
-    void extentRequested( const QgsRectangle & );
+    QgsAfsFeatureSource( const std::shared_ptr<QgsAfsSharedData> &sharedData );
+    QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) override;
+    QgsAfsSharedData *sharedData() const;
 
   protected:
-    QgsAfsProvider* mProvider;
+    std::shared_ptr<QgsAfsSharedData> mSharedData;
 
     friend class QgsAfsFeatureIterator;
 };
@@ -42,16 +40,27 @@ class QgsAfsFeatureSource : public QObject, public QgsAbstractFeatureSource
 class QgsAfsFeatureIterator : public QgsAbstractFeatureIteratorFromSource<QgsAfsFeatureSource>
 {
   public:
-    QgsAfsFeatureIterator( QgsAfsFeatureSource* source, bool ownSource, const QgsFeatureRequest& request );
-    ~QgsAfsFeatureIterator();
+    QgsAfsFeatureIterator( QgsAfsFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
+    ~QgsAfsFeatureIterator() override;
     bool rewind() override;
     bool close() override;
 
+    void setInterruptionChecker( QgsFeedback *interruptionChecker ) override;
+
   protected:
-    bool fetchFeature( QgsFeature& f ) override;
+    bool fetchFeature( QgsFeature &f ) override;
 
   private:
-    QgsFeatureId mFeatureIterator;
+    QgsFeatureId mFeatureIterator = 0;
+
+    QList< QgsFeatureId > mFeatureIdList;
+    QList< QgsFeatureId > mRemainingFeatureIds;
+
+    QgsCoordinateTransform mTransform;
+    QgsRectangle mFilterRect;
+
+    QgsFeedback *mInterruptionChecker = nullptr;
+    bool mDeferredFeaturesInFilterRectCheck = false;
 };
 
 #endif // QGSAFSFEATUREITERATOR_H

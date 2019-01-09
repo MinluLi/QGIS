@@ -12,12 +12,11 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QScopedPointer>
 
 #include "qgsmaphittest.h"
 
 #include "qgsfeatureiterator.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsrendercontext.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgsrenderer.h"
@@ -25,23 +24,23 @@
 #include "qgsvectorlayer.h"
 #include "qgssymbollayerutils.h"
 #include "qgsgeometry.h"
-#include "qgscrscache.h"
+#include "qgsgeometryengine.h"
 
-QgsMapHitTest::QgsMapHitTest( const QgsMapSettings& settings, const QgsGeometry& polygon, const LayerFilterExpression& layerFilterExpression )
-    : mSettings( settings )
-    , mLayerFilterExpression( layerFilterExpression )
-    , mOnlyExpressions( false )
+QgsMapHitTest::QgsMapHitTest( const QgsMapSettings &settings, const QgsGeometry &polygon, const LayerFilterExpression &layerFilterExpression )
+  : mSettings( settings )
+  , mLayerFilterExpression( layerFilterExpression )
+  , mOnlyExpressions( false )
 {
-  if ( !polygon.isEmpty() && polygon.type() == QgsWkbTypes::PolygonGeometry )
+  if ( !polygon.isNull() && polygon.type() == QgsWkbTypes::PolygonGeometry )
   {
     mPolygon = polygon;
   }
 }
 
-QgsMapHitTest::QgsMapHitTest( const QgsMapSettings& settings, const LayerFilterExpression& layerFilterExpression )
-    : mSettings( settings )
-    , mLayerFilterExpression( layerFilterExpression )
-    , mOnlyExpressions( true )
+QgsMapHitTest::QgsMapHitTest( const QgsMapSettings &settings, const LayerFilterExpression &layerFilterExpression )
+  : mSettings( settings )
+  , mLayerFilterExpression( layerFilterExpression )
+  , mOnlyExpressions( true )
 {
 }
 
@@ -56,9 +55,9 @@ void QgsMapHitTest::run()
   QgsRenderContext context = QgsRenderContext::fromMapSettings( mSettings );
   context.setPainter( &painter ); // we are not going to draw anything, but we still need a working painter
 
-  Q_FOREACH ( const QString& layerID, mSettings.layers() )
+  Q_FOREACH ( QgsMapLayer *layer, mSettings.layers() )
   {
-    QgsVectorLayer* vl = qobject_cast<QgsVectorLayer*>( QgsMapLayerRegistry::instance()->mapLayer( layerID ) );
+    QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( layer );
     if ( !vl || !vl->renderer() )
       continue;
 
@@ -71,23 +70,20 @@ void QgsMapHitTest::run()
         continue;
       }
 
-      if ( mSettings.hasCrsTransformEnabled() )
-      {
-        context.setCoordinateTransform( mSettings.layerTransform( vl ) );
-        context.setExtent( mSettings.outputExtentToLayerExtent( vl, mSettings.visibleExtent() ) );
-      }
+      context.setCoordinateTransform( mSettings.layerTransform( vl ) );
+      context.setExtent( mSettings.outputExtentToLayerExtent( vl, mSettings.visibleExtent() ) );
     }
 
     context.expressionContext() << QgsExpressionContextUtils::layerScope( vl );
-    SymbolSet& usedSymbols = mHitTest[vl];
-    SymbolSet& usedSymbolsRuleKey = mHitTestRuleKey[vl];
+    SymbolSet &usedSymbols = mHitTest[vl];
+    SymbolSet &usedSymbolsRuleKey = mHitTestRuleKey[vl];
     runHitTestLayer( vl, usedSymbols, usedSymbolsRuleKey, context );
   }
 
   painter.end();
 }
 
-bool QgsMapHitTest::symbolVisible( QgsSymbol* symbol, QgsVectorLayer* layer ) const
+bool QgsMapHitTest::symbolVisible( QgsSymbol *symbol, QgsVectorLayer *layer ) const
 {
   if ( !symbol || !layer || !mHitTest.contains( layer ) )
     return false;
@@ -95,7 +91,7 @@ bool QgsMapHitTest::symbolVisible( QgsSymbol* symbol, QgsVectorLayer* layer ) co
   return mHitTest.value( layer ).contains( QgsSymbolLayerUtils::symbolProperties( symbol ) );
 }
 
-bool QgsMapHitTest::legendKeyVisible( const QString& ruleKey, QgsVectorLayer* layer ) const
+bool QgsMapHitTest::legendKeyVisible( const QString &ruleKey, QgsVectorLayer *layer ) const
 {
   if ( !layer || !mHitTestRuleKey.contains( layer ) )
     return false;
@@ -103,31 +99,32 @@ bool QgsMapHitTest::legendKeyVisible( const QString& ruleKey, QgsVectorLayer* la
   return mHitTestRuleKey.value( layer ).contains( ruleKey );
 }
 
-void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols, SymbolSet& usedSymbolsRuleKey, QgsRenderContext& context )
+void QgsMapHitTest::runHitTestLayer( QgsVectorLayer *vl, SymbolSet &usedSymbols, SymbolSet &usedSymbolsRuleKey, QgsRenderContext &context )
 {
-  bool hasStyleOverride = mSettings.layerStyleOverrides().contains( vl->id() );
-  if ( hasStyleOverride )
-    vl->styleManager()->setOverrideStyle( mSettings.layerStyleOverrides().value( vl->id() ) );
+  QgsMapLayerStyleOverride styleOverride( vl );
+  if ( mSettings.layerStyleOverrides().contains( vl->id() ) )
+    styleOverride.setOverrideStyle( mSettings.layerStyleOverrides().value( vl->id() ) );
 
-  QgsFeatureRenderer* r = vl->renderer();
+  std::unique_ptr< QgsFeatureRenderer > r( vl->renderer()->clone() );
   bool moreSymbolsPerFeature = r->capabilities() & QgsFeatureRenderer::MoreSymbolsPerFeature;
   r->startRender( context, vl->fields() );
 
   QgsGeometry transformedPolygon = mPolygon;
-  if ( !mOnlyExpressions && !mPolygon.isEmpty() )
+  if ( !mOnlyExpressions && !mPolygon.isNull() )
   {
     if ( mSettings.destinationCrs() != vl->crs() )
     {
-      QgsCoordinateTransform ct = QgsCoordinateTransformCache::instance()->transform( mSettings.destinationCrs().authid(), vl->crs().authid() );
+      QgsCoordinateTransform ct( mSettings.destinationCrs(), vl->crs(), mSettings.transformContext() );
       transformedPolygon.transform( ct );
     }
   }
 
   QgsFeature f;
   QgsFeatureRequest request;
+  std::unique_ptr< QgsGeometryEngine > polygonEngine;
   if ( !mOnlyExpressions )
   {
-    if ( mPolygon.isEmpty() )
+    if ( mPolygon.isNull() )
     {
       request.setFilterRect( context.extent() );
       request.setFlags( QgsFeatureRequest::ExactIntersect );
@@ -135,6 +132,8 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
     else
     {
       request.setFilterRect( transformedPolygon.boundingBox() );
+      polygonEngine.reset( QgsGeometry::createGeometryEngine( transformedPolygon.constGet() ) );
+      polygonEngine->prepareGeometry();
     }
   }
   QgsFeatureIterator fi = vl->getFeatures( request );
@@ -143,7 +142,7 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
   SymbolSet lUsedSymbolsRuleKey;
   bool allExpressionFalse = false;
   bool hasExpression = mLayerFilterExpression.contains( vl->id() );
-  QScopedPointer<QgsExpression> expr;
+  std::unique_ptr<QgsExpression> expr;
   if ( hasExpression )
   {
     expr.reset( new QgsExpression( mLayerFilterExpression[vl->id()] ) );
@@ -153,9 +152,9 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
   {
     context.expressionContext().setFeature( f );
     // filter out elements outside of the polygon
-    if ( !mOnlyExpressions && !mPolygon.isEmpty() )
+    if ( f.hasGeometry() && polygonEngine )
     {
-      if ( !transformedPolygon.intersects( f.geometry() ) )
+      if ( !polygonEngine->intersects( f.geometry().constGet() ) )
       {
         continue;
       }
@@ -172,14 +171,14 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
 
     //make sure we store string representation of symbol, not pointer
     //otherwise layer style override changes will delete original symbols and leave hanging pointers
-    Q_FOREACH ( const QString& legendKey, r->legendKeysForFeature( f, context ) )
+    Q_FOREACH ( const QString &legendKey, r->legendKeysForFeature( f, context ) )
     {
       lUsedSymbolsRuleKey.insert( legendKey );
     }
 
     if ( moreSymbolsPerFeature )
     {
-      Q_FOREACH ( QgsSymbol* s, r->originalSymbolsForFeature( f, context ) )
+      Q_FOREACH ( QgsSymbol *s, r->originalSymbolsForFeature( f, context ) )
       {
         if ( s )
           lUsedSymbols.insert( QgsSymbolLayerUtils::symbolProperties( s ) );
@@ -187,7 +186,7 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
     }
     else
     {
-      QgsSymbol* s = r->originalSymbolForFeature( f, context );
+      QgsSymbol *s = r->originalSymbolForFeature( f, context );
       if ( s )
         lUsedSymbols.insert( QgsSymbolLayerUtils::symbolProperties( s ) );
     }
@@ -200,8 +199,5 @@ void QgsMapHitTest::runHitTestLayer( QgsVectorLayer* vl, SymbolSet& usedSymbols,
     usedSymbols = lUsedSymbols;
     usedSymbolsRuleKey = lUsedSymbolsRuleKey;
   }
-
-  if ( hasStyleOverride )
-    vl->styleManager()->restoreOverrideStyle();
 }
 

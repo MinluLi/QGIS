@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QApplication>
 #include <QDesktopServices>
@@ -25,7 +25,8 @@
 #include <qgslinearminmaxenhancement.h>
 #include <qgslinearminmaxenhancementwithclip.h>
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for the ContrastEnhancements contrast enhancement classes.
  */
 class TestContrastEnhancements: public QObject
@@ -102,5 +103,5 @@ void TestContrastEnhancements::linearMinMaxEnhancementTest()
   //Original pixel value of 240 should be scaled to 255
   QVERIFY( 255.0 == myEnhancement.enhance( 240.0 ) );
 }
-QTEST_MAIN( TestContrastEnhancements )
+QGSTEST_MAIN( TestContrastEnhancements )
 #include "testcontrastenhancements.moc"

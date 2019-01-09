@@ -19,8 +19,12 @@
 #include "ui_qgstexteditconfigdlg.h"
 
 #include "qgseditorconfigwidget.h"
+#include "qgis_gui.h"
 
-/** \ingroup gui
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
  * \class QgsTextEditConfigDlg
  * \note not available in Python bindings
  */
@@ -30,12 +34,12 @@ class GUI_EXPORT QgsTextEditConfigDlg : public QgsEditorConfigWidget, private Ui
     Q_OBJECT
 
   public:
-    explicit QgsTextEditConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget *parent = nullptr );
+    explicit QgsTextEditConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent = nullptr );
 
     // QgsEditorConfigWidget interface
   public:
-    QgsEditorWidgetConfig config() override;
-    void setConfig( const QgsEditorWidgetConfig& config ) override;
+    QVariantMap config() override;
+    void setConfig( const QVariantMap &config ) override;
 };
 
 #endif // QGSTEXTEDITCONFIGDLG_H

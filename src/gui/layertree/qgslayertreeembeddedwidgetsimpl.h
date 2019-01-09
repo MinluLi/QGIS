@@ -24,38 +24,41 @@ class QSlider;
 class QTimer;
 class QgsMapLayer;
 
+SIP_NO_FILE
+
 ///@cond PRIVATE
+
 /**
- * @brief Implementation of simple transparency widget to be used in layer tree view
+ * \brief Implementation of simple transparency widget to be used in layer tree view
  *
- * @note private class - not in QGIS API
+ * \note private class - not in QGIS API
  */
-class QgsLayerTreeTransparencyWidget : public QWidget
+class QgsLayerTreeOpacityWidget : public QWidget
 {
     Q_OBJECT
   public:
-    QgsLayerTreeTransparencyWidget( QgsMapLayer* layer );
+    QgsLayerTreeOpacityWidget( QgsMapLayer *layer );
 
-    virtual QSize sizeHint() const override;
+    QSize sizeHint() const override;
 
     class Provider : public QgsLayerTreeEmbeddedWidgetProvider
     {
       public:
-        virtual QString id() const override;
-        virtual QString name() const override;
-        virtual QgsLayerTreeTransparencyWidget* createWidget( QgsMapLayer* layer, int widgetIndex ) override;
-        virtual bool supportsLayer( QgsMapLayer *layer ) override;
+        QString id() const override;
+        QString name() const override;
+        QgsLayerTreeOpacityWidget *createWidget( QgsMapLayer *layer, int widgetIndex ) override;
+        bool supportsLayer( QgsMapLayer *layer ) override;
     };
 
   public slots:
     void sliderValueChanged( int value );
-    void updateTransparencyFromSlider();
+    void updateOpacityFromSlider();
     void layerTrChanged();
 
   private:
-    QgsMapLayer* mLayer;
-    QSlider* mSlider;
-    QTimer* mTimer;
+    QgsMapLayer *mLayer = nullptr;
+    QSlider *mSlider = nullptr;
+    QTimer *mTimer = nullptr;
 };
 ///@endcond
 #endif // QGSLAYERTREEEMBEDDEDWIDGETSIMPL_H

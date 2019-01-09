@@ -14,11 +14,12 @@
  ***************************************************************************/
 #include <QFile>
 #include <QObject>
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <qgswmscapabilities.h>
 #include <qgsapplication.h>
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for the WMS capabilities parser.
  */
 class TestQgsWmsCapabilities: public QObject
@@ -80,5 +81,5 @@ class TestQgsWmsCapabilities: public QObject
 
 };
 
-QTEST_MAIN( TestQgsWmsCapabilities )
+QGSTEST_MAIN( TestQgsWmsCapabilities )
 #include "testqgswmscapabilities.moc"

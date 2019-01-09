@@ -24,25 +24,41 @@
 #include "qgsvectorlayer.h"
 #include "qgsexpressioncontext.h"
 #include "qgsgeometry.h"
+#include "qgssettings.h"
+#include "qgsgui.h"
+#include "qgsguiutils.h"
+#include "qgsproxyprogresstask.h"
 
 #include <QMessageBox>
-#include <QSettings>
 
-QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer* vl, QWidget* parent )
-    : QDialog( parent )
-    , mVectorLayer( vl )
-    , mAttributeId( -1 )
+// FTC = FieldTypeCombo
+constexpr int FTC_TYPE_ROLE_IDX = 0;
+constexpr int FTC_TYPE_NAME_IDX = 1;
+constexpr int FTC_MINLEN_IDX = 2;
+constexpr int FTC_MAXLEN_IDX = 3;
+constexpr int FTC_MINPREC_IDX = 4;
+constexpr int FTC_MAXPREC_IDX = 5;
+constexpr int FTC_SUBTYPE_IDX = 6;
+
+QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer *vl, QWidget *parent )
+  : QDialog( parent )
+  , mVectorLayer( vl )
+  , mAttributeId( -1 )
 {
   setupUi( this );
+  connect( mNewFieldGroupBox, &QGroupBox::toggled, this, &QgsFieldCalculator::mNewFieldGroupBox_toggled );
+  connect( mUpdateExistingGroupBox, &QGroupBox::toggled, this, &QgsFieldCalculator::mUpdateExistingGroupBox_toggled );
+  connect( mCreateVirtualFieldCheckbox, &QCheckBox::stateChanged, this, &QgsFieldCalculator::mCreateVirtualFieldCheckbox_stateChanged );
+  connect( mOutputFieldNameLineEdit, &QLineEdit::textChanged, this, &QgsFieldCalculator::mOutputFieldNameLineEdit_textChanged );
+  connect( mOutputFieldTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::activated ), this, &QgsFieldCalculator::mOutputFieldTypeComboBox_activated );
+
+  QgsGui::enableAutoGeometryRestore( this );
 
   if ( !vl )
     return;
 
 
-  QgsExpressionContext expContext;
-  expContext << QgsExpressionContextUtils::globalScope()
-  << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::layerScope( mVectorLayer );
+  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
 
   expContext.lastScope()->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "row_number" ), 1, true ) );
   expContext.setHighlightedVariables( QStringList() << QStringLiteral( "row_number" ) );
@@ -54,12 +70,12 @@ QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer* vl, QWidget* parent )
   populateFields();
   populateOutputFieldTypes();
 
-  connect( builder, SIGNAL( expressionParsed( bool ) ), this, SLOT( setOkButtonState() ) );
-  connect( mOutputFieldWidthSpinBox, SIGNAL( editingFinished() ), this, SLOT( setPrecisionMinMax() ) );
+  connect( builder, &QgsExpressionBuilderWidget::expressionParsed, this, &QgsFieldCalculator::setOkButtonState );
+  connect( mOutputFieldWidthSpinBox, &QAbstractSpinBox::editingFinished, this, &QgsFieldCalculator::setPrecisionMinMax );
+  connect( mButtonBox, &QDialogButtonBox::helpRequested, this, &QgsFieldCalculator::showHelp );
 
   QgsDistanceArea myDa;
-  myDa.setSourceCrs( vl->crs().srsid() );
-  myDa.setEllipsoidalMode( QgisApp::instance()->mapCanvas()->mapSettings().hasCrsTransformEnabled() );
+  myDa.setSourceCrs( vl->crs(), QgsProject::instance()->transformContext() );
   myDa.setEllipsoid( QgsProject::instance()->ellipsoid() );
   builder->setGeomCalculator( myDa );
 
@@ -117,7 +133,7 @@ QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer* vl, QWidget* parent )
     mNewFieldGroupBox->setCheckable( false );
   }
 
-  if (( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
+  if ( ( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
   {
     mEditModeAutoTurnOnLabel->setVisible( false );
     mInfoIcon->setVisible( false );
@@ -137,15 +153,6 @@ QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer* vl, QWidget* parent )
   mInfoIcon->setPixmap( style()->standardPixmap( QStyle::SP_MessageBoxInformation ) );
 
   setOkButtonState();
-
-  QSettings settings;
-  restoreGeometry( settings.value( QStringLiteral( "/Windows/QgsFieldCalculator/geometry" ) ).toByteArray() );
-}
-
-QgsFieldCalculator::~QgsFieldCalculator()
-{
-  QSettings settings;
-  settings.setValue( QStringLiteral( "/Windows/QgsFieldCalculator/geometry" ), saveGeometry() );
 }
 
 void QgsFieldCalculator::accept()
@@ -158,8 +165,7 @@ void QgsFieldCalculator::accept()
   // Set up QgsDistanceArea each time we (re-)calculate
   QgsDistanceArea myDa;
 
-  myDa.setSourceCrs( mVectorLayer->crs().srsid() );
-  myDa.setEllipsoidalMode( QgisApp::instance()->mapCanvas()->mapSettings().hasCrsTransformEnabled() );
+  myDa.setSourceCrs( mVectorLayer->crs(), QgsProject::instance()->transformContext() );
   myDa.setEllipsoid( QgsProject::instance()->ellipsoid() );
 
   QString calcString = builder->expressionText();
@@ -168,14 +174,11 @@ void QgsFieldCalculator::accept()
   exp.setDistanceUnits( QgsProject::instance()->distanceUnits() );
   exp.setAreaUnits( QgsProject::instance()->areaUnits() );
 
-  QgsExpressionContext expContext;
-  expContext << QgsExpressionContextUtils::globalScope()
-  << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::layerScope( mVectorLayer );
+  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
 
   if ( !exp.prepare( &expContext ) )
   {
-    QMessageBox::critical( nullptr, tr( "Evaluation error" ), exp.evalErrorString() );
+    QMessageBox::critical( nullptr, tr( "Evaluation Error" ), exp.evalErrorString() );
     return;
   }
 
@@ -194,7 +197,7 @@ void QgsFieldCalculator::accept()
     if ( !mVectorLayer->isEditable() )
       mVectorLayer->startEditing();
 
-    QApplication::setOverrideCursor( Qt::WaitCursor );
+    QgsTemporaryCursorOverride cursorOverride( Qt::WaitCursor );
 
     mVectorLayer->beginEditCommand( QStringLiteral( "Field calculator" ) );
 
@@ -223,14 +226,14 @@ void QgsFieldCalculator::accept()
 
       if ( !mVectorLayer->addAttribute( newField ) )
       {
-        QApplication::restoreOverrideCursor();
-        QMessageBox::critical( nullptr, tr( "Provider error" ), tr( "Could not add the new field to the provider." ) );
+        cursorOverride.release();
+        QMessageBox::critical( nullptr, tr( "Create New Field" ), tr( "Could not add the new field to the provider." ) );
         mVectorLayer->destroyEditCommand();
         return;
       }
 
       //get index of the new field
-      const QgsFields& fields = mVectorLayer->fields();
+      const QgsFields &fields = mVectorLayer->fields();
 
       for ( int idx = 0; idx < fields.count(); ++idx )
       {
@@ -245,8 +248,8 @@ void QgsFieldCalculator::accept()
       expContext.setFields( mVectorLayer->fields() );
       if ( ! exp.prepare( &expContext ) )
       {
-        QApplication::restoreOverrideCursor();
-        QMessageBox::critical( nullptr, tr( "Evaluation error" ), exp.evalErrorString() );
+        cursorOverride.release();
+        QMessageBox::critical( nullptr, tr( "Evaluation Error" ), exp.evalErrorString() );
         return;
       }
     }
@@ -254,7 +257,6 @@ void QgsFieldCalculator::accept()
     if ( mAttributeId == -1 && !updatingGeom )
     {
       mVectorLayer->destroyEditCommand();
-      QApplication::restoreOverrideCursor();
       return;
     }
 
@@ -274,13 +276,23 @@ void QgsFieldCalculator::accept()
       emptyAttribute = QVariant( field.type() );
 
     QgsFeatureRequest req = QgsFeatureRequest().setFlags( useGeometry ? QgsFeatureRequest::NoFlags : QgsFeatureRequest::NoGeometry );
+    QSet< QString > referencedColumns = exp.referencedColumns();
+    referencedColumns.insert( field.name() ); // need existing column value to store old attribute when changing field values
+    req.setSubsetOfAttributes( referencedColumns, mVectorLayer->fields() );
     if ( mOnlyUpdateSelectedCheckBox->isChecked() )
     {
-      req.setFilterFids( mVectorLayer->selectedFeaturesIds() );
+      req.setFilterFids( mVectorLayer->selectedFeatureIds() );
     }
     QgsFeatureIterator fit = mVectorLayer->getFeatures( req );
+
+    std::unique_ptr< QgsScopedProxyProgressTask > task = qgis::make_unique< QgsScopedProxyProgressTask >( tr( "Calculating field" ) );
+    long long count = mOnlyUpdateSelectedCheckBox->isChecked() ? mVectorLayer->selectedFeatureCount() : mVectorLayer->featureCount();
+    long long i = 0;
     while ( fit.nextFeature( feature ) )
     {
+      i++;
+      task->setProgress( i / static_cast< double >( count ) * 100 );
+
       expContext.setFeature( feature );
       expContext.lastScope()->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "row_number" ), rownum, true ) );
 
@@ -301,18 +313,18 @@ void QgsFieldCalculator::accept()
       }
       else
       {
-        field.convertCompatible( value );
+        ( void )field.convertCompatible( value );
         mVectorLayer->changeAttributeValue( feature.id(), mAttributeId, value, newField ? emptyAttribute : feature.attributes().value( mAttributeId ) );
       }
 
       rownum++;
     }
 
-    QApplication::restoreOverrideCursor();
-
     if ( !calculationSuccess )
     {
-      QMessageBox::critical( nullptr, tr( "Error" ), tr( "An error occurred while evaluating the calculation string:\n%1" ).arg( error ) );
+      cursorOverride.release();
+      task.reset();
+      QMessageBox::critical( nullptr, tr( "Evaluation Error" ), tr( "An error occurred while evaluating the calculation string:\n%1" ).arg( error ) );
       mVectorLayer->destroyEditCommand();
       return;
     }
@@ -329,7 +341,7 @@ void QgsFieldCalculator::populateOutputFieldTypes()
     return;
   }
 
-  QgsVectorDataProvider* provider = mVectorLayer->dataProvider();
+  QgsVectorDataProvider *provider = mVectorLayer->dataProvider();
   if ( !provider )
   {
     return;
@@ -340,20 +352,20 @@ void QgsFieldCalculator::populateOutputFieldTypes()
   for ( int i = 0; i < typelist.size(); i++ )
   {
     mOutputFieldTypeComboBox->addItem( typelist[i].mTypeDesc );
-    mOutputFieldTypeComboBox->setItemData( i, static_cast<int>( typelist[i].mType ), Qt::UserRole );
-    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mTypeName, Qt::UserRole + 1 );
-    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMinLen, Qt::UserRole + 2 );
-    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMaxLen, Qt::UserRole + 3 );
-    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMinPrec, Qt::UserRole + 4 );
-    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMaxPrec, Qt::UserRole + 5 );
-    mOutputFieldTypeComboBox->setItemData( i, static_cast<int>( typelist[i].mSubType ), Qt::UserRole + 6 );
+    mOutputFieldTypeComboBox->setItemData( i, static_cast<int>( typelist[i].mType ), Qt::UserRole + FTC_TYPE_ROLE_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mTypeName, Qt::UserRole + FTC_TYPE_NAME_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMinLen, Qt::UserRole + FTC_MINLEN_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMaxLen, Qt::UserRole + FTC_MAXLEN_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMinPrec, Qt::UserRole + FTC_MINPREC_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, typelist[i].mMaxPrec, Qt::UserRole + FTC_MAXPREC_IDX );
+    mOutputFieldTypeComboBox->setItemData( i, static_cast<int>( typelist[i].mSubType ), Qt::UserRole + FTC_SUBTYPE_IDX );
   }
   mOutputFieldTypeComboBox->blockSignals( false );
   mOutputFieldTypeComboBox->setCurrentIndex( 0 );
-  on_mOutputFieldTypeComboBox_activated( 0 );
+  mOutputFieldTypeComboBox_activated( 0 );
 }
 
-void QgsFieldCalculator::on_mNewFieldGroupBox_toggled( bool on )
+void QgsFieldCalculator::mNewFieldGroupBox_toggled( bool on )
 {
   mUpdateExistingGroupBox->setChecked( !on );
   if ( on && !( mVectorLayer->dataProvider()->capabilities() & QgsVectorDataProvider::AddAttributes ) )
@@ -365,7 +377,7 @@ void QgsFieldCalculator::on_mNewFieldGroupBox_toggled( bool on )
     mOnlyVirtualFieldsInfoLabel->setVisible( false );
   }
 
-  if (( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
+  if ( ( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
   {
     mEditModeAutoTurnOnLabel->setVisible( false );
   }
@@ -377,7 +389,7 @@ void QgsFieldCalculator::on_mNewFieldGroupBox_toggled( bool on )
   mInfoIcon->setVisible( mOnlyVirtualFieldsInfoLabel->isVisible() || mEditModeAutoTurnOnLabel->isVisible() );
 }
 
-void QgsFieldCalculator::on_mUpdateExistingGroupBox_toggled( bool on )
+void QgsFieldCalculator::mUpdateExistingGroupBox_toggled( bool on )
 {
   mNewFieldGroupBox->setChecked( !on );
   setOkButtonState();
@@ -388,16 +400,16 @@ void QgsFieldCalculator::on_mUpdateExistingGroupBox_toggled( bool on )
   }
   else
   {
-    on_mCreateVirtualFieldCheckbox_stateChanged( mCreateVirtualFieldCheckbox->checkState() );
+    mCreateVirtualFieldCheckbox_stateChanged( mCreateVirtualFieldCheckbox->checkState() );
   }
 }
 
-void QgsFieldCalculator::on_mCreateVirtualFieldCheckbox_stateChanged( int state )
+void QgsFieldCalculator::mCreateVirtualFieldCheckbox_stateChanged( int state )
 {
   mOnlyUpdateSelectedCheckBox->setChecked( false );
   mOnlyUpdateSelectedCheckBox->setEnabled( state != Qt::Checked && mVectorLayer->selectedFeatureCount() > 0 );
 
-  if (( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
+  if ( ( mNewFieldGroupBox->isChecked() && mCreateVirtualFieldCheckbox->isChecked() ) || mVectorLayer->isEditable() )
   {
     mEditModeAutoTurnOnLabel->setVisible( false );
   }
@@ -409,17 +421,17 @@ void QgsFieldCalculator::on_mCreateVirtualFieldCheckbox_stateChanged( int state 
 }
 
 
-void QgsFieldCalculator::on_mOutputFieldNameLineEdit_textChanged( const QString &text )
+void QgsFieldCalculator::mOutputFieldNameLineEdit_textChanged( const QString &text )
 {
   Q_UNUSED( text );
   setOkButtonState();
 }
 
 
-void QgsFieldCalculator::on_mOutputFieldTypeComboBox_activated( int index )
+void QgsFieldCalculator::mOutputFieldTypeComboBox_activated( int index )
 {
-  mOutputFieldWidthSpinBox->setMinimum( mOutputFieldTypeComboBox->itemData( index, Qt::UserRole + 2 ).toInt() );
-  mOutputFieldWidthSpinBox->setMaximum( mOutputFieldTypeComboBox->itemData( index, Qt::UserRole + 3 ).toInt() );
+  mOutputFieldWidthSpinBox->setMinimum( mOutputFieldTypeComboBox->itemData( index, Qt::UserRole + FTC_MINLEN_IDX ).toInt() );
+  mOutputFieldWidthSpinBox->setMaximum( mOutputFieldTypeComboBox->itemData( index, Qt::UserRole + FTC_MAXLEN_IDX ).toInt() );
   mOutputFieldWidthSpinBox->setEnabled( mOutputFieldWidthSpinBox->minimum() < mOutputFieldWidthSpinBox->maximum() );
   if ( mOutputFieldWidthSpinBox->value() < mOutputFieldWidthSpinBox->minimum() )
     mOutputFieldWidthSpinBox->setValue( mOutputFieldWidthSpinBox->minimum() );
@@ -434,7 +446,7 @@ void QgsFieldCalculator::populateFields()
   if ( !mVectorLayer )
     return;
 
-  const QgsFields& fields = mVectorLayer->fields();
+  const QgsFields &fields = mVectorLayer->fields();
   for ( int idx = 0; idx < fields.count(); ++idx )
   {
     if ( fields.fieldOrigin( idx ) != QgsFields::OriginExpression && fields.fieldOrigin( idx ) != QgsFields::OriginJoin )
@@ -455,14 +467,15 @@ void QgsFieldCalculator::populateFields()
     font.setItalic( true );
     mExistingFieldComboBox->setItemData( mExistingFieldComboBox->count() - 1, font, Qt::FontRole );
   }
+  mExistingFieldComboBox->setCurrentIndex( -1 );
 }
 
 void QgsFieldCalculator::setOkButtonState()
 {
-  QPushButton* okButton = mButtonBox->button( QDialogButtonBox::Ok );
+  QPushButton *okButton = mButtonBox->button( QDialogButtonBox::Ok );
 
-  if (( mNewFieldGroupBox->isChecked() || !mUpdateExistingGroupBox->isEnabled() )
-      && mOutputFieldNameLineEdit->text().isEmpty() )
+  if ( ( mNewFieldGroupBox->isChecked() || !mUpdateExistingGroupBox->isEnabled() )
+       && mOutputFieldNameLineEdit->text().isEmpty() )
   {
     okButton->setToolTip( tr( "Please enter a field name" ) );
     okButton->setEnabled( false );
@@ -476,16 +489,40 @@ void QgsFieldCalculator::setOkButtonState()
     return;
   }
 
-  okButton->setToolTip( QLatin1String( "" ) );
+  okButton->setToolTip( QString() );
   okButton->setEnabled( true );
 }
 
 void QgsFieldCalculator::setPrecisionMinMax()
 {
   int idx = mOutputFieldTypeComboBox->currentIndex();
-  int minPrecType = mOutputFieldTypeComboBox->itemData( idx, Qt::UserRole + 4 ).toInt();
-  int maxPrecType = mOutputFieldTypeComboBox->itemData( idx, Qt::UserRole + 5 ).toInt();
-  mOutputFieldPrecisionSpinBox->setEnabled( minPrecType < maxPrecType );
-  mOutputFieldPrecisionSpinBox->setMinimum( minPrecType );
-  mOutputFieldPrecisionSpinBox->setMaximum( qMax( minPrecType, qMin( maxPrecType, mOutputFieldWidthSpinBox->value() ) ) );
+  int minPrecType = mOutputFieldTypeComboBox->itemData( idx, Qt::UserRole + FTC_MINPREC_IDX ).toInt();
+  int maxPrecType = mOutputFieldTypeComboBox->itemData( idx, Qt::UserRole + FTC_MAXPREC_IDX ).toInt();
+  bool precisionIsEnabled = minPrecType < maxPrecType;
+  mOutputFieldPrecisionSpinBox->setEnabled( precisionIsEnabled );
+  // Do not set min/max if it's disabled or we'll loose the default value,
+  // see https://issues.qgis.org/issues/19050 - QGIS saves integer field when
+  // I create a new real field through field calculator (Update field works as intended)
+  if ( precisionIsEnabled )
+  {
+    mOutputFieldPrecisionSpinBox->setMinimum( minPrecType );
+    mOutputFieldPrecisionSpinBox->setMaximum( std::max( minPrecType, std::min( maxPrecType, mOutputFieldWidthSpinBox->value() ) ) );
+  }
+}
+
+void QgsFieldCalculator::showHelp()
+{
+  QgsHelp::openHelp( QStringLiteral( "working_with_vector/attribute_table.html#editing-attribute-values" ) );
+}
+
+QgsField QgsFieldCalculator::fieldDefinition()
+{
+  return QgsField( mOutputFieldNameLineEdit->text(),
+                   static_cast< QVariant::Type >( mOutputFieldTypeComboBox->currentData( Qt::UserRole + FTC_TYPE_ROLE_IDX ).toInt() ),
+                   mOutputFieldTypeComboBox->currentData( Qt::UserRole + FTC_TYPE_NAME_IDX ).toString(),
+                   mOutputFieldWidthSpinBox->value(),
+                   mOutputFieldPrecisionSpinBox->isEnabled() ? mOutputFieldPrecisionSpinBox->value() : 0,
+                   QString(),
+                   static_cast< QVariant::Type >( mOutputFieldTypeComboBox->currentData( Qt::UserRole + FTC_SUBTYPE_IDX ).toInt() )
+                 );
 }

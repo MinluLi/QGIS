@@ -14,11 +14,12 @@
  ***************************************************************************/
 #include <QFile>
 #include <QObject>
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <qgswmsprovider.h>
 #include <qgsapplication.h>
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for the WMS provider.
  */
 class TestQgsWmsProvider: public QObject
@@ -51,33 +52,44 @@ class TestQgsWmsProvider: public QObject
 
     void legendGraphicsWithStyle()
     {
-      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=fb_style&format=image/jpg" ), mCapabilities );
+      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=fb_style&format=image/jpg" ), QgsDataProvider::ProviderOptions(), mCapabilities );
       QCOMPARE( provider.getLegendGraphicUrl(), QString( "http://www.example.com/fb.png?" ) );
     }
 
     void legendGraphicsWithSecondStyle()
     {
-      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=yt_style&format=image/jpg" ), mCapabilities );
+      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=yt_style&format=image/jpg" ), QgsDataProvider::ProviderOptions(), mCapabilities );
       QCOMPARE( provider.getLegendGraphicUrl(), QString( "http://www.example.com/yt.png?" ) );
     }
 
     void legendGraphicsWithoutStyleWithDefault()
     {
-      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=buildings&styles=&format=image/jpg" ), mCapabilities );
+      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=buildings&styles=&format=image/jpg" ), QgsDataProvider::ProviderOptions(), mCapabilities );
       //only one style, can guess default => use it
       QCOMPARE( provider.getLegendGraphicUrl(), QString( "http://www.example.com/buildings.png?" ) );
     }
 
     void legendGraphicsWithoutStyleWithoutDefault()
     {
-      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=&format=image/jpg" ), mCapabilities );
+      QgsWmsProvider provider( QStringLiteral( "http://localhost:8380/mapserv?xxx&layers=agri_zones&styles=&format=image/jpg" ), QgsDataProvider::ProviderOptions(), mCapabilities );
       //two style, cannot guess default => use the WMS GetLegendGraphics
       QCOMPARE( provider.getLegendGraphicUrl(), QString( "http://localhost:8380/mapserv?" ) );
     }
 
+    // regression #20271 - WMS is not displayed in QGIS 3.4.0
+    void queryItemsWithNullValue()
+    {
+      QString failingAddress( "http://localhost:8380/mapserv" );
+      QgsWmsProvider provider( failingAddress, QgsDataProvider::ProviderOptions(), mCapabilities );
+      QUrl url( provider.createRequestUrlWMS( QgsRectangle( 0, 0, 90, 90 ), 100, 100 ) );
+      QCOMPARE( url.toString(), QString( "http://localhost:8380/mapserv?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap"
+                                         "&BBOX=0,0,90,90&CRS=CRS:84&WIDTH=100&HEIGHT=100&LAYERS=&"
+                                         "STYLES=&FORMAT=&TRANSPARENT=TRUE" ) );
+    }
+
   private:
-    QgsWmsCapabilities* mCapabilities;
+    QgsWmsCapabilities *mCapabilities = nullptr;
 };
 
-QTEST_MAIN( TestQgsWmsProvider )
+QGSTEST_MAIN( TestQgsWmsProvider )
 #include "testqgswmsprovider.moc"

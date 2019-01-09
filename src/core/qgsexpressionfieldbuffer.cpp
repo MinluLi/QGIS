@@ -19,11 +19,8 @@
 
 #include "qgsvectorlayer.h"
 
-QgsExpressionFieldBuffer::QgsExpressionFieldBuffer()
-{
-}
 
-void QgsExpressionFieldBuffer::addExpression( const QString& exp, const QgsField& fld )
+void QgsExpressionFieldBuffer::addExpression( const QString &exp, const QgsField &fld )
 {
   mExpressions << ExpressionField( exp, fld );
 }
@@ -33,22 +30,22 @@ void QgsExpressionFieldBuffer::removeExpression( int index )
   mExpressions.removeAt( index );
 }
 
-void QgsExpressionFieldBuffer::renameExpression( int index, const QString& name )
+void QgsExpressionFieldBuffer::renameExpression( int index, const QString &name )
 {
   mExpressions[index].field.setName( name );
 }
 
-void QgsExpressionFieldBuffer::updateExpression( int index, const QString& exp )
+void QgsExpressionFieldBuffer::updateExpression( int index, const QString &exp )
 {
   mExpressions[index].cachedExpression = QgsExpression( exp );
 }
 
-void QgsExpressionFieldBuffer::writeXml( QDomNode& layerNode, QDomDocument& document ) const
+void QgsExpressionFieldBuffer::writeXml( QDomNode &layerNode, QDomDocument &document ) const
 {
   QDomElement expressionFieldsElem = document.createElement( QStringLiteral( "expressionfields" ) );
   layerNode.appendChild( expressionFieldsElem );
 
-  Q_FOREACH ( const ExpressionField& fld, mExpressions )
+  Q_FOREACH ( const ExpressionField &fld, mExpressions )
   {
     QDomElement fldElem = document.createElement( QStringLiteral( "field" ) );
 
@@ -65,7 +62,7 @@ void QgsExpressionFieldBuffer::writeXml( QDomNode& layerNode, QDomDocument& docu
   }
 }
 
-void QgsExpressionFieldBuffer::readXml( const QDomNode& layerNode )
+void QgsExpressionFieldBuffer::readXml( const QDomNode &layerNode )
 {
   mExpressions.clear();
 
@@ -84,7 +81,7 @@ void QgsExpressionFieldBuffer::readXml( const QDomNode& layerNode )
       int precision = field.attribute( QStringLiteral( "precision" ) ).toInt();
       int length = field.attribute( QStringLiteral( "length" ) ).toInt();
       QVariant::Type type = static_cast< QVariant::Type >( field.attribute( QStringLiteral( "type" ) ).toInt() );
-      QVariant::Type subType = static_cast< QVariant::Type >( field.attribute( QStringLiteral( "subType" ), 0 ).toInt() );
+      QVariant::Type subType = static_cast< QVariant::Type >( field.attribute( QStringLiteral( "subType" ), QStringLiteral( "0" ) ).toInt() );
       QString typeName = field.attribute( QStringLiteral( "typeName" ) );
 
       mExpressions.append( ExpressionField( exp, QgsField( name, type, typeName, length, precision, comment, subType ) ) );
@@ -92,10 +89,10 @@ void QgsExpressionFieldBuffer::readXml( const QDomNode& layerNode )
   }
 }
 
-void QgsExpressionFieldBuffer::updateFields( QgsFields& flds )
+void QgsExpressionFieldBuffer::updateFields( QgsFields &flds )
 {
   int index = 0;
-  Q_FOREACH ( const ExpressionField& fld, mExpressions )
+  Q_FOREACH ( const ExpressionField &fld, mExpressions )
   {
     flds.appendExpressionField( fld.field, index );
     ++index;

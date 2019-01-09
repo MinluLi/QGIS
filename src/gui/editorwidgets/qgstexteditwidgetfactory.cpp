@@ -19,51 +19,27 @@
 #include "qgstexteditconfigdlg.h"
 #include "qgstexteditsearchwidgetwrapper.h"
 
-QgsTextEditWidgetFactory::QgsTextEditWidgetFactory( const QString& name )
-    : QgsEditorWidgetFactory( name )
+QgsTextEditWidgetFactory::QgsTextEditWidgetFactory( const QString &name )
+  : QgsEditorWidgetFactory( name )
 {
 }
 
-QgsEditorWidgetWrapper* QgsTextEditWidgetFactory::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const
+QgsEditorWidgetWrapper *QgsTextEditWidgetFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsTextEditWrapper( vl, fieldIdx, editor, parent );
 }
 
-QgsSearchWidgetWrapper*QgsTextEditWidgetFactory::createSearchWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsSearchWidgetWrapper *QgsTextEditWidgetFactory::createSearchWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsTextEditSearchWidgetWrapper( vl, fieldIdx, parent );
 }
 
-QgsEditorConfigWidget* QgsTextEditWidgetFactory::configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsEditorConfigWidget *QgsTextEditWidgetFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsTextEditConfigDlg( vl, fieldIdx, parent );
 }
 
-
-void QgsTextEditWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx )
-{
-  Q_UNUSED( doc )
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  configElement.setAttribute( QStringLiteral( "IsMultiline" ), config.value( QStringLiteral( "IsMultiline" ), false ).toBool() );
-  configElement.setAttribute( QStringLiteral( "UseHtml" ), config.value( QStringLiteral( "UseHtml" ), false ).toBool() );
-}
-
-QgsEditorWidgetConfig QgsTextEditWidgetFactory::readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx )
-{
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  QgsEditorWidgetConfig cfg;
-
-  cfg.insert( QStringLiteral( "IsMultiline" ), configElement.attribute( QStringLiteral( "IsMultiline" ), QStringLiteral( "0" ) ) == QLatin1String( "1" ) );
-  cfg.insert( QStringLiteral( "UseHtml" ), configElement.attribute( QStringLiteral( "UseHtml" ), QStringLiteral( "0" ) ) == QLatin1String( "1" ) );
-
-  return cfg;
-}
-
-unsigned int QgsTextEditWidgetFactory::fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const
+unsigned int QgsTextEditWidgetFactory::fieldScore( const QgsVectorLayer *vl, int fieldIdx ) const
 {
   Q_UNUSED( vl )
   Q_UNUSED( fieldIdx )

@@ -24,17 +24,14 @@ from builtins import str
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import GPKGDBConnector
 
-from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
+from qgis.PyQt.QtCore import Qt, QFileInfo, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QApplication, QAction, QFileDialog
-from qgis.core import QgsDataSourceUri
+from qgis.core import Qgis, QgsApplication, QgsDataSourceUri, QgsSettings
 from qgis.gui import QgsMessageBar
 
 from ..plugin import DBPlugin, Database, Table, VectorTable, RasterTable, TableField, TableIndex, TableTrigger, \
     InvalidDataException
-
-from . import resources_rc
-hasattr(resources_rc, 'foo')
 
 
 def classFactory():
@@ -45,7 +42,7 @@ class GPKGDBPlugin(DBPlugin):
 
     @classmethod
     def icon(self):
-        return QIcon(":/db_manager/gpkg/icon")
+        return QgsApplication.getThemeIcon("/mGeoPackage.svg")
 
     @classmethod
     def typeName(self):
@@ -53,7 +50,7 @@ class GPKGDBPlugin(DBPlugin):
 
     @classmethod
     def typeNameString(self):
-        return 'GeoPackage'
+        return QCoreApplication.translate('db_manager', 'GeoPackage')
 
     @classmethod
     def providerName(self):
@@ -61,20 +58,20 @@ class GPKGDBPlugin(DBPlugin):
 
     @classmethod
     def connectionSettingsKey(self):
-        return '/GPKG/connections'
+        return 'providers/ogr/GPKG/connections'
 
     def databasesFactory(self, connection, uri):
         return GPKGDatabase(connection, uri)
 
     def connect(self, parent=None):
         conn_name = self.connectionName()
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
 
-        if not settings.contains("gpkgpath"):  # non-existent entry?
-            raise InvalidDataException(u'there is no defined database connection "%s".' % conn_name)
+        if not settings.contains("path"):  # non-existent entry?
+            raise InvalidDataException(self.tr(u'There is no defined database connection "{0}".').format(conn_name))
 
-        database = settings.value("gpkgpath")
+        database = settings.value("path")
 
         uri = QgsDataSourceUri()
         uri.setDatabase(database)
@@ -82,9 +79,9 @@ class GPKGDBPlugin(DBPlugin):
 
     @classmethod
     def addConnection(self, conn_name, uri):
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
-        settings.setValue("gpkgpath", uri.database())
+        settings.setValue("path", uri.database())
         return True
 
     @classmethod
@@ -132,6 +129,11 @@ class GPKGDatabase(Database):
 
         return GPKGSqlResultModel(self, sql, parent)
 
+    def sqlResultModelAsync(self, sql, parent):
+        from .data_model import GPKGSqlResultModelAsync
+
+        return GPKGSqlResultModelAsync(self, sql, parent)
+
     def registerDatabaseActions(self, mainWindow):
         action = QAction(self.tr("Run &Vacuum"), self)
         mainWindow.registerAction(action, self.tr("&Database"), self.runVacuumActionSlot)
@@ -143,7 +145,7 @@ class GPKGDatabase(Database):
         try:
             if not isinstance(item, (DBPlugin, Table)) or item.database() is None:
                 parent.infoBar.pushMessage(self.tr("No database selected or you are not connected to it."),
-                                           QgsMessageBar.INFO, parent.iface.messageTimeout())
+                                           Qgis.Info, parent.iface.messageTimeout())
                 return
         finally:
             QApplication.setOverrideCursor(Qt.WaitCursor)

@@ -22,10 +22,9 @@
 #include <QSettings>
 #include <QCheckBox>
 
-QgsCheckboxSearchWidgetWrapper::QgsCheckboxSearchWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* parent )
-    : QgsSearchWidgetWrapper( vl, fieldIdx, parent )
-    , mCheckBox( nullptr )
-    , mLayer( nullptr )
+QgsCheckboxSearchWidgetWrapper::QgsCheckboxSearchWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
+  : QgsSearchWidgetWrapper( vl, fieldIdx, parent )
+
 {
 }
 
@@ -34,7 +33,7 @@ bool QgsCheckboxSearchWidgetWrapper::applyDirectly()
   return true;
 }
 
-QString QgsCheckboxSearchWidgetWrapper::expression()
+QString QgsCheckboxSearchWidgetWrapper::expression() const
 {
   return mExpression;
 }
@@ -62,7 +61,7 @@ QgsSearchWidgetWrapper::FilterFlags QgsCheckboxSearchWidgetWrapper::defaultFlags
 QString QgsCheckboxSearchWidgetWrapper::createExpression( QgsSearchWidgetWrapper::FilterFlags flags ) const
 {
   QVariant::Type fldType = layer()->fields().at( mFieldIdx ).type();
-  QString fieldName = QgsExpression::quotedColumnRef( layer()->fields().at( mFieldIdx ).name() );
+  QString fieldName = createFieldIdentifier();
 
   //clear any unsupported flags
   flags &= supportedFlags();
@@ -125,8 +124,9 @@ bool QgsCheckboxSearchWidgetWrapper::valid() const
   return true;
 }
 
-void QgsCheckboxSearchWidgetWrapper::setExpression( QString exp )
+void QgsCheckboxSearchWidgetWrapper::setExpression( const QString &expression )
 {
+  QString exp = expression;
   QString fieldName = layer()->fields().at( mFieldIdx ).name();
 
   QString str = QStringLiteral( "%1 = '%3'" )
@@ -148,21 +148,21 @@ void QgsCheckboxSearchWidgetWrapper::stateChanged( int )
   }
 }
 
-QWidget* QgsCheckboxSearchWidgetWrapper::createWidget( QWidget* parent )
+QWidget *QgsCheckboxSearchWidgetWrapper::createWidget( QWidget *parent )
 {
-  QCheckBox* c = new QCheckBox( parent );
+  QCheckBox *c = new QCheckBox( parent );
   c->setChecked( Qt::PartiallyChecked );
   return c;
 }
 
-void QgsCheckboxSearchWidgetWrapper::initWidget( QWidget* editor )
+void QgsCheckboxSearchWidgetWrapper::initWidget( QWidget *editor )
 {
-  mCheckBox = qobject_cast<QCheckBox*>( editor );
+  mCheckBox = qobject_cast<QCheckBox *>( editor );
 
   if ( mCheckBox )
   {
     mCheckBox->setChecked( Qt::PartiallyChecked );
-    connect( mCheckBox, SIGNAL( stateChanged( int ) ), this, SLOT( stateChanged( int ) ) );
+    connect( mCheckBox, &QCheckBox::stateChanged, this, &QgsCheckboxSearchWidgetWrapper::stateChanged );
   }
 }
 

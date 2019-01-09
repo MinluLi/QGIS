@@ -18,13 +18,15 @@
 #define QGSEXPRESSIONPRIVATE_H
 
 #include <QString>
-#include <QSharedPointer>
+#include <memory>
 
 #include "qgsexpression.h"
 #include "qgsdistancearea.h"
 #include "qgsunittypes.h"
+#include "qgsexpressionnode.h"
 
 ///@cond
+
 /**
  * This class exists only for implicit sharing of QgsExpression
  * and is not part of the public API.
@@ -34,22 +36,19 @@ class QgsExpressionPrivate
 {
   public:
     QgsExpressionPrivate()
-        : ref( 1 )
-        , mRootNode( nullptr )
-        , mCalc( nullptr )
-        , mDistanceUnit( QgsUnitTypes::DistanceUnknownUnit )
-        , mAreaUnit( QgsUnitTypes::AreaUnknownUnit )
+      : ref( 1 )
     {}
 
-    QgsExpressionPrivate( const QgsExpressionPrivate& other )
-        : ref( 1 )
-        , mRootNode( other.mRootNode ? other.mRootNode->clone() : nullptr )
-        , mParserErrorString( other.mParserErrorString )
-        , mEvalErrorString( other.mEvalErrorString )
-        , mExp( other.mExp )
-        , mCalc( other.mCalc )
-        , mDistanceUnit( other.mDistanceUnit )
-        , mAreaUnit( other.mAreaUnit )
+    QgsExpressionPrivate( const QgsExpressionPrivate &other )
+      : ref( 1 )
+      , mRootNode( other.mRootNode ? other.mRootNode->clone() : nullptr )
+      , mParserErrorString( other.mParserErrorString )
+      , mEvalErrorString( other.mEvalErrorString )
+      , mParserErrors( other.mParserErrors )
+      , mExp( other.mExp )
+      , mCalc( other.mCalc )
+      , mDistanceUnit( other.mDistanceUnit )
+      , mAreaUnit( other.mAreaUnit )
     {}
 
     ~QgsExpressionPrivate()
@@ -59,16 +58,18 @@ class QgsExpressionPrivate
 
     QAtomicInt ref;
 
-    QgsExpression::Node* mRootNode;
+    QgsExpressionNode *mRootNode = nullptr;
 
     QString mParserErrorString;
     QString mEvalErrorString;
 
+    QList<QgsExpression::ParserError> mParserErrors;
+
     QString mExp;
 
-    QSharedPointer<QgsDistanceArea> mCalc;
-    QgsUnitTypes::DistanceUnit mDistanceUnit;
-    QgsUnitTypes::AreaUnit mAreaUnit;
+    std::shared_ptr<QgsDistanceArea> mCalc;
+    QgsUnitTypes::DistanceUnit mDistanceUnit = QgsUnitTypes::DistanceUnknownUnit;
+    QgsUnitTypes::AreaUnit mAreaUnit = QgsUnitTypes::AreaUnknownUnit;
 };
 ///@endcond
 

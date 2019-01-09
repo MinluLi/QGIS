@@ -14,7 +14,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QtTest/QSignalSpy>
 #include <QObject>
 #include <QDesktopServices>
@@ -27,8 +27,10 @@
 #include "qgsapplication.h"
 #include "qgsauthmanager.h"
 #include "qgsauthconfig.h"
+#include "qgssettings.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * Unit tests for QgsAuthManager
  */
 class TestQgsAuthManager: public QObject
@@ -38,34 +40,39 @@ class TestQgsAuthManager: public QObject
   public:
     TestQgsAuthManager();
 
+  public slots:
+
+    void doSync();
+
   private slots:
     void initTestCase();
     void cleanupTestCase();
     void init();
-    void cleanup() {}
+    void cleanup();
 
     void testMasterPassword();
     void testAuthConfigs();
     void testAuthMethods();
+    void testPasswordHelper();
 
   private:
     void cleanupTempDir();
     QList<QgsAuthMethodConfig> registerAuthConfigs();
 
-    void reportRow( const QString& msg );
-    void reportHeader( const QString& msg );
+    void reportRow( const QString &msg );
+    void reportHeader( const QString &msg );
 
     QString mPkiData;
     QString mTempDir;
-    const char* mPass;
+    const char *mPass = nullptr;
     QString mReport;
 };
 
 
 TestQgsAuthManager::TestQgsAuthManager()
-    : mPkiData( QStringLiteral( TEST_DATA_DIR ) + "/auth_system/certs_keys" )
-    , mTempDir( QDir::tempPath() + "/auth" )
-    , mPass( "pass" )
+  : mPkiData( QStringLiteral( TEST_DATA_DIR ) + "/auth_system/certs_keys" )
+  , mTempDir( QDir::tempPath() + "/auth" )
+  , mPass( "pass" )
 {
 }
 
@@ -83,7 +90,7 @@ void TestQgsAuthManager::initTestCase()
   // init app and auth manager
   QgsApplication::init();
   QgsApplication::initQgis();
-  QVERIFY2( !QgsAuthManager::instance()->isDisabled(),
+  QVERIFY2( !QgsApplication::authManager()->isDisabled(),
             "Authentication system is DISABLED" );
 
   QString mySettings = QgsApplication::showSettings();
@@ -91,15 +98,15 @@ void TestQgsAuthManager::initTestCase()
   mReport += "<p>" + mySettings + "</p>\n";
 
   // verify QGIS_AUTH_DB_DIR_PATH (temp auth db path) worked
-  QString db1( QFileInfo( QgsAuthManager::instance()->authenticationDbPath() ).canonicalFilePath() );
+  QString db1( QFileInfo( QgsApplication::authManager()->authenticationDatabasePath() ).canonicalFilePath() );
   QString db2( QFileInfo( mTempDir + "/qgis-auth.db" ).canonicalFilePath() );
   QVERIFY2( db1 == db2, "Auth db temp path does not match db path of manager" );
 
   // verify master pass can be set manually
   // (this also creates a fresh password hash in the new temp database)
-  QVERIFY2( QgsAuthManager::instance()->setMasterPassword( mPass, true ),
+  QVERIFY2( QgsApplication::authManager()->setMasterPassword( mPass, true ),
             "Master password could not be set" );
-  QVERIFY2( QgsAuthManager::instance()->masterPasswordIsSet(),
+  QVERIFY2( QgsApplication::authManager()->masterPasswordIsSet(),
             "Auth master password not set from passed string" );
 
   // create QGIS_AUTH_PASSWORD_FILE file
@@ -119,14 +126,21 @@ void TestQgsAuthManager::initTestCase()
   // QTest::qSleep( 3000 );
   QgsApplication::init();
   QgsApplication::initQgis();
-  QVERIFY2( !QgsAuthManager::instance()->isDisabled(),
+  QVERIFY2( !QgsApplication::authManager()->isDisabled(),
             "Authentication system is DISABLED" );
 
   // verify QGIS_AUTH_PASSWORD_FILE worked, when compared against hash in db
-  QVERIFY2( QgsAuthManager::instance()->masterPasswordIsSet(),
+  QVERIFY2( QgsApplication::authManager()->masterPasswordIsSet(),
             "Auth master password not set from QGIS_AUTH_PASSWORD_FILE" );
 
   // all tests should now have a valid qgis-auth.db and stored/set master password
+}
+
+void TestQgsAuthManager::cleanup()
+{
+  // Restore password_helper_insecure_fallback value
+  QgsSettings settings;
+  settings.setValue( QStringLiteral( "password_helper_insecure_fallback" ), false, QgsSettings::Section::Auth );
 }
 
 void TestQgsAuthManager::cleanupTempDir()
@@ -163,12 +177,12 @@ void TestQgsAuthManager::init()
   mReport += "<h2>" + QString( QTest::currentTestFunction() ) + "</h2>\n";
 }
 
-void TestQgsAuthManager::reportRow( const QString& msg )
+void TestQgsAuthManager::reportRow( const QString &msg )
 {
   mReport += msg + "<br>\n";
 }
 
-void TestQgsAuthManager::reportHeader( const QString& msg )
+void TestQgsAuthManager::reportHeader( const QString &msg )
 {
   mReport += "<h3>" + msg + "</h3>\n";
 }
@@ -177,10 +191,10 @@ void TestQgsAuthManager::testMasterPassword()
 {
   // password is already stored/set in initTestCase()
   // NOTE: leave it in the same state when done with this test
-  QgsAuthManager *authm = QgsAuthManager::instance();
+  QgsAuthManager *authm = QgsApplication::authManager();
 
   QVERIFY( authm->masterPasswordIsSet() );
-  QVERIFY( authm->masterPasswordHashInDb() );
+  QVERIFY( authm->masterPasswordHashInDatabase() );
   QVERIFY( authm->masterPasswordSame( mPass ) );
   QVERIFY( !authm->masterPasswordSame( "wrongpass" ) );
   QVERIFY( authm->setMasterPassword() );
@@ -195,16 +209,16 @@ void TestQgsAuthManager::testMasterPassword()
   QCOMPARE( spy.count(), 1 );
   spyargs = spy.takeFirst();
   QVERIFY( spyargs.at( 0 ).type() == QVariant::Bool );
-  QVERIFY( spyargs.at( 0 ).toBool() == true );
+  QVERIFY( spyargs.at( 0 ).toBool() );
 
   authm->clearMasterPassword();
   QVERIFY( !authm->masterPasswordIsSet() );
-  QVERIFY( !authm->setMasterPassword( "wrongpass" , true ) );
+  QVERIFY( !authm->setMasterPassword( "wrongpass", true ) );
   QVERIFY( !authm->masterPasswordIsSet() );
   QCOMPARE( spy.count(), 1 );
   spyargs = spy.takeFirst();
   QVERIFY( spyargs.at( 0 ).type() == QVariant::Bool );
-  QVERIFY( spyargs.at( 0 ).toBool() == false );
+  QVERIFY( !spyargs.at( 0 ).toBool() );
 
   authm->clearMasterPassword();
   QVERIFY( !authm->masterPasswordIsSet() );
@@ -213,7 +227,7 @@ void TestQgsAuthManager::testMasterPassword()
   QCOMPARE( spy.count(), 1 );
   spyargs = spy.takeFirst();
   QVERIFY( spyargs.at( 0 ).type() == QVariant::Bool );
-  QVERIFY( spyargs.at( 0 ).toBool() == true );
+  QVERIFY( spyargs.at( 0 ).toBool() );
 }
 
 void TestQgsAuthManager::testAuthConfigs()
@@ -221,7 +235,7 @@ void TestQgsAuthManager::testAuthConfigs()
   QList<QgsAuthMethodConfig> configs( registerAuthConfigs() );
   QVERIFY( !configs.isEmpty() );
 
-  QgsAuthManager *authm = QgsAuthManager::instance();
+  QgsAuthManager *authm = QgsApplication::authManager();
 
   // test storing/loading/updating
   Q_FOREACH ( QgsAuthMethodConfig config, configs )
@@ -336,7 +350,7 @@ void TestQgsAuthManager::testAuthMethods()
   QList<QgsAuthMethodConfig> configs( registerAuthConfigs() );
   QVERIFY( !configs.isEmpty() );
 
-  QgsAuthManager *authm = QgsAuthManager::instance();
+  QgsAuthManager *authm = QgsApplication::authManager();
 
   Q_FOREACH ( QgsAuthMethodConfig config, configs )
   {
@@ -402,5 +416,58 @@ QList<QgsAuthMethodConfig> TestQgsAuthManager::registerAuthConfigs()
   return configs;
 }
 
-QTEST_MAIN( TestQgsAuthManager )
+
+void TestQgsAuthManager::doSync()
+{
+  QgsAuthManager *authm = QgsApplication::authManager();
+  QVERIFY( authm->passwordHelperSync() );
+}
+
+void TestQgsAuthManager::testPasswordHelper()
+{
+
+  QgsAuthManager *authm = QgsApplication::authManager();
+  authm->clearMasterPassword();
+
+  QgsSettings settings;
+  settings.setValue( QStringLiteral( "password_helper_insecure_fallback" ), true, QgsSettings::Section::Auth );
+
+  // Test enable/disable
+  // It should be enabled by default
+  QVERIFY( authm->passwordHelperEnabled() );
+  authm->setPasswordHelperEnabled( false );
+  QVERIFY( ! authm->passwordHelperEnabled() );
+  authm->setPasswordHelperEnabled( true );
+  QVERIFY( authm->passwordHelperEnabled() );
+
+  // Sync with wallet
+  QVERIFY( authm->setMasterPassword( mPass, true ) );
+  QVERIFY( authm->masterPasswordIsSet() );
+  QObject::connect( authm, &QgsAuthManager::passwordHelperSuccess,
+                    QApplication::instance(), &QCoreApplication::quit );
+  QObject::connect( authm, &QgsAuthManager::passwordHelperFailure,
+                    QApplication::instance(), &QCoreApplication::quit );
+  QMetaObject::invokeMethod( this, "doSync", Qt::QueuedConnection );
+  qApp->exec();
+  authm->clearMasterPassword();
+  QVERIFY( authm->setMasterPassword() );
+  QVERIFY( authm->masterPasswordIsSet() );
+
+  // Delete from wallet
+  authm->clearMasterPassword();
+  QVERIFY( authm->passwordHelperDelete() );
+  QVERIFY( ! authm->setMasterPassword() );
+  QVERIFY( ! authm->masterPasswordIsSet() );
+
+  // Re-sync
+  QVERIFY( authm->setMasterPassword( mPass, true ) );
+  QMetaObject::invokeMethod( this, "doSync", Qt::QueuedConnection );
+  qApp->exec();
+  authm->clearMasterPassword();
+  QVERIFY( authm->setMasterPassword() );
+  QVERIFY( authm->masterPasswordIsSet() );
+
+}
+
+QGSTEST_MAIN( TestQgsAuthManager )
 #include "testqgsauthmanager.moc"

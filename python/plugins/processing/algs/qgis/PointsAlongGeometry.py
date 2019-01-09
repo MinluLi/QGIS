@@ -31,17 +31,25 @@ import math
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtGui import QIcon
 
-from qgis.core import QgsFeature, QgsGeometry, QgsWkbTypes, QgsField
+from qgis.core import (QgsApplication,
+                       QgsFeature,
+                       QgsFeatureSink,
+                       QgsWkbTypes,
+                       QgsField,
+                       QgsProcessing,
+                       QgsProcessingException,
+                       QgsProcessingUtils,
+                       QgsProcessingParameterDistance,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterFeatureSink)
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterVector, ParameterNumber
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
 
 pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
-class PointsAlongGeometry(GeoAlgorithm):
+class PointsAlongGeometry(QgisAlgorithm):
 
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
@@ -49,47 +57,72 @@ class PointsAlongGeometry(GeoAlgorithm):
     START_OFFSET = 'START_OFFSET'
     END_OFFSET = 'END_OFFSET'
 
-    def getIcon(self):
-        return QIcon(os.path.join(pluginPath, 'images', 'ftools', 'extract_nodes.png'))
+    def icon(self):
+        return QgsApplication.getThemeIcon("/algorithms/mAlgorithmExtractVertices.svg")
 
-    def defineCharacteristics(self):
-        self.name, self.i18n_name = self.trAlgorithm('Points along lines')
-        self.group, self.i18n_group = self.trAlgorithm('Vector geometry tools')
+    def svgIconPath(self):
+        return QgsApplication.iconPath("/algorithms/mAlgorithmExtractVertices.svg")
 
-        self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'),
-                                          [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_LINE]))
-        self.addParameter(ParameterNumber(self.DISTANCE,
-                                          self.tr('Distance'), default=1.0))
-        self.addParameter(ParameterNumber(self.START_OFFSET,
-                                          self.tr('Start offset'), default=0.0))
-        self.addParameter(ParameterNumber(self.END_OFFSET,
-                                          self.tr('End offset'), default=0.0))
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Points'), datatype=[dataobjects.TYPE_VECTOR_POINT]))
+    def tags(self):
+        return self.tr('create,interpolate,points,lines,regular,distance,by').split(',')
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-            self.getParameterValue(self.INPUT))
-        distance = self.getParameterValue(self.DISTANCE)
-        start_offset = self.getParameterValue(self.START_OFFSET)
-        end_offset = self.getParameterValue(self.END_OFFSET)
+    def group(self):
+        return self.tr('Vector geometry')
 
-        fields = layer.fields()
+    def groupId(self):
+        return 'vectorgeometry'
+
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer'), [QgsProcessing.TypeVectorPolygon, QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterDistance(self.DISTANCE,
+                                                         self.tr('Distance'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=1.0))
+        self.addParameter(QgsProcessingParameterDistance(self.START_OFFSET,
+                                                         self.tr('Start offset'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=0.0))
+        self.addParameter(QgsProcessingParameterDistance(self.END_OFFSET,
+                                                         self.tr('End offset'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=0.0))
+
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Points'), QgsProcessing.TypeVectorPoint))
+
+    def name(self):
+        return 'pointsalonglines'
+
+    def displayName(self):
+        return self.tr('Points along geometry')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        distance = self.parameterAsDouble(parameters, self.DISTANCE, context)
+        start_offset = self.parameterAsDouble(parameters, self.START_OFFSET, context)
+        end_offset = self.parameterAsDouble(parameters, self.END_OFFSET, context)
+
+        fields = source.fields()
         fields.append(QgsField('distance', QVariant.Double))
         fields.append(QgsField('angle', QVariant.Double))
 
-        writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, QgsWkbTypes.Point, layer.crs())
+        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                                               fields, QgsWkbTypes.Point, source.sourceCrs(), QgsFeatureSink.RegeneratePrimaryKey)
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
-        features = vector.features(layer)
-        total = 100.0 / len(features)
+        features = source.getFeatures()
+        total = 100.0 / source.featureCount() if source.featureCount() else 0
         for current, input_feature in enumerate(features):
+            if feedback.isCanceled():
+                break
+
             input_geometry = input_feature.geometry()
             if not input_geometry:
-                writer.addFeature(input_feature)
+                sink.addFeature(input_feature, QgsFeatureSink.FastInsert)
             else:
                 if input_geometry.type == QgsWkbTypes.PolygonGeometry:
-                    length = input_geometry.geometry().perimeter()
+                    length = input_geometry.constGet().perimeter()
                 else:
                     length = input_geometry.length() - end_offset
                 current_distance = start_offset
@@ -104,10 +137,10 @@ class PointsAlongGeometry(GeoAlgorithm):
                     attrs.append(current_distance)
                     attrs.append(angle)
                     output_feature.setAttributes(attrs)
-                    writer.addFeature(output_feature)
+                    sink.addFeature(output_feature, QgsFeatureSink.FastInsert)
 
                     current_distance += distance
 
-            progress.setPercentage(int(current * total))
+            feedback.setProgress(int(current * total))
 
-        del writer
+        return {self.OUTPUT: dest_id}

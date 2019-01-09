@@ -18,7 +18,7 @@
 #include "qgslayertree.h"
 #include "qgslayertreemodel.h"
 #include "qgslayertreemodellegendnode.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsmaplayerlistutils.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgsproject.h"
 #include "qgsrenderer.h"
@@ -26,41 +26,234 @@
 
 #include <QInputDialog>
 
-QgsMapThemeCollection::QgsMapThemeCollection()
+QgsMapThemeCollection::QgsMapThemeCollection( QgsProject *project )
+  : mProject( project )
 {
-  connect( QgsMapLayerRegistry::instance(), SIGNAL( layersRemoved( QStringList ) ),
-           this, SLOT( registryLayersRemoved( QStringList ) ) );
+  connect( project, static_cast<void ( QgsProject::* )( const QStringList & )>( &QgsProject::layersWillBeRemoved ), this, &QgsMapThemeCollection::registryLayersRemoved );
 }
 
-void QgsMapThemeCollection::addVisibleLayersToMapTheme( QgsLayerTreeGroup* parent, QgsMapThemeCollection::MapThemeRecord& rec )
+QgsMapThemeCollection::MapThemeLayerRecord QgsMapThemeCollection::createThemeLayerRecord( QgsLayerTreeLayer *nodeLayer, QgsLayerTreeModel *model )
 {
-  Q_FOREACH ( QgsLayerTreeNode* node, parent->children() )
+  MapThemeLayerRecord layerRec( nodeLayer->layer() );
+  layerRec.usingCurrentStyle = true;
+  layerRec.currentStyle = nodeLayer->layer()->styleManager()->currentStyle();
+  layerRec.expandedLayerNode = nodeLayer->isExpanded();
+  layerRec.expandedLegendItems = nodeLayer->customProperty( QStringLiteral( "expandedLegendNodes" ) ).toStringList().toSet();
+
+  // get checked legend items
+  bool hasCheckableItems = false;
+  bool someItemsUnchecked = false;
+  QSet<QString> checkedItems;
+  Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, model->layerLegendNodes( nodeLayer, true ) )
+  {
+    if ( legendNode->flags() & Qt::ItemIsUserCheckable )
+    {
+      hasCheckableItems = true;
+
+      if ( legendNode->data( Qt::CheckStateRole ).toInt() == Qt::Checked )
+        checkedItems << legendNode->data( QgsLayerTreeModelLegendNode::RuleKeyRole ).toString();
+      else
+        someItemsUnchecked = true;
+    }
+  }
+
+  if ( hasCheckableItems && someItemsUnchecked )
+  {
+    layerRec.usingLegendItems = true;
+    layerRec.checkedLegendItems = checkedItems;
+  }
+  return layerRec;
+}
+
+static QString _groupId( QgsLayerTreeNode *node )
+{
+  QStringList lst;
+  while ( node->parent() )
+  {
+    lst.prepend( node->name() );
+    node = node->parent();
+  }
+  return lst.join( '/' );
+}
+
+void QgsMapThemeCollection::createThemeFromCurrentState( QgsLayerTreeGroup *parent, QgsLayerTreeModel *model, QgsMapThemeCollection::MapThemeRecord &rec )
+{
+  Q_FOREACH ( QgsLayerTreeNode *node, parent->children() )
   {
     if ( QgsLayerTree::isGroup( node ) )
-      addVisibleLayersToMapTheme( QgsLayerTree::toGroup( node ), rec );
+    {
+      createThemeFromCurrentState( QgsLayerTree::toGroup( node ), model, rec );
+      if ( node->isExpanded() )
+        rec.mExpandedGroupNodes.insert( _groupId( node ) );
+    }
     else if ( QgsLayerTree::isLayer( node ) )
     {
-      QgsLayerTreeLayer* nodeLayer = QgsLayerTree::toLayer( node );
+      QgsLayerTreeLayer *nodeLayer = QgsLayerTree::toLayer( node );
       if ( nodeLayer->isVisible() )
-        rec.mVisibleLayerIds << nodeLayer->layerId();
+        rec.mLayerRecords << createThemeLayerRecord( nodeLayer, model );
     }
   }
 }
 
-bool QgsMapThemeCollection::hasMapTheme( const QString& name ) const
+QgsMapThemeCollection::MapThemeRecord QgsMapThemeCollection::createThemeFromCurrentState( QgsLayerTreeGroup *root, QgsLayerTreeModel *model )
+{
+  QgsMapThemeCollection::MapThemeRecord rec;
+  rec.setHasExpandedStateInfo( true );  // all newly created theme records have expanded state info
+  createThemeFromCurrentState( root, model, rec );
+  return rec;
+}
+
+bool QgsMapThemeCollection::findRecordForLayer( QgsMapLayer *layer, const QgsMapThemeCollection::MapThemeRecord &rec, QgsMapThemeCollection::MapThemeLayerRecord &layerRec )
+{
+  Q_FOREACH ( const QgsMapThemeCollection::MapThemeLayerRecord &lr, rec.mLayerRecords )
+  {
+    if ( lr.layer() == layer )
+    {
+      layerRec = lr;
+      return true;
+    }
+  }
+  return false;
+}
+
+void QgsMapThemeCollection::applyThemeToLayer( QgsLayerTreeLayer *nodeLayer, QgsLayerTreeModel *model, const QgsMapThemeCollection::MapThemeRecord &rec )
+{
+  MapThemeLayerRecord layerRec;
+  bool isVisible = findRecordForLayer( nodeLayer->layer(), rec, layerRec );
+
+  // Make sure the whole tree is visible
+  if ( isVisible )
+    nodeLayer->setItemVisibilityCheckedParentRecursive( isVisible );
+  else
+    nodeLayer->setItemVisibilityChecked( isVisible );
+
+  if ( !isVisible )
+    return;
+
+  if ( layerRec.usingCurrentStyle )
+  {
+    // apply desired style first
+    nodeLayer->layer()->styleManager()->setCurrentStyle( layerRec.currentStyle );
+  }
+
+  if ( layerRec.usingLegendItems )
+  {
+    // some nodes are not checked
+    Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, model->layerLegendNodes( nodeLayer, true ) )
+    {
+      QString ruleKey = legendNode->data( QgsLayerTreeModelLegendNode::RuleKeyRole ).toString();
+      Qt::CheckState shouldHaveState = layerRec.checkedLegendItems.contains( ruleKey ) ? Qt::Checked : Qt::Unchecked;
+      if ( ( legendNode->flags() & Qt::ItemIsUserCheckable ) &&
+           legendNode->data( Qt::CheckStateRole ).toInt() != shouldHaveState )
+        legendNode->setData( shouldHaveState, Qt::CheckStateRole );
+    }
+  }
+  else
+  {
+    // all nodes should be checked
+    Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, model->layerLegendNodes( nodeLayer, true ) )
+    {
+      if ( ( legendNode->flags() & Qt::ItemIsUserCheckable ) &&
+           legendNode->data( Qt::CheckStateRole ).toInt() != Qt::Checked )
+        legendNode->setData( Qt::Checked, Qt::CheckStateRole );
+    }
+  }
+
+  // apply expanded/collapsed state to the layer and its legend nodes
+  if ( rec.hasExpandedStateInfo() )
+  {
+    nodeLayer->setExpanded( layerRec.expandedLayerNode );
+    nodeLayer->setCustomProperty( QStringLiteral( "expandedLegendNodes" ), QStringList( layerRec.expandedLegendItems.toList() ) );
+  }
+}
+
+
+void QgsMapThemeCollection::applyThemeToGroup( QgsLayerTreeGroup *parent, QgsLayerTreeModel *model, const QgsMapThemeCollection::MapThemeRecord &rec )
+{
+  Q_FOREACH ( QgsLayerTreeNode *node, parent->children() )
+  {
+    if ( QgsLayerTree::isGroup( node ) )
+    {
+      applyThemeToGroup( QgsLayerTree::toGroup( node ), model, rec );
+      if ( rec.hasExpandedStateInfo() )
+        node->setExpanded( rec.expandedGroupNodes().contains( _groupId( node ) ) );
+    }
+    else if ( QgsLayerTree::isLayer( node ) )
+      applyThemeToLayer( QgsLayerTree::toLayer( node ), model, rec );
+  }
+}
+
+
+void QgsMapThemeCollection::applyTheme( const QString &name, QgsLayerTreeGroup *root, QgsLayerTreeModel *model )
+{
+  applyThemeToGroup( root, model, mapThemeState( name ) );
+
+  // also make sure that the preset is up-to-date (not containing any non-existent legend items)
+  update( name, createThemeFromCurrentState( root, model ) );
+}
+
+QgsProject *QgsMapThemeCollection::project()
+{
+  return mProject;
+}
+
+void QgsMapThemeCollection::setProject( QgsProject *project )
+{
+  if ( project == mProject )
+    return;
+
+  disconnect( mProject, static_cast<void ( QgsProject::* )( const QStringList & )>( &QgsProject::layersWillBeRemoved ), this, &QgsMapThemeCollection::registryLayersRemoved );
+  mProject = project;
+  connect( mProject, static_cast<void ( QgsProject::* )( const QStringList & )>( &QgsProject::layersWillBeRemoved ), this, &QgsMapThemeCollection::registryLayersRemoved );
+  emit projectChanged();
+}
+
+QList<QgsMapLayer *> QgsMapThemeCollection::masterLayerOrder() const
+{
+  if ( !mProject )
+    return QList< QgsMapLayer * >();
+
+  return mProject->layerTreeRoot()->layerOrder();
+}
+
+QList<QgsMapLayer *> QgsMapThemeCollection::masterVisibleLayers() const
+{
+  QList< QgsMapLayer *> allLayers = masterLayerOrder();
+  QList< QgsMapLayer * > visibleLayers = mProject->layerTreeRoot()->checkedLayers();
+
+  if ( allLayers.isEmpty() )
+  {
+    // no project layer order set
+    return visibleLayers;
+  }
+  else
+  {
+    QList< QgsMapLayer * > orderedVisibleLayers;
+    Q_FOREACH ( QgsMapLayer *layer, allLayers )
+    {
+      if ( visibleLayers.contains( layer ) )
+        orderedVisibleLayers << layer;
+    }
+    return orderedVisibleLayers;
+  }
+}
+
+
+bool QgsMapThemeCollection::hasMapTheme( const QString &name ) const
 {
   return mMapThemes.contains( name );
 }
 
-void QgsMapThemeCollection::insert( const QString& name, const QgsMapThemeCollection::MapThemeRecord& state )
+void QgsMapThemeCollection::insert( const QString &name, const QgsMapThemeCollection::MapThemeRecord &state )
 {
   mMapThemes.insert( name, state );
 
   reconnectToLayersStyleManager();
+  emit mapThemeChanged( name );
   emit mapThemesChanged();
 }
 
-void QgsMapThemeCollection::update( const QString& name, const MapThemeRecord& state )
+void QgsMapThemeCollection::update( const QString &name, const MapThemeRecord &state )
 {
   if ( !mMapThemes.contains( name ) )
     return;
@@ -68,10 +261,11 @@ void QgsMapThemeCollection::update( const QString& name, const MapThemeRecord& s
   mMapThemes[name] = state;
 
   reconnectToLayersStyleManager();
+  emit mapThemeChanged( name );
   emit mapThemesChanged();
 }
 
-void QgsMapThemeCollection::removeMapTheme( const QString& name )
+void QgsMapThemeCollection::removeMapTheme( const QString &name )
 {
   if ( !mMapThemes.contains( name ) )
     return;
@@ -95,71 +289,93 @@ QStringList QgsMapThemeCollection::mapThemes() const
   return mMapThemes.keys();
 }
 
-QStringList QgsMapThemeCollection::mapThemeVisibleLayers( const QString& name ) const
+QStringList QgsMapThemeCollection::mapThemeVisibleLayerIds( const QString &name ) const
 {
-  return mMapThemes.value( name ).mVisibleLayerIds;
+  QStringList layerIds;
+  Q_FOREACH ( QgsMapLayer *layer, mapThemeVisibleLayers( name ) )
+  {
+    layerIds << layer->id();
+  }
+  return layerIds;
+}
+
+QList<QgsMapLayer *> QgsMapThemeCollection::mapThemeVisibleLayers( const QString &name ) const
+{
+  QList<QgsMapLayer *> layers;
+  const QList<MapThemeLayerRecord> &recs = mMapThemes.value( name ).mLayerRecords;
+  QList<QgsMapLayer *> layerOrder = masterLayerOrder();
+  if ( layerOrder.isEmpty() )
+  {
+    // no master layer order - so we have to just use the stored theme layer order as a fallback
+    Q_FOREACH ( const MapThemeLayerRecord &layerRec, mMapThemes.value( name ).mLayerRecords )
+    {
+      if ( layerRec.layer() )
+        layers << layerRec.layer();
+    }
+  }
+  else
+  {
+    Q_FOREACH ( QgsMapLayer *layer, layerOrder )
+    {
+      Q_FOREACH ( const MapThemeLayerRecord &layerRec, recs )
+      {
+        if ( layerRec.layer() == layer )
+          layers << layerRec.layer();
+      }
+    }
+  }
+
+  return layers;
 }
 
 
-void QgsMapThemeCollection::applyMapThemeCheckedLegendNodesToLayer( const QString& name, const QString& layerID )
+void QgsMapThemeCollection::applyMapThemeCheckedLegendNodesToLayer( const MapThemeLayerRecord &layerRec, QgsMapLayer *layer )
 {
-  if ( !mMapThemes.contains( name ) )
-    return;
-
-  QgsMapLayer* layer = QgsMapLayerRegistry::instance()->mapLayer( layerID );
-  if ( !layer )
-    return;
-
-  const MapThemeRecord& rec = mMapThemes[name];
-
-  QgsVectorLayer* vlayer = qobject_cast<QgsVectorLayer*>( layer );
+  QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer );
   if ( !vlayer || !vlayer->renderer() )
     return;
 
-  if ( !vlayer->renderer()->legendSymbolItemsCheckable() )
+  QgsFeatureRenderer *renderer = vlayer->renderer();
+  if ( !renderer->legendSymbolItemsCheckable() )
     return; // no need to do anything
 
-  bool someNodesUnchecked = rec.mPerLayerCheckedLegendSymbols.contains( layerID );
+  bool someNodesUnchecked = layerRec.usingLegendItems;
 
-  Q_FOREACH ( const QgsLegendSymbolItem& item, vlayer->renderer()->legendSymbolItemsV2() )
+  Q_FOREACH ( const QgsLegendSymbolItem &item, vlayer->renderer()->legendSymbolItems() )
   {
-    bool checked = vlayer->renderer()->legendSymbolItemChecked( item.ruleKey() );
-    bool shouldBeChecked = someNodesUnchecked ? rec.mPerLayerCheckedLegendSymbols[layerID].contains( item.ruleKey() ) : true;
+    bool checked = renderer->legendSymbolItemChecked( item.ruleKey() );
+    bool shouldBeChecked = someNodesUnchecked ? layerRec.checkedLegendItems.contains( item.ruleKey() ) : true;
     if ( checked != shouldBeChecked )
-      vlayer->renderer()->checkLegendSymbolItem( item.ruleKey(), shouldBeChecked );
+      renderer->checkLegendSymbolItem( item.ruleKey(), shouldBeChecked );
   }
 }
 
 
-QMap<QString, QString> QgsMapThemeCollection::mapThemeStyleOverride( const QString& presetName )
+QMap<QString, QString> QgsMapThemeCollection::mapThemeStyleOverrides( const QString &presetName )
 {
   QMap<QString, QString> styleOverrides;
   if ( !mMapThemes.contains( presetName ) )
     return styleOverrides;
 
-  QStringList lst = mapThemeVisibleLayers( presetName );
-  const QgsMapThemeCollection::MapThemeRecord& rec = mMapThemes[presetName];
-  Q_FOREACH ( const QString& layerID, lst )
+  Q_FOREACH ( const MapThemeLayerRecord &layerRec, mMapThemes.value( presetName ).mLayerRecords )
   {
-    QgsMapLayer* layer = QgsMapLayerRegistry::instance()->mapLayer( layerID );
-    if ( !layer )
+    if ( !layerRec.layer() )
       continue;
 
-    // use either the stored style name or the current one if none has been stored
-    QString overrideStyleName = rec.mPerLayerCurrentStyle.value( layerID, layer->styleManager()->currentStyle() );
+    if ( layerRec.usingCurrentStyle )
+    {
+      QgsMapLayer *layer = layerRec.layer();
+      QgsMapLayerStyleOverride styleOverride( layer );
+      styleOverride.setOverrideStyle( layerRec.currentStyle );
 
-    // store original style and temporarily apply a style
-    layer->styleManager()->setOverrideStyle( overrideStyleName );
+      // set the checked legend nodes
+      applyMapThemeCheckedLegendNodesToLayer( layerRec, layer );
 
-    // set the checked legend nodes
-    applyMapThemeCheckedLegendNodesToLayer( presetName, layerID );
-
-    // save to overrides
-    QgsMapLayerStyle layerStyle;
-    layerStyle.readFromLayer( layer );
-    styleOverrides[layerID] = layerStyle.xmlData();
-
-    layer->styleManager()->restoreOverrideStyle();
+      // save to overrides
+      QgsMapLayerStyle layerStyle;
+      layerStyle.readFromLayer( layer );
+      styleOverrides[layer->id()] = layerStyle.xmlData();
+    }
   }
   return styleOverrides;
 }
@@ -168,24 +384,23 @@ void QgsMapThemeCollection::reconnectToLayersStyleManager()
 {
   // disconnect( 0, 0, this, SLOT( layerStyleRenamed( QString, QString ) ) );
 
-  QSet<QString> layerIDs;
-  MapThemeRecordMap::const_iterator it = mMapThemes.constBegin();
-  for ( ; it != mMapThemes.constEnd(); ++it )
+  QSet<QgsMapLayer *> layers;
+  Q_FOREACH ( const MapThemeRecord &rec, mMapThemes )
   {
-    const MapThemeRecord& rec = it.value();
-    QMap<QString, QString>::const_iterator layerIt = rec.mPerLayerCurrentStyle.constBegin();
-    for ( ; layerIt != rec.mPerLayerCurrentStyle.constEnd(); ++layerIt )
-      layerIDs << layerIt.key();
+    Q_FOREACH ( const MapThemeLayerRecord &layerRec, rec.mLayerRecords )
+    {
+      if ( layerRec.layer() )
+        layers << layerRec.layer();
+    }
   }
 
-  Q_FOREACH ( const QString& layerID, layerIDs )
+  Q_FOREACH ( QgsMapLayer *ml, layers )
   {
-    if ( QgsMapLayer* ml = QgsMapLayerRegistry::instance()->mapLayer( layerID ) )
-      connect( ml->styleManager(), SIGNAL( styleRenamed( QString, QString ) ), this, SLOT( layerStyleRenamed( QString, QString ) ) );
+    connect( ml->styleManager(), &QgsMapLayerStyleManager::styleRenamed, this, &QgsMapThemeCollection::layerStyleRenamed );
   }
 }
 
-void QgsMapThemeCollection::readXml( const QDomDocument& doc )
+void QgsMapThemeCollection::readXml( const QDomDocument &doc )
 {
   clear();
 
@@ -196,17 +411,29 @@ void QgsMapThemeCollection::readXml( const QDomDocument& doc )
   QDomElement visPresetElem = visPresetsElem.firstChildElement( QStringLiteral( "visibility-preset" ) );
   while ( !visPresetElem.isNull() )
   {
+    QHash<QString, MapThemeLayerRecord> layerRecords; // key = layer ID
+
+    bool expandedStateInfo = false;
+    if ( visPresetElem.hasAttribute( QStringLiteral( "has-expanded-info" ) ) )
+      expandedStateInfo = visPresetElem.attribute( QStringLiteral( "has-expanded-info" ) ).toInt();
+
     QString presetName = visPresetElem.attribute( QStringLiteral( "name" ) );
-    MapThemeRecord rec;
     QDomElement visPresetLayerElem = visPresetElem.firstChildElement( QStringLiteral( "layer" ) );
     while ( !visPresetLayerElem.isNull() )
     {
       QString layerID = visPresetLayerElem.attribute( QStringLiteral( "id" ) );
-      if ( QgsMapLayerRegistry::instance()->mapLayer( layerID ) )
+      if ( QgsMapLayer *layer = mProject->mapLayer( layerID ) )
       {
-        rec.mVisibleLayerIds << layerID; // only use valid layer IDs
+        layerRecords[layerID] = MapThemeLayerRecord( layer );
+
         if ( visPresetLayerElem.hasAttribute( QStringLiteral( "style" ) ) )
-          rec.mPerLayerCurrentStyle[layerID] = visPresetLayerElem.attribute( QStringLiteral( "style" ) );
+        {
+          layerRecords[layerID].usingCurrentStyle = true;
+          layerRecords[layerID].currentStyle = visPresetLayerElem.attribute( QStringLiteral( "style" ) );
+        }
+
+        if ( visPresetLayerElem.hasAttribute( QStringLiteral( "expanded" ) ) )
+          layerRecords[layerID].expandedLayerNode = visPresetLayerElem.attribute( QStringLiteral( "expanded" ) ).toInt();
       }
       visPresetLayerElem = visPresetLayerElem.nextSiblingElement( QStringLiteral( "layer" ) );
     }
@@ -224,12 +451,57 @@ void QgsMapThemeCollection::readXml( const QDomDocument& doc )
       }
 
       QString layerID = checkedLegendNodesElem.attribute( QStringLiteral( "id" ) );
-      if ( QgsMapLayerRegistry::instance()->mapLayer( layerID ) ) // only use valid IDs
-        rec.mPerLayerCheckedLegendSymbols.insert( layerID, checkedLegendNodes );
+      if ( mProject->mapLayer( layerID ) ) // only use valid IDs
+      {
+        layerRecords[layerID].usingLegendItems = true;
+        layerRecords[layerID].checkedLegendItems = checkedLegendNodes;
+      }
       checkedLegendNodesElem = checkedLegendNodesElem.nextSiblingElement( QStringLiteral( "checked-legend-nodes" ) );
     }
 
+    QSet<QString> expandedGroupNodes;
+    if ( expandedStateInfo )
+    {
+      // expanded state of legend nodes
+      QDomElement expandedLegendNodesElem = visPresetElem.firstChildElement( QStringLiteral( "expanded-legend-nodes" ) );
+      while ( !expandedLegendNodesElem.isNull() )
+      {
+        QSet<QString> expandedLegendNodes;
+
+        QDomElement expandedLegendNodeElem = expandedLegendNodesElem.firstChildElement( QStringLiteral( "expanded-legend-node" ) );
+        while ( !expandedLegendNodeElem.isNull() )
+        {
+          expandedLegendNodes << expandedLegendNodeElem.attribute( QStringLiteral( "id" ) );
+          expandedLegendNodeElem = expandedLegendNodeElem.nextSiblingElement( QStringLiteral( "expanded-legend-node" ) );
+        }
+
+        QString layerID = expandedLegendNodesElem.attribute( QStringLiteral( "id" ) );
+        if ( mProject->mapLayer( layerID ) ) // only use valid IDs
+        {
+          layerRecords[layerID].expandedLegendItems = expandedLegendNodes;
+        }
+        expandedLegendNodesElem = expandedLegendNodesElem.nextSiblingElement( QStringLiteral( "expanded-legend-nodes" ) );
+      }
+
+      // expanded state of group nodes
+      QDomElement expandedGroupNodesElem = visPresetElem.firstChildElement( QStringLiteral( "expanded-group-nodes" ) );
+      if ( !expandedGroupNodesElem.isNull() )
+      {
+        QDomElement expandedGroupNodeElem = expandedGroupNodesElem.firstChildElement( QStringLiteral( "expanded-group-node" ) );
+        while ( !expandedGroupNodeElem.isNull() )
+        {
+          expandedGroupNodes << expandedGroupNodeElem.attribute( QStringLiteral( "id" ) );
+          expandedGroupNodeElem = expandedGroupNodeElem.nextSiblingElement( QStringLiteral( "expanded-group-node" ) );
+        }
+      }
+    }
+
+    MapThemeRecord rec;
+    rec.setLayerRecords( layerRecords.values() );
+    rec.setHasExpandedStateInfo( expandedStateInfo );
+    rec.setExpandedGroupNodes( expandedGroupNodes );
     mMapThemes.insert( presetName, rec );
+    emit mapThemeChanged( presetName );
 
     visPresetElem = visPresetElem.nextSiblingElement( QStringLiteral( "visibility-preset" ) );
   }
@@ -238,38 +510,69 @@ void QgsMapThemeCollection::readXml( const QDomDocument& doc )
   emit mapThemesChanged();
 }
 
-void QgsMapThemeCollection::writeXml( QDomDocument& doc )
+void QgsMapThemeCollection::writeXml( QDomDocument &doc )
 {
   QDomElement visPresetsElem = doc.createElement( QStringLiteral( "visibility-presets" ) );
   MapThemeRecordMap::const_iterator it = mMapThemes.constBegin();
   for ( ; it != mMapThemes.constEnd(); ++ it )
   {
     QString grpName = it.key();
-    const MapThemeRecord& rec = it.value();
+    const MapThemeRecord &rec = it.value();
     QDomElement visPresetElem = doc.createElement( QStringLiteral( "visibility-preset" ) );
     visPresetElem.setAttribute( QStringLiteral( "name" ), grpName );
-    Q_FOREACH ( const QString& layerID, rec.mVisibleLayerIds )
+    if ( rec.hasExpandedStateInfo() )
+      visPresetElem.setAttribute( QStringLiteral( "has-expanded-info" ), QStringLiteral( "1" ) );
+    Q_FOREACH ( const MapThemeLayerRecord &layerRec, rec.mLayerRecords )
     {
+      if ( !layerRec.layer() )
+        continue;
+      QString layerID = layerRec.layer()->id();
       QDomElement layerElem = doc.createElement( QStringLiteral( "layer" ) );
       layerElem.setAttribute( QStringLiteral( "id" ), layerID );
-      if ( rec.mPerLayerCurrentStyle.contains( layerID ) )
-        layerElem.setAttribute( QStringLiteral( "style" ), rec.mPerLayerCurrentStyle[layerID] );
+      if ( layerRec.usingCurrentStyle )
+        layerElem.setAttribute( QStringLiteral( "style" ), layerRec.currentStyle );
       visPresetElem.appendChild( layerElem );
+
+      if ( layerRec.usingLegendItems )
+      {
+        QDomElement checkedLegendNodesElem = doc.createElement( QStringLiteral( "checked-legend-nodes" ) );
+        checkedLegendNodesElem.setAttribute( QStringLiteral( "id" ), layerID );
+        Q_FOREACH ( const QString &checkedLegendNode, layerRec.checkedLegendItems )
+        {
+          QDomElement checkedLegendNodeElem = doc.createElement( QStringLiteral( "checked-legend-node" ) );
+          checkedLegendNodeElem.setAttribute( QStringLiteral( "id" ), checkedLegendNode );
+          checkedLegendNodesElem.appendChild( checkedLegendNodeElem );
+        }
+        visPresetElem.appendChild( checkedLegendNodesElem );
+      }
+
+      if ( rec.hasExpandedStateInfo() )
+      {
+        layerElem.setAttribute( QStringLiteral( "expanded" ), layerRec.expandedLayerNode ? QStringLiteral( "1" ) : QStringLiteral( "0" ) );
+
+        QDomElement expandedLegendNodesElem = doc.createElement( QStringLiteral( "expanded-legend-nodes" ) );
+        expandedLegendNodesElem.setAttribute( QStringLiteral( "id" ), layerID );
+        for ( const QString &expandedLegendNode : qgis::as_const( layerRec.expandedLegendItems ) )
+        {
+          QDomElement expandedLegendNodeElem = doc.createElement( QStringLiteral( "expanded-legend-node" ) );
+          expandedLegendNodeElem.setAttribute( QStringLiteral( "id" ), expandedLegendNode );
+          expandedLegendNodesElem.appendChild( expandedLegendNodeElem );
+        }
+        visPresetElem.appendChild( expandedLegendNodesElem );
+      }
     }
 
-    QMap<QString, QSet<QString> >::const_iterator layerIt = rec.mPerLayerCheckedLegendSymbols.constBegin();
-    for ( ; layerIt != rec.mPerLayerCheckedLegendSymbols.constEnd(); ++layerIt )
+    if ( rec.hasExpandedStateInfo() )
     {
-      QString layerID = layerIt.key();
-      QDomElement checkedLegendNodesElem = doc.createElement( QStringLiteral( "checked-legend-nodes" ) );
-      checkedLegendNodesElem.setAttribute( QStringLiteral( "id" ), layerID );
-      Q_FOREACH ( const QString& checkedLegendNode, layerIt.value() )
+      QDomElement expandedGroupElems = doc.createElement( QStringLiteral( "expanded-group-nodes" ) );
+      const QSet<QString> expandedGroupNodes = rec.expandedGroupNodes();
+      for ( const QString &groupId : expandedGroupNodes )
       {
-        QDomElement checkedLegendNodeElem = doc.createElement( QStringLiteral( "checked-legend-node" ) );
-        checkedLegendNodeElem.setAttribute( QStringLiteral( "id" ), checkedLegendNode );
-        checkedLegendNodesElem.appendChild( checkedLegendNodeElem );
+        QDomElement expandedGroupElem = doc.createElement( QStringLiteral( "expanded-group-node" ) );
+        expandedGroupElem.setAttribute( QStringLiteral( "id" ), groupId );
+        expandedGroupElems.appendChild( expandedGroupElem );
       }
-      visPresetElem.appendChild( checkedLegendNodesElem );
+      visPresetElem.appendChild( expandedGroupElems );
     }
 
     visPresetsElem.appendChild( visPresetElem );
@@ -278,71 +581,91 @@ void QgsMapThemeCollection::writeXml( QDomDocument& doc )
   doc.firstChildElement( QStringLiteral( "qgis" ) ).appendChild( visPresetsElem );
 }
 
-void QgsMapThemeCollection::registryLayersRemoved( const QStringList& layerIDs )
+void QgsMapThemeCollection::registryLayersRemoved( const QStringList &layerIDs )
 {
-  Q_FOREACH ( const QString& layerID, layerIDs )
+  // while layers are stored as weak pointers, this triggers the mapThemeChanged signal for
+  // affected themes
+  QSet< QString > changedThemes;
+  MapThemeRecordMap::iterator it = mMapThemes.begin();
+  for ( ; it != mMapThemes.end(); ++it )
   {
-    MapThemeRecordMap::iterator it = mMapThemes.begin();
-    for ( ; it != mMapThemes.end(); ++it )
+    MapThemeRecord &rec = it.value();
+    for ( int i = 0; i < rec.mLayerRecords.count(); ++i )
     {
-      MapThemeRecord& rec = it.value();
-      rec.mVisibleLayerIds.removeAll( layerID );
-      rec.mPerLayerCheckedLegendSymbols.remove( layerID );
-      rec.mPerLayerCurrentStyle.remove( layerID );
+      MapThemeLayerRecord &layerRec = rec.mLayerRecords[i];
+      if ( layerRec.layer() && layerIDs.contains( layerRec.layer()->id() ) )
+      {
+        rec.mLayerRecords.removeAt( i-- );
+        changedThemes << it.key();
+      }
     }
+  }
+
+  Q_FOREACH ( const QString &theme, changedThemes )
+  {
+    emit mapThemeChanged( theme );
   }
   emit mapThemesChanged();
 }
 
-void QgsMapThemeCollection::layerStyleRenamed( const QString& oldName, const QString& newName )
+void QgsMapThemeCollection::layerStyleRenamed( const QString &oldName, const QString &newName )
 {
-  QgsMapLayerStyleManager* styleMgr = qobject_cast<QgsMapLayerStyleManager*>( sender() );
+  QgsMapLayerStyleManager *styleMgr = qobject_cast<QgsMapLayerStyleManager *>( sender() );
   if ( !styleMgr )
     return;
 
-  QString layerID = styleMgr->layer()->id();
+  QSet< QString > changedThemes;
 
   MapThemeRecordMap::iterator it = mMapThemes.begin();
   for ( ; it != mMapThemes.end(); ++it )
   {
-    MapThemeRecord& rec = it.value();
-
-    if ( rec.mPerLayerCurrentStyle.contains( layerID ) )
+    MapThemeRecord &rec = it.value();
+    for ( int i = 0; i < rec.mLayerRecords.count(); ++i )
     {
-      QString styleName = rec.mPerLayerCurrentStyle[layerID];
-      if ( styleName == oldName )
-        rec.mPerLayerCurrentStyle[layerID] = newName;
+      MapThemeLayerRecord &layerRec = rec.mLayerRecords[i];
+      if ( layerRec.layer() == styleMgr->layer() )
+      {
+        if ( layerRec.currentStyle == oldName )
+        {
+          layerRec.currentStyle = newName;
+          changedThemes << it.key();
+        }
+      }
     }
+  }
+  Q_FOREACH ( const QString &theme, changedThemes )
+  {
+    emit mapThemeChanged( theme );
   }
   emit mapThemesChanged();
 }
 
-QStringList QgsMapThemeCollection::MapThemeRecord::visibleLayerIds() const
+void QgsMapThemeCollection::MapThemeRecord::removeLayerRecord( QgsMapLayer *layer )
 {
-  return mVisibleLayerIds;
+  for ( int i = 0; i < mLayerRecords.length(); ++i )
+  {
+    if ( mLayerRecords.at( i ).layer() == layer )
+      mLayerRecords.removeAt( i );
+  }
 }
 
-void QgsMapThemeCollection::MapThemeRecord::setVisibleLayerIds( const QStringList& visibleLayerIds )
+void QgsMapThemeCollection::MapThemeRecord::addLayerRecord( const QgsMapThemeCollection::MapThemeLayerRecord &record )
 {
-  mVisibleLayerIds = visibleLayerIds;
+  mLayerRecords.append( record );
 }
 
-QMap<QString, QSet<QString> > QgsMapThemeCollection::MapThemeRecord::perLayerCheckedLegendSymbols() const
+QHash<QgsMapLayer *, QgsMapThemeCollection::MapThemeLayerRecord> QgsMapThemeCollection::MapThemeRecord::validLayerRecords() const
 {
-  return mPerLayerCheckedLegendSymbols;
+  QHash<QgsMapLayer *, MapThemeLayerRecord> validSet;
+  Q_FOREACH ( const MapThemeLayerRecord &layerRec, mLayerRecords )
+  {
+    if ( layerRec.layer() )
+      validSet.insert( layerRec.layer(), layerRec );
+  }
+  return validSet;
 }
 
-void QgsMapThemeCollection::MapThemeRecord::setPerLayerCheckedLegendSymbols( const QMap<QString, QSet<QString> >& perLayerCheckedLegendSymbols )
+void QgsMapThemeCollection::MapThemeLayerRecord::setLayer( QgsMapLayer *layer )
 {
-  mPerLayerCheckedLegendSymbols = perLayerCheckedLegendSymbols;
-}
-
-QMap<QString, QString> QgsMapThemeCollection::MapThemeRecord::perLayerCurrentStyle() const
-{
-  return mPerLayerCurrentStyle;
-}
-
-void QgsMapThemeCollection::MapThemeRecord::setPerLayerCurrentStyle( const QMap<QString, QString>& perLayerCurrentStyle )
-{
-  mPerLayerCurrentStyle = perLayerCurrentStyle;
+  mLayer = layer;
 }

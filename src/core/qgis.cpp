@@ -27,7 +27,7 @@
 #include <QDateTime>
 #include "qgsconfig.h"
 #include "qgslogger.h"
-#include "geometry/qgswkbtypes.h"
+#include "qgswkbtypes.h"
 
 #include <ogr_api.h>
 
@@ -35,23 +35,19 @@
 //
 
 // Version string
-QString Qgis::QGIS_VERSION( QStringLiteral( VERSION ) );
+const QString Qgis::QGIS_VERSION( QStringLiteral( VERSION ) );
 
 // development version
-const char* Qgis::QGIS_DEV_VERSION = QGSVERSION;
+const char *Qgis::QGIS_DEV_VERSION = QGSVERSION;
 
 // Version number used for comparing versions using the
 // "Check QGIS Version" function
 const int Qgis::QGIS_VERSION_INT = VERSION_INT;
 
 // Release name
-QString Qgis::QGIS_RELEASE_NAME( QStringLiteral( RELEASE_NAME ) );
+const QString Qgis::QGIS_RELEASE_NAME( QStringLiteral( RELEASE_NAME ) );
 
-#if GDAL_VERSION_NUM >= 1800
 const QString GEOPROJ4 = QStringLiteral( "+proj=longlat +datum=WGS84 +no_defs" );
-#else
-const QString GEOPROJ4 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
-#endif
 
 const QString GEOWKT =
   "GEOGCS[\"WGS 84\", "
@@ -76,43 +72,60 @@ const QString GEO_NONE = QStringLiteral( "NONE" );
 
 const double Qgis::DEFAULT_SEARCH_RADIUS_MM = 2.;
 
-//! Default threshold between map coordinates and device coordinates for map2pixel simplification
 const float Qgis::DEFAULT_MAPTOPIXEL_THRESHOLD = 1.0f;
 
 const QColor Qgis::DEFAULT_HIGHLIGHT_COLOR = QColor( 255, 0, 0, 128 );
 
-double Qgis::DEFAULT_HIGHLIGHT_BUFFER_MM = 0.5;
+const double Qgis::DEFAULT_HIGHLIGHT_BUFFER_MM = 0.5;
 
-double Qgis::DEFAULT_HIGHLIGHT_MIN_WIDTH_MM = 1.0;
+const double Qgis::DEFAULT_HIGHLIGHT_MIN_WIDTH_MM = 1.0;
 
-double Qgis::SCALE_PRECISION = 0.9999999999;
+const double Qgis::SCALE_PRECISION = 0.9999999999;
 
+const double Qgis::DEFAULT_Z_COORDINATE = 0.0;
+
+const double Qgis::DEFAULT_SNAP_TOLERANCE = 12.0;
+
+const QgsTolerance::UnitType Qgis::DEFAULT_SNAP_UNITS = QgsTolerance::Pixels;
+
+#ifdef Q_OS_WIN
+const double Qgis::UI_SCALE_FACTOR = 1.5;
+#else
+const double Qgis::UI_SCALE_FACTOR = 1;
+#endif
 
 double qgsPermissiveToDouble( QString string, bool &ok )
 {
   //remove any thousands separators
-  string.remove( QLocale::system().groupSeparator() );
-  return QLocale::system().toDouble( string, &ok );
+  string.remove( QLocale().groupSeparator() );
+  return QLocale().toDouble( string, &ok );
 }
 
 int qgsPermissiveToInt( QString string, bool &ok )
 {
   //remove any thousands separators
-  string.remove( QLocale::system().groupSeparator() );
-  return QLocale::system().toInt( string, &ok );
+  string.remove( QLocale().groupSeparator() );
+  return QLocale().toInt( string, &ok );
+}
+
+qlonglong qgsPermissiveToLongLong( QString string, bool &ok )
+{
+  //remove any thousands separators
+  string.remove( QLocale().groupSeparator() );
+  return QLocale().toLongLong( string, &ok );
 }
 
 void *qgsMalloc( size_t size )
 {
   if ( size == 0 || long( size ) < 0 )
   {
-    QgsDebugMsg( QString( "Negative or zero size %1." ).arg( size ) );
+    QgsDebugMsg( QStringLiteral( "Negative or zero size %1." ).arg( size ) );
     return nullptr;
   }
   void *p = malloc( size );
   if ( !p )
   {
-    QgsDebugMsg( QString( "Allocation of %1 bytes failed." ).arg( size ) );
+    QgsDebugMsg( QStringLiteral( "Allocation of %1 bytes failed." ).arg( size ) );
   }
   return p;
 }
@@ -121,7 +134,7 @@ void *qgsCalloc( size_t nmemb, size_t size )
 {
   if ( nmemb == 0 || long( nmemb ) < 0 || size == 0 || long( size ) < 0 )
   {
-    QgsDebugMsg( QString( "Negative or zero nmemb %1 or size %2." ).arg( nmemb ).arg( size ) );
+    QgsDebugMsg( QStringLiteral( "Negative or zero nmemb %1 or size %2." ).arg( nmemb ).arg( size ) );
     return nullptr;
   }
   void *p = qgsMalloc( nmemb * size );
@@ -137,7 +150,7 @@ void qgsFree( void *ptr )
   free( ptr );
 }
 
-bool qgsVariantLessThan( const QVariant& lhs, const QVariant& rhs )
+bool qgsVariantLessThan( const QVariant &lhs, const QVariant &rhs )
 {
   // invalid < NULL < any value
   if ( !lhs.isValid() )
@@ -175,8 +188,8 @@ bool qgsVariantLessThan( const QVariant& lhs, const QVariant& rhs )
       const QList<QVariant> &lhsl = lhs.toList();
       const QList<QVariant> &rhsl = rhs.toList();
 
-      int i, n = qMin( lhsl.size(), rhsl.size() );
-      for ( i = 0; i < n && lhsl[i].type() == rhsl[i].type() && lhsl[i].isNull() == rhsl[i].isNull() && lhsl[i] == rhsl[i]; i++ )
+      int i, n = std::min( lhsl.size(), rhsl.size() );
+      for ( i = 0; i < n && lhsl[i].type() == rhsl[i].type() && qgsVariantEqual( lhsl[i], rhsl[i] ); i++ )
         ;
 
       if ( i == n )
@@ -190,7 +203,7 @@ bool qgsVariantLessThan( const QVariant& lhs, const QVariant& rhs )
       const QStringList &lhsl = lhs.toStringList();
       const QStringList &rhsl = rhs.toStringList();
 
-      int i, n = qMin( lhsl.size(), rhsl.size() );
+      int i, n = std::min( lhsl.size(), rhsl.size() );
       for ( i = 0; i < n && lhsl[i] == rhsl[i]; i++ )
         ;
 
@@ -205,12 +218,12 @@ bool qgsVariantLessThan( const QVariant& lhs, const QVariant& rhs )
   }
 }
 
-bool qgsVariantGreaterThan( const QVariant& lhs, const QVariant& rhs )
+bool qgsVariantGreaterThan( const QVariant &lhs, const QVariant &rhs )
 {
   return ! qgsVariantLessThan( lhs, rhs );
 }
 
-QString qgsVsiPrefix( const QString& path )
+QString qgsVsiPrefix( const QString &path )
 {
   if ( path.startsWith( QLatin1String( "/vsizip/" ), Qt::CaseInsensitive ) ||
        path.endsWith( QLatin1String( ".zip" ), Qt::CaseInsensitive ) )
@@ -224,5 +237,77 @@ QString qgsVsiPrefix( const QString& path )
             path.endsWith( QLatin1String( ".gz" ), Qt::CaseInsensitive ) )
     return QStringLiteral( "/vsigzip/" );
   else
-    return QLatin1String( "" );
+    return QString();
+}
+
+uint qHash( const QVariant &variant )
+{
+  if ( !variant.isValid() || variant.isNull() )
+    return std::numeric_limits<uint>::max();
+
+  switch ( variant.type() )
+  {
+    case QVariant::Int:
+      return qHash( variant.toInt() );
+    case QVariant::UInt:
+      return qHash( variant.toUInt() );
+    case QVariant::Bool:
+      return qHash( variant.toBool() );
+    case QVariant::Double:
+      return qHash( variant.toDouble() );
+    case QVariant::LongLong:
+      return qHash( variant.toLongLong() );
+    case QVariant::ULongLong:
+      return qHash( variant.toULongLong() );
+    case QVariant::String:
+      return qHash( variant.toString() );
+    case QVariant::Char:
+      return qHash( variant.toChar() );
+    case QVariant::List:
+
+#if QT_VERSION >= 0x050600
+      return qHash( variant.toList() );
+#else
+      {
+        QVariantList list = variant.toList();
+        if ( list.isEmpty() )
+          return -1;
+        else
+          return qHash( list.at( 0 ) );
+      }
+#endif
+    case QVariant::StringList:
+#if QT_VERSION >= 0x050600
+      return qHash( variant.toStringList() );
+#else
+      {
+        QStringList list = variant.toStringList();
+        if ( list.isEmpty() )
+          return -1;
+        else
+          return qHash( list.at( 0 ) );
+      }
+#endif
+    case QVariant::ByteArray:
+      return qHash( variant.toByteArray() );
+    case QVariant::Date:
+      return qHash( variant.toDate() );
+    case QVariant::Time:
+      return qHash( variant.toTime() );
+    case QVariant::DateTime:
+      return qHash( variant.toDateTime() );
+    case QVariant::Url:
+    case QVariant::Locale:
+    case QVariant::RegExp:
+      return qHash( variant.toString() );
+    default:
+      break;
+  }
+
+  return std::numeric_limits<uint>::max();
+}
+
+bool qgsVariantEqual( const QVariant &lhs, const QVariant &rhs )
+{
+  return lhs.isNull() == rhs.isNull() && lhs == rhs;
 }

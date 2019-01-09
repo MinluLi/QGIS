@@ -17,10 +17,14 @@
 #define QGSCOLORWIDGETWRAPPER_H
 
 #include "qgseditorwidgetwrapper.h"
+#include "qgis_gui.h"
+
+SIP_NO_FILE
 
 class QgsColorButton;
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Wraps a color widget. Users will be able to choose a color.
  * \note not available in Python bindings
  */
@@ -29,7 +33,7 @@ class GUI_EXPORT  QgsColorWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsColorWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = nullptr, QWidget* parent = nullptr );
+    explicit QgsColorWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor = nullptr, QWidget *parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
@@ -37,17 +41,17 @@ class GUI_EXPORT  QgsColorWidgetWrapper : public QgsEditorWidgetWrapper
     void showIndeterminateState() override;
 
   protected:
-    QWidget* createWidget( QWidget* parent ) override;
-    void initWidget( QWidget* editor ) override;
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
     bool valid() const override;
 
   public slots:
-    void setValue( const QVariant& value ) override;
+    void setValue( const QVariant &value ) override;
 
   private:
-    void updateConstraintWidgetStatus( bool constraintValid ) override;
+    void updateConstraintWidgetStatus() override;
 
-    QgsColorButton* mColorButton;
+    QgsColorButton *mColorButton = nullptr;
 };
 
 #endif // QGSCOLORWIDGETWRAPPER_H

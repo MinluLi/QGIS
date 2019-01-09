@@ -21,7 +21,6 @@
 #include "qgslayertreemodel.h"
 #include "qgslayertreemodellegendnode.h"
 #include "qgslayertreeview.h"
-#include "qgsmaplayerregistry.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgsproject.h"
 #include "qgsrenderer.h"
@@ -30,94 +29,41 @@
 #include "qgsnewnamedialog.h"
 
 #include <QInputDialog>
+#include <QMessageBox>
 
-
-QgsMapThemes* QgsMapThemes::sInstance;
+QgsMapThemes *QgsMapThemes::sInstance;
 
 
 QgsMapThemes::QgsMapThemes()
-    : mMenu( new QMenu )
+  : mMenu( new QMenu )
 {
 
   mMenu->addAction( QgisApp::instance()->actionShowAllLayers() );
   mMenu->addAction( QgisApp::instance()->actionHideAllLayers() );
   mMenu->addAction( QgisApp::instance()->actionShowSelectedLayers() );
   mMenu->addAction( QgisApp::instance()->actionHideSelectedLayers() );
+  mMenu->addAction( QgisApp::instance()->actionHideDeselectedLayers() );
   mMenu->addSeparator();
 
   mReplaceMenu = new QMenu( tr( "Replace Theme" ) );
   mMenu->addMenu( mReplaceMenu );
-  mActionAddPreset = mMenu->addAction( tr( "Add Theme..." ), this, SLOT( addPreset() ) );
+  mActionAddPreset = mMenu->addAction( tr( "Add Theme…" ), this, SLOT( addPreset() ) );
   mMenuSeparator = mMenu->addSeparator();
 
   mActionRemoveCurrentPreset = mMenu->addAction( tr( "Remove Current Theme" ), this, SLOT( removeCurrentPreset() ) );
 
-  connect( mMenu, SIGNAL( aboutToShow() ), this, SLOT( menuAboutToShow() ) );
+  connect( mMenu, &QMenu::aboutToShow, this, &QgsMapThemes::menuAboutToShow );
 }
 
-void QgsMapThemes::addPerLayerCheckedLegendSymbols( QgsMapThemeCollection::MapThemeRecord& rec )
-{
-  QgsLayerTreeModel* model = QgisApp::instance()->layerTreeView()->layerTreeModel();
-
-  Q_FOREACH ( const QString& layerID, rec.visibleLayerIds() )
-  {
-    QgsLayerTreeLayer* nodeLayer = model->rootGroup()->findLayer( layerID );
-    if ( !nodeLayer )
-      continue;
-
-    bool hasCheckableItems = false;
-    bool someItemsUnchecked = false;
-    QSet<QString> checkedItems;
-    Q_FOREACH ( QgsLayerTreeModelLegendNode* legendNode, model->layerLegendNodes( nodeLayer ) )
-    {
-      if ( legendNode->flags() & Qt::ItemIsUserCheckable )
-      {
-        hasCheckableItems = true;
-
-        if ( legendNode->data( Qt::CheckStateRole ).toInt() == Qt::Checked )
-          checkedItems << legendNode->data( QgsLayerTreeModelLegendNode::RuleKeyRole ).toString();
-        else
-          someItemsUnchecked = true;
-      }
-    }
-
-    QMap<QString, QSet<QString> > checkedSymbols = rec.perLayerCheckedLegendSymbols();
-
-    if ( hasCheckableItems && someItemsUnchecked )
-      checkedSymbols.insert( nodeLayer->layerId(), checkedItems );
-
-    rec.setPerLayerCheckedLegendSymbols( checkedSymbols );
-  }
-}
-
-void QgsMapThemes::addPerLayerCurrentStyle( QgsMapThemeCollection::MapThemeRecord& rec )
-{
-  QgsLayerTreeModel* model = QgisApp::instance()->layerTreeView()->layerTreeModel();
-
-  QMap<QString, QString> styles = rec.perLayerCurrentStyle();
-
-  Q_FOREACH ( const QString& layerID, rec.visibleLayerIds() )
-  {
-    QgsLayerTreeLayer* nodeLayer = model->rootGroup()->findLayer( layerID );
-    if ( !nodeLayer )
-      continue;
-
-    styles[layerID] = nodeLayer->layer()->styleManager()->currentStyle();
-  }
-  rec.setPerLayerCurrentStyle( styles );
-}
 
 QgsMapThemeCollection::MapThemeRecord QgsMapThemes::currentState()
 {
-  QgsMapThemeCollection::MapThemeRecord rec;
-  QgsLayerTreeGroup* root = QgsProject::instance()->layerTreeRoot();
-  QgsMapThemeCollection::addVisibleLayersToMapTheme( root, rec );
-  addPerLayerCheckedLegendSymbols( rec );
-  addPerLayerCurrentStyle( rec );
-  return rec;
+  QgsLayerTreeGroup *root = QgsProject::instance()->layerTreeRoot();
+  QgsLayerTreeModel *model = QgisApp::instance()->layerTreeView()->layerTreeModel();
+  return QgsMapThemeCollection::createThemeFromCurrentState( root, model );
 }
 
-QgsMapThemes* QgsMapThemes::instance()
+QgsMapThemes *QgsMapThemes::instance()
 {
   if ( !sInstance )
     sInstance = new QgsMapThemes();
@@ -125,34 +71,33 @@ QgsMapThemes* QgsMapThemes::instance()
   return sInstance;
 }
 
-void QgsMapThemes::addPreset( const QString& name )
+void QgsMapThemes::addPreset( const QString &name )
 {
   QgsProject::instance()->mapThemeCollection()->insert( name, currentState() );
 }
 
-void QgsMapThemes::updatePreset( const QString& name )
+void QgsMapThemes::updatePreset( const QString &name )
 {
   QgsProject::instance()->mapThemeCollection()->update( name, currentState() );
 }
 
-QStringList QgsMapThemes::orderedPresetVisibleLayers( const QString& name ) const
+QList<QgsMapLayer *> QgsMapThemes::orderedPresetVisibleLayers( const QString &name ) const
 {
-  QStringList visibleIds = QgsProject::instance()->mapThemeCollection()->mapThemeVisibleLayers( name );
+  QStringList visibleIds = QgsProject::instance()->mapThemeCollection()->mapThemeVisibleLayerIds( name );
 
   // also make sure to order the layers according to map canvas order
-  QgsLayerTreeMapCanvasBridge* bridge = QgisApp::instance()->layerTreeCanvasBridge();
-  QStringList order = bridge->hasCustomLayerOrder() ? bridge->customLayerOrder() : bridge->defaultLayerOrder();
-  QStringList order2;
-  Q_FOREACH ( const QString& layerID, order )
+  QList<QgsMapLayer *> lst;
+  Q_FOREACH ( QgsMapLayer *layer, QgsProject::instance()->layerTreeRoot()->layerOrder() )
   {
-    if ( visibleIds.contains( layerID ) )
-      order2 << layerID;
+    if ( visibleIds.contains( layer->id() ) )
+    {
+      lst << layer;
+    }
   }
-
-  return order2;
+  return lst;
 }
 
-QMenu* QgsMapThemes::menu()
+QMenu *QgsMapThemes::menu()
 {
   return mMenu;
 }
@@ -161,11 +106,11 @@ QMenu* QgsMapThemes::menu()
 void QgsMapThemes::addPreset()
 {
   QStringList existingNames = QgsProject::instance()->mapThemeCollection()->mapThemes();
-  QgsNewNameDialog dlg( tr( "theme" ) , tr( "Theme" ), QStringList(), existingNames, QRegExp(), Qt::CaseInsensitive, mMenu );
+  QgsNewNameDialog dlg( tr( "theme" ), tr( "Theme" ), QStringList(), existingNames, QRegExp(), Qt::CaseInsensitive, mMenu );
   dlg.setWindowTitle( tr( "Map Themes" ) );
   dlg.setHintString( tr( "Name of the new theme" ) );
   dlg.setOverwriteEnabled( false );
-  dlg.setConflictingNameWarning( tr( "A theme with this name already exists" ) );
+  dlg.setConflictingNameWarning( tr( "A theme with this name already exists." ) );
   if ( dlg.exec() != QDialog::Accepted || dlg.name().isEmpty() )
     return;
 
@@ -175,7 +120,7 @@ void QgsMapThemes::addPreset()
 
 void QgsMapThemes::presetTriggered()
 {
-  QAction* actionPreset = qobject_cast<QAction*>( sender() );
+  QAction *actionPreset = qobject_cast<QAction *>( sender() );
   if ( !actionPreset )
     return;
 
@@ -184,81 +129,42 @@ void QgsMapThemes::presetTriggered()
 
 void QgsMapThemes::replaceTriggered()
 {
-  QAction* actionPreset = qobject_cast<QAction*>( sender() );
+  QAction *actionPreset = qobject_cast<QAction *>( sender() );
   if ( !actionPreset )
+    return;
+
+  int res = QMessageBox::question( QgisApp::instance(), tr( "Replace Theme" ),
+                                   tr( "Are you sure you want to replace the existing theme “%1”?" ).arg( actionPreset->text() ),
+                                   QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+  if ( res != QMessageBox::Yes )
     return;
 
   //adding preset with same name is effectively a replace
   addPreset( actionPreset->text() );
 }
 
-void QgsMapThemes::applyStateToLayerTreeGroup( QgsLayerTreeGroup* parent, const QgsMapThemeCollection::MapThemeRecord& rec )
-{
-  Q_FOREACH ( QgsLayerTreeNode* node, parent->children() )
-  {
-    if ( QgsLayerTree::isGroup( node ) )
-      applyStateToLayerTreeGroup( QgsLayerTree::toGroup( node ), rec );
-    else if ( QgsLayerTree::isLayer( node ) )
-    {
-      QgsLayerTreeLayer* nodeLayer = QgsLayerTree::toLayer( node );
-      bool isVisible = rec.visibleLayerIds().contains( nodeLayer->layerId() );
-      nodeLayer->setVisible( isVisible ? Qt::Checked : Qt::Unchecked );
 
-      if ( isVisible )
-      {
-        if ( rec.perLayerCurrentStyle().contains( nodeLayer->layerId() ) )
-        {
-          // apply desired style first
-          nodeLayer->layer()->styleManager()->setCurrentStyle( rec.perLayerCurrentStyle().value( nodeLayer->layerId() ) );
-        }
-
-        QgsLayerTreeModel* model = QgisApp::instance()->layerTreeView()->layerTreeModel();
-        if ( rec.perLayerCheckedLegendSymbols().contains( nodeLayer->layerId() ) )
-        {
-          const QSet<QString>& checkedNodes = rec.perLayerCheckedLegendSymbols().value( nodeLayer->layerId() );
-          // some nodes are not checked
-          Q_FOREACH ( QgsLayerTreeModelLegendNode* legendNode, model->layerLegendNodes( nodeLayer ) )
-          {
-            Qt::CheckState shouldHaveState = checkedNodes.contains( legendNode->data( QgsLayerTreeModelLegendNode::RuleKeyRole ).toString() ) ? Qt::Checked : Qt::Unchecked;
-            if (( legendNode->flags() & Qt::ItemIsUserCheckable ) &&
-                legendNode->data( Qt::CheckStateRole ).toInt() != shouldHaveState )
-              legendNode->setData( shouldHaveState, Qt::CheckStateRole );
-          }
-        }
-        else
-        {
-          // all nodes should be checked
-          Q_FOREACH ( QgsLayerTreeModelLegendNode* legendNode, model->layerLegendNodes( nodeLayer ) )
-          {
-            if (( legendNode->flags() & Qt::ItemIsUserCheckable ) &&
-                legendNode->data( Qt::CheckStateRole ).toInt() != Qt::Checked )
-              legendNode->setData( Qt::Checked, Qt::CheckStateRole );
-          }
-        }
-      }
-    }
-  }
-}
-
-
-void QgsMapThemes::applyState( const QString& presetName )
+void QgsMapThemes::applyState( const QString &presetName )
 {
   if ( !QgsProject::instance()->mapThemeCollection()->hasMapTheme( presetName ) )
     return;
 
-  applyStateToLayerTreeGroup( QgsProject::instance()->layerTreeRoot(), QgsProject::instance()->mapThemeCollection()->mapThemeState( presetName ) );
-
-  // also make sure that the preset is up-to-date (not containing any non-existent legend items)
-  QgsProject::instance()->mapThemeCollection()->update( presetName, currentState() );
+  QgsLayerTreeGroup *root = QgsProject::instance()->layerTreeRoot();
+  QgsLayerTreeModel *model = QgisApp::instance()->layerTreeView()->layerTreeModel();
+  QgsProject::instance()->mapThemeCollection()->applyTheme( presetName, root, model );
 }
 
 void QgsMapThemes::removeCurrentPreset()
 {
-  Q_FOREACH ( QAction* a, mMenuPresetActions )
+  for ( QAction *actionPreset : qgis::as_const( mMenuPresetActions ) )
   {
-    if ( a->isChecked() )
+    if ( actionPreset->isChecked() )
     {
-      QgsProject::instance()->mapThemeCollection()->removeMapTheme( a->text() );
+      int res = QMessageBox::question( QgisApp::instance(), tr( "Remove Theme" ),
+                                       tr( "Are you sure you want to remove the existing theme “%1”?" ).arg( actionPreset->text() ),
+                                       QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+      if ( res == QMessageBox::Yes )
+        QgsProject::instance()->mapThemeCollection()->removeMapTheme( actionPreset->text() );
       break;
     }
   }
@@ -275,20 +181,20 @@ void QgsMapThemes::menuAboutToShow()
   QgsMapThemeCollection::MapThemeRecord rec = currentState();
   bool hasCurrent = false;
 
-  Q_FOREACH ( const QString& grpName, QgsProject::instance()->mapThemeCollection()->mapThemes() )
+  Q_FOREACH ( const QString &grpName, QgsProject::instance()->mapThemeCollection()->mapThemes() )
   {
-    QAction* a = new QAction( grpName, mMenu );
+    QAction *a = new QAction( grpName, mMenu );
     a->setCheckable( true );
     if ( !hasCurrent && rec == QgsProject::instance()->mapThemeCollection()->mapThemeState( grpName ) )
     {
       a->setChecked( true );
       hasCurrent = true;
     }
-    connect( a, SIGNAL( triggered() ), this, SLOT( presetTriggered() ) );
+    connect( a, &QAction::triggered, this, &QgsMapThemes::presetTriggered );
     mMenuPresetActions.append( a );
 
-    QAction* replaceAction = new QAction( grpName, mReplaceMenu );
-    connect( replaceAction, SIGNAL( triggered() ), this, SLOT( replaceTriggered() ) );
+    QAction *replaceAction = new QAction( grpName, mReplaceMenu );
+    connect( replaceAction, &QAction::triggered, this, &QgsMapThemes::replaceTriggered );
     mReplaceMenu->addAction( replaceAction );
   }
   mMenu->insertActions( mMenuSeparator, mMenuPresetActions );

@@ -13,7 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
 #include "qgsrasterlayer.h"
@@ -25,6 +25,7 @@
 #include "qgsunittypes.h"
 #include "qgsmaptoolselect.h"
 #include "qgsmaptoolselectutils.h"
+#include "qgsmapmouseevent.h"
 
 #include "cpl_conv.h"
 
@@ -32,9 +33,7 @@ class TestQgsMapToolSelect : public QObject
 {
     Q_OBJECT
   public:
-    TestQgsMapToolSelect()
-        : canvas( 0 )
-    {}
+    TestQgsMapToolSelect() = default;
 
   private slots:
     void initTestCase(); // will be called before the first testfunction is executed.
@@ -45,9 +44,9 @@ class TestQgsMapToolSelect : public QObject
     void selectInvalidPolygons(); // test selecting invalid polygons
 
   private:
-    QgsMapCanvas* canvas;
+    QgsMapCanvas *canvas = nullptr;
 
-    QgsFeatureList testSelectVector( QgsVectorLayer* layer, double xGeoref, double yGeoref );
+    QgsFeatureList testSelectVector( QgsVectorLayer *layer, double xGeoref, double yGeoref );
 
     // Release return with delete []
     unsigned char *
@@ -77,7 +76,7 @@ void TestQgsMapToolSelect::initTestCase()
 {
   QgsApplication::init();
   QgsApplication::initQgis();
-  // Set up the QSettings environment
+  // Set up the QgsSettings environment
   QCoreApplication::setOrganizationName( QStringLiteral( "QGIS" ) );
   QCoreApplication::setOrganizationDomain( QStringLiteral( "qgis.org" ) );
   QCoreApplication::setApplicationName( QStringLiteral( "QGIS-TEST" ) );
@@ -106,22 +105,22 @@ void TestQgsMapToolSelect::cleanup()
 
 // private
 QgsFeatureList
-TestQgsMapToolSelect::testSelectVector( QgsVectorLayer* layer, double xGeoref, double yGeoref )
+TestQgsMapToolSelect::testSelectVector( QgsVectorLayer *layer, double xGeoref, double yGeoref )
 {
-  QScopedPointer< QgsMapToolSelect > tool( new QgsMapToolSelect( canvas ) );
-  QgsPoint mapPoint = canvas->getCoordinateTransform()->transform( xGeoref, yGeoref );
+  std::unique_ptr< QgsMapToolSelect > tool( new QgsMapToolSelect( canvas ) );
+  QgsPointXY mapPoint = canvas->getCoordinateTransform()->transform( xGeoref, yGeoref );
 
   // make given vector layer current
   canvas->setCurrentLayer( layer );
 
-  QScopedPointer< QgsMapMouseEvent > event( new QgsMapMouseEvent(
+  std::unique_ptr< QgsMapMouseEvent > event( new QgsMapMouseEvent(
         canvas,
         QEvent::MouseButtonRelease,
         QPoint( mapPoint.x(), mapPoint.y() )
       ) );
 
   // trigger mouseRelease handler
-  tool->canvasReleaseEvent( event.data() );
+  tool->canvasReleaseEvent( event.get() );
 
   // return selected features
   return layer->selectedFeatures();
@@ -130,7 +129,7 @@ TestQgsMapToolSelect::testSelectVector( QgsVectorLayer* layer, double xGeoref, d
 void TestQgsMapToolSelect::selectInvalidPolygons()
 {
   //create a temporary layer
-  QScopedPointer< QgsVectorLayer > memoryLayer( new QgsVectorLayer( QStringLiteral( "Polygon?field=pk:int" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) ) );
+  std::unique_ptr< QgsVectorLayer > memoryLayer( new QgsVectorLayer( QStringLiteral( "Polygon?field=pk:int" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) ) );
   QVERIFY( memoryLayer->isValid() );
   QgsFeature f1( memoryLayer->dataProvider()->fields(), 1 );
   f1.setAttribute( QStringLiteral( "pk" ), 1 );
@@ -143,14 +142,14 @@ void TestQgsMapToolSelect::selectInvalidPolygons()
 
   canvas->setExtent( QgsRectangle( 0, 0, 10, 10 ) );
   QgsFeatureList selected;
-  selected = testSelectVector( memoryLayer.data(), 4, 6 );
+  selected = testSelectVector( memoryLayer.get(), 4, 6 );
   QCOMPARE( selected.length(), 0 );
-  selected = testSelectVector( memoryLayer.data(), 6, 4 );
+  selected = testSelectVector( memoryLayer.get(), 6, 4 );
   QCOMPARE( selected.length(), 1 );
   QCOMPARE( selected[0].attribute( "pk" ), QVariant( 1 ) );
 
 }
 
 
-QTEST_MAIN( TestQgsMapToolSelect )
+QGSTEST_MAIN( TestQgsMapToolSelect )
 #include "testqgsmaptoolselect.moc"

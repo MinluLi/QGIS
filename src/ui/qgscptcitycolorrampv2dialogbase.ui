@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>cpt-city color ramp</string>
+   <string>Cpt-city Color Ramp</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_4">
    <property name="sizeConstraint">
@@ -182,7 +182,7 @@
            </property>
            <widget class="QWidget" name="tab">
             <attribute name="title">
-             <string>Selection and preview</string>
+             <string>Selection and Preview</string>
             </attribute>
             <layout class="QGridLayout" name="gridLayout">
              <item row="2" column="0">

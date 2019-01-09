@@ -18,15 +18,13 @@ email                : hugo dot mercier at oslandia dot com
  *                                                                         *
  ***************************************************************************/
 """
-from __future__ import print_function
-from builtins import object
 
 from qgis.PyQt.QtCore import QUrl, QTemporaryFile
 
 from ..connector import DBConnector
 from ..plugin import Table
 
-from qgis.core import Qgis, QgsDataSourceUri, QgsVirtualLayerDefinition, QgsMapLayerRegistry, QgsMapLayer, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsWkbTypes
+from qgis.core import QgsDataSourceUri, QgsVirtualLayerDefinition, QgsProject, QgsMapLayer, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsWkbTypes
 
 import sqlite3
 
@@ -48,7 +46,7 @@ def getQueryGeometryName(sqlite_file):
     with sqlite3_connection(sqlite_file) as conn:
         c = conn.cursor()
         for r in c.execute("SELECT url FROM _meta"):
-            d = QgsVirtualLayerDefinition.fromUrl(QUrl.fromEncoded(r[0]))
+            d = QgsVirtualLayerDefinition.fromUrl(QUrl(r[0]))
             if d.hasDefinedGeometry():
                 return d.geometryField()
         return None
@@ -98,7 +96,10 @@ class VLayerRegistry(object):
         lid = self.layers.get(l)
         if lid is None:
             return lid
-        return QgsMapLayerRegistry.instance().mapLayer(lid)
+        if lid not in QgsProject.instance().mapLayers().keys():
+            self.layers.pop(l)
+            return None
+        return QgsProject.instance().mapLayer(lid)
 
 
 class VLayerConnector(DBConnector):
@@ -127,8 +128,10 @@ class VLayerConnector(DBConnector):
         tmp = tf.fileName()
         tf.close()
 
-        q = QUrl.toPercentEncoding(c.sql)
-        p = QgsVectorLayer("%s?query=%s" % (QUrl.fromLocalFile(tmp).toString(), q), "vv", "virtual")
+        df = QgsVirtualLayerDefinition()
+        df.setFilePath(tmp)
+        df.setQuery(c.sql)
+        p = QgsVectorLayer(df.toString(), "vv", "virtual")
         if not p.isValid():
             return []
         f = [f.name() for f in p.fields()]
@@ -190,7 +193,7 @@ class VLayerConnector(DBConnector):
         reg = VLayerRegistry.instance()
         VLayerRegistry.instance().reset()
         lst = []
-        for _, l in list(QgsMapLayerRegistry.instance().mapLayers().items()):
+        for _, l in QgsProject.instance().mapLayers().items():
             if l.type() == QgsMapLayer.VectorLayer:
 
                 lname = l.name()
@@ -249,12 +252,16 @@ class VLayerConnector(DBConnector):
     def getTableRowCount(self, table):
         t = table[1]
         l = VLayerRegistry.instance().getLayer(t)
+        if not l or not l.isValid():
+            return None
         return l.featureCount()
 
     def getTableFields(self, table):
         """ return list of columns in table """
         t = table[1]
         l = VLayerRegistry.instance().getLayer(t)
+        if not l or not l.isValid():
+            return []
         # id, name, type, nonnull, default, pk
         n = l.dataProvider().fields().size()
         f = [(i, f.name(), f.typeName(), False, None, False)
@@ -277,9 +284,11 @@ class VLayerConnector(DBConnector):
     def getTableExtent(self, table, geom):
         is_id, t = table
         if is_id:
-            l = QgsMapLayerRegistry.instance().mapLayer(t)
+            l = QgsProject.instance().mapLayer(t)
         else:
             l = VLayerRegistry.instance().getLayer(t)
+        if not l or not l.isValid():
+            return None
         e = l.extent()
         r = (e.xMinimum(), e.yMinimum(), e.xMaximum(), e.yMaximum())
         return r

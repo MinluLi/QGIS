@@ -21,13 +21,13 @@
 #include "qgsdatetimeedit.h"
 #include "qcalendarwidget.h"
 #include "qgsdatetimeeditconfig.h"
+#include "qgsdatetimefieldformatter.h"
 
 #include <QSettings>
 
-QgsDateTimeSearchWidgetWrapper::QgsDateTimeSearchWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* parent )
-    : QgsSearchWidgetWrapper( vl, fieldIdx, parent )
-    , mDateTimeEdit( nullptr )
-    , mLayer( nullptr )
+QgsDateTimeSearchWidgetWrapper::QgsDateTimeSearchWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
+  : QgsSearchWidgetWrapper( vl, fieldIdx, parent )
+
 {
 }
 
@@ -36,7 +36,7 @@ bool QgsDateTimeSearchWidgetWrapper::applyDirectly()
   return true;
 }
 
-QString QgsDateTimeSearchWidgetWrapper::expression()
+QString QgsDateTimeSearchWidgetWrapper::expression() const
 {
   return mExpression;
 }
@@ -46,8 +46,16 @@ QVariant QgsDateTimeSearchWidgetWrapper::value() const
   if ( ! mDateTimeEdit )
     return QDateTime();
 
-  const QString fieldFormat = config( QStringLiteral( "field_format" ), QgsDateTimeEditConfig::defaultFormat( layer()->fields().at( mFieldIdx ).type() ) ).toString();
-  return mDateTimeEdit->dateTime().toString( fieldFormat );
+  const bool fieldIsoFormat = config( QStringLiteral( "field_iso_format" ), false ).toBool();
+  const QString fieldFormat = config( QStringLiteral( "field_format" ), QgsDateTimeFieldFormatter::defaultFormat( layer()->fields().at( mFieldIdx ).type() ) ).toString();
+  if ( fieldIsoFormat )
+  {
+    return mDateTimeEdit->dateTime().toString( Qt::ISODate );
+  }
+  else
+  {
+    return mDateTimeEdit->dateTime().toString( fieldFormat );
+  }
 }
 
 QgsSearchWidgetWrapper::FilterFlags QgsDateTimeSearchWidgetWrapper::supportedFlags() const
@@ -62,7 +70,7 @@ QgsSearchWidgetWrapper::FilterFlags QgsDateTimeSearchWidgetWrapper::defaultFlags
 
 QString QgsDateTimeSearchWidgetWrapper::createExpression( QgsSearchWidgetWrapper::FilterFlags flags ) const
 {
-  QString fieldName = QgsExpression::quotedColumnRef( layer()->fields().at( mFieldIdx ).name() );
+  QString fieldName = createFieldIdentifier();
 
   //clear any unsupported flags
   flags &= supportedFlags();
@@ -112,8 +120,9 @@ bool QgsDateTimeSearchWidgetWrapper::valid() const
   return true;
 }
 
-void QgsDateTimeSearchWidgetWrapper::setExpression( QString exp )
+void QgsDateTimeSearchWidgetWrapper::setExpression( const QString &expression )
 {
+  QString exp = expression;
   QString fieldName = layer()->fields().at( mFieldIdx ).name();
 
   QString str = QStringLiteral( "%1 = '%3'" )
@@ -123,7 +132,7 @@ void QgsDateTimeSearchWidgetWrapper::setExpression( QString exp )
   mExpression = str;
 }
 
-void QgsDateTimeSearchWidgetWrapper::dateTimeChanged( const QDateTime& dt )
+void QgsDateTimeSearchWidgetWrapper::dateTimeChanged( const QDateTime &dt )
 {
   if ( mDateTimeEdit )
   {
@@ -137,22 +146,22 @@ void QgsDateTimeSearchWidgetWrapper::dateTimeChanged( const QDateTime& dt )
   }
 }
 
-QWidget* QgsDateTimeSearchWidgetWrapper::createWidget( QWidget* parent )
+QWidget *QgsDateTimeSearchWidgetWrapper::createWidget( QWidget *parent )
 {
-  QgsDateTimeEdit* widget = new QgsDateTimeEdit( parent );
+  QgsDateTimeEdit *widget = new QgsDateTimeEdit( parent );
   widget->setEmpty();
   return widget;
 }
 
-void QgsDateTimeSearchWidgetWrapper::initWidget( QWidget* editor )
+void QgsDateTimeSearchWidgetWrapper::initWidget( QWidget *editor )
 {
-  mDateTimeEdit = qobject_cast<QgsDateTimeEdit*>( editor );
+  mDateTimeEdit = qobject_cast<QgsDateTimeEdit *>( editor );
 
   if ( mDateTimeEdit )
   {
     mDateTimeEdit->setAllowNull( false );
 
-    const QString displayFormat = config( QStringLiteral( "display_format" ), QgsDateTimeEditConfig::defaultFormat( layer()->fields().at( mFieldIdx ).type() ) ).toString();
+    const QString displayFormat = config( QStringLiteral( "display_format" ), QgsDateTimeFieldFormatter::defaultFormat( layer()->fields().at( mFieldIdx ).type() ) ).toString();
     mDateTimeEdit->setDisplayFormat( displayFormat );
 
     const bool calendar = config( QStringLiteral( "calendar_popup" ), false ).toBool();
@@ -167,7 +176,7 @@ void QgsDateTimeSearchWidgetWrapper::initWidget( QWidget* editor )
 
     mDateTimeEdit->setEmpty();
 
-    connect( mDateTimeEdit, SIGNAL( dateTimeChanged( QDateTime ) ), this, SLOT( dateTimeChanged( QDateTime ) ) );
+    connect( mDateTimeEdit, &QDateTimeEdit::dateTimeChanged, this, &QgsDateTimeSearchWidgetWrapper::dateTimeChanged );
   }
 }
 

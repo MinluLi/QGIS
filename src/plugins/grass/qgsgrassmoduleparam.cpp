@@ -17,13 +17,13 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
-#include <QSettings>
+#include "qgssettings.h"
 
 #include "qgis.h"
 #include "qgsdatasourceuri.h"
 #include "qgslogger.h"
 #include "qgsmaplayer.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsrasterlayer.h"
 #include "qgsvectorlayer.h"
 
@@ -38,23 +38,19 @@
 #if 0
 extern "C"
 {
-#if GRASS_VERSION_MAJOR < 7
-#include <grass/Vect.h>
-#else
 #include <grass/vector.h>
-#endif
 }
 #endif
 
 /********************** QgsGrassModuleParam *************************/
 QgsGrassModuleParam::QgsGrassModuleParam( QgsGrassModule *module, QString key,
     QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode, bool direct )
-    : mModule( module )
-    , mKey( key )
-    , mMultiple( false )
-    , mHidden( false )
-    , mRequired( false )
-    , mDirect( direct )
+  : mModule( module )
+  , mKey( key )
+  , mMultiple( false )
+  , mHidden( false )
+  , mRequired( false )
+  , mDirect( direct )
 {
   Q_UNUSED( gdesc );
   //mAnswer = qdesc.attribute("answer", "");
@@ -116,8 +112,6 @@ QgsGrassModuleParam::QgsGrassModuleParam( QgsGrassModule *module, QString key,
   mId = qdesc.attribute( QStringLiteral( "id" ) );
 }
 
-QgsGrassModuleParam::~QgsGrassModuleParam() {}
-
 bool QgsGrassModuleParam::hidden()
 {
   return mHidden;
@@ -128,7 +122,7 @@ QStringList QgsGrassModuleParam::options()
   return QStringList();
 }
 
-QString QgsGrassModuleParam::getDescPrompt( QDomElement descDomElement, const QString & name )
+QString QgsGrassModuleParam::getDescPrompt( QDomElement descDomElement, const QString &name )
 {
   QDomNode gispromptNode = descDomElement.namedItem( QStringLiteral( "gisprompt" ) );
 
@@ -168,24 +162,17 @@ QDomNode QgsGrassModuleParam::nodeByKey( QDomElement descDomElement, QString key
   return QDomNode();
 }
 
-QList<QDomNode> QgsGrassModuleParam::nodesByType( QDomElement descDomElement, STD_OPT optionType, const QString & age )
+QList<QDomNode> QgsGrassModuleParam::nodesByType( QDomElement descDomElement, STD_OPT optionType, const QString &age )
 {
   // TODO: never tested
   QList<QDomNode> nodes;
 
   // Not all options have prompt set, for example G_OPT_V_TYPE and G_OPT_V_FIELD, which would be useful, don't have prompt
   QMap<QString, STD_OPT> typeMap;
-#if GRASS_VERSION_MAJOR < 7
-  typeMap.insert( "dbtable", G_OPT_TABLE );
-  typeMap.insert( "dbdriver", G_OPT_DRIVER );
-  typeMap.insert( "dbname", G_OPT_DATABASE );
-  typeMap.insert( "dbcolumn", G_OPT_COLUMN );
-#else
   typeMap.insert( QStringLiteral( "dbtable" ), G_OPT_DB_TABLE );
   typeMap.insert( QStringLiteral( "dbdriver" ), G_OPT_DB_DRIVER );
   typeMap.insert( QStringLiteral( "dbname" ), G_OPT_DB_DATABASE );
   typeMap.insert( QStringLiteral( "dbcolumn" ), G_OPT_DB_COLUMN );
-#endif
   typeMap.insert( QStringLiteral( "vector" ), G_OPT_V_INPUT );
 
   QDomNode n = descDomElement.firstChild();
@@ -211,17 +198,15 @@ QList<QDomNode> QgsGrassModuleParam::nodesByType( QDomElement descDomElement, ST
 
 QgsGrassModuleGroupBoxItem::QgsGrassModuleGroupBoxItem( QgsGrassModule *module, QString key,
     QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode,
-    bool direct, QWidget * parent )
-    : QGroupBox( parent )
-    , QgsGrassModuleParam( module, key, qdesc, gdesc, gnode, direct )
+    bool direct, QWidget *parent )
+  : QGroupBox( parent )
+  , QgsGrassModuleParam( module, key, qdesc, gdesc, gnode, direct )
 {
   adjustTitle();
   setToolTip( mToolTip );
 }
 
-QgsGrassModuleGroupBoxItem::~QgsGrassModuleGroupBoxItem() {}
-
-void QgsGrassModuleGroupBoxItem::resizeEvent( QResizeEvent * event )
+void QgsGrassModuleGroupBoxItem::resizeEvent( QResizeEvent *event )
 {
   Q_UNUSED( event );
   adjustTitle();
@@ -239,11 +224,8 @@ void QgsGrassModuleGroupBoxItem::adjustTitle()
 
 QgsGrassModuleMultiParam::QgsGrassModuleMultiParam( QgsGrassModule *module, QString key,
     QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode,
-    bool direct, QWidget * parent )
-    : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mLayout( 0 )
-    , mParamsLayout( 0 )
-    , mButtonsLayout( 0 )
+    bool direct, QWidget *parent )
+  : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
 {
   adjustTitle();
   setToolTip( mToolTip );
@@ -257,8 +239,6 @@ QgsGrassModuleMultiParam::QgsGrassModuleMultiParam( QgsGrassModule *module, QStr
 
 }
 
-QgsGrassModuleMultiParam::~QgsGrassModuleMultiParam() {}
-
 void QgsGrassModuleMultiParam::showAddRemoveButtons()
 {
   mButtonsLayout = new QVBoxLayout();
@@ -266,11 +246,11 @@ void QgsGrassModuleMultiParam::showAddRemoveButtons()
 
   // TODO: how to keep both buttons on the top?
   QPushButton *addButton = new QPushButton( QStringLiteral( "+" ), this );
-  connect( addButton, SIGNAL( clicked() ), this, SLOT( addRow() ) );
+  connect( addButton, &QAbstractButton::clicked, this, &QgsGrassModuleMultiParam::addRow );
   mButtonsLayout->addWidget( addButton, 0, Qt::AlignTop );
 
   QPushButton *removeButton = new QPushButton( QStringLiteral( "-" ), this );
-  connect( removeButton, SIGNAL( clicked() ), this, SLOT( removeRow() ) );
+  connect( removeButton, &QAbstractButton::clicked, this, &QgsGrassModuleMultiParam::removeRow );
   mButtonsLayout->addWidget( removeButton, 0, Qt::AlignTop );
 
   // Don't enable this, it makes the group box expanding
@@ -281,18 +261,16 @@ void QgsGrassModuleMultiParam::showAddRemoveButtons()
 
 QgsGrassModuleOption::QgsGrassModuleOption( QgsGrassModule *module, QString key,
     QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode,
-    bool direct, QWidget * parent )
-    : QgsGrassModuleMultiParam( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mControlType( NoControl )
-    , mValueType( String )
-    , mOutputType( None )
-    , mHaveLimits( false )
-    , mMin( INT_MAX )
-    , mMax( INT_MIN )
-    , mComboBox( 0 )
-    , mIsOutput( false )
-    , mValidator( 0 )
-    , mUsesRegion( false )
+    bool direct, QWidget *parent )
+  : QgsGrassModuleMultiParam( module, key, qdesc, gdesc, gnode, direct, parent )
+  , mControlType( NoControl )
+  , mValueType( String )
+  , mOutputType( None )
+  , mHaveLimits( false )
+  , mMin( std::numeric_limits<int>::max() )
+  , mMax( std::numeric_limits<int>::min() )
+  , mIsOutput( false )
+  , mUsesRegion( false )
 {
   setSizePolicy( QSizePolicy::MinimumExpanding, QSizePolicy::Minimum );
 
@@ -458,7 +436,7 @@ QgsGrassModuleOption::QgsGrassModuleOption( QgsGrassModule *module, QString key,
         {
           QDomElement e = n.toElement();
           QString val = e.text().trimmed();
-          minMax = val.split( QStringLiteral( "-" ) );
+          minMax = val.split( '-' );
           if ( minMax.size() == 2 )
           {
             mHaveLimits = true;
@@ -530,7 +508,7 @@ void QgsGrassModuleOption::addRow()
   {
     if ( mHaveLimits )
     {
-      mValidator = new QIntValidator(( int )mMin, ( int )mMax, this );
+      mValidator = new QIntValidator( static_cast<int>( mMin ), static_cast<int>( mMax ), this );
     }
     else
     {
@@ -574,7 +552,7 @@ void QgsGrassModuleOption::addRow()
     QPushButton *button = new QPushButton( tr( "Browse" ) );
     l->addWidget( button );
     paramsLayout()->addItem( l );
-    connect( button, SIGNAL( clicked( bool ) ), this, SLOT( browse( bool ) ) );
+    connect( button, &QAbstractButton::clicked, this, &QgsGrassModuleOption::browse );
   }
   else
   {
@@ -597,8 +575,8 @@ void QgsGrassModuleOption::browse( bool checked )
 {
   Q_UNUSED( checked );
 
-  QSettings settings;
-  QString lastDir = settings.value( QStringLiteral( "/GRASS/lastDirectOutputDir" ), "" ).toString();
+  QgsSettings settings;
+  QString lastDir = settings.value( QStringLiteral( "GRASS/lastDirectOutputDir" ), QString() ).toString();
   QString fileName = QFileDialog::getSaveFileName( this, tr( "Output file" ), lastDir, tr( "GeoTIFF" ) + " (*.tif)" );
   if ( !fileName.isEmpty() )
   {
@@ -607,7 +585,7 @@ void QgsGrassModuleOption::browse( bool checked )
       fileName = fileName + ".tif";
     }
     mLineEdits.at( 0 )->setText( fileName );
-    settings.setValue( QStringLiteral( "/GRASS/lastDirectOutputDir" ),  QFileInfo( fileName ).absolutePath() );
+    settings.setValue( QStringLiteral( "GRASS/lastDirectOutputDir" ),  QFileInfo( fileName ).absolutePath() );
   }
 }
 
@@ -681,7 +659,7 @@ QString QgsGrassModuleOption::value()
   return value;
 }
 
-bool QgsGrassModuleOption::checkVersion( const QString& version_min, const QString& version_max, QStringList& errors )
+bool QgsGrassModuleOption::checkVersion( const QString &version_min, const QString &version_max, QStringList &errors )
 {
   QgsDebugMsg( "version_min = " + version_min );
   QgsDebugMsg( "version_max = " + version_max );
@@ -769,15 +747,11 @@ QString QgsGrassModuleOption::ready()
   return error;
 }
 
-QgsGrassModuleOption::~QgsGrassModuleOption()
-{
-}
-
 /***************** QgsGrassModuleFlag *********************/
 QgsGrassModuleFlag::QgsGrassModuleFlag( QgsGrassModule *module, QString key,
                                         QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode,
-                                        bool direct, QWidget * parent )
-    : QgsGrassModuleCheckBox( QLatin1String( "" ), parent ), QgsGrassModuleParam( module, key, qdesc, gdesc, gnode, direct )
+                                        bool direct, QWidget *parent )
+  : QgsGrassModuleCheckBox( QString(), parent ), QgsGrassModuleParam( module, key, qdesc, gdesc, gnode, direct )
 {
 
   if ( mHidden )
@@ -802,19 +776,13 @@ QStringList QgsGrassModuleFlag::options()
   return list;
 }
 
-QgsGrassModuleFlag::~QgsGrassModuleFlag()
-{
-}
-
 /***************** QgsGrassModuleGdalInput *********************/
 
 QgsGrassModuleGdalInput::QgsGrassModuleGdalInput(
   QgsGrassModule *module, Type type, QString key, QDomElement &qdesc,
-  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget * parent )
-    : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mType( type )
-    , mOgrLayerOption( QLatin1String( "" ) )
-    , mOgrWhereOption( QLatin1String( "" ) )
+  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget *parent )
+  : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
+  , mType( type )
 {
   if ( mTitle.isEmpty() )
   {
@@ -872,10 +840,10 @@ QgsGrassModuleGdalInput::QgsGrassModuleGdalInput(
 
   lbl->setBuddy( mLayerPassword );
 
-  connect( QgsMapLayerRegistry::instance(), SIGNAL( layersAdded( QList<QgsMapLayer *> ) ),
-           this, SLOT( updateQgisLayers() ) );
-  connect( QgsMapLayerRegistry::instance(), SIGNAL( layersRemoved( QStringList ) ),
-           this, SLOT( updateQgisLayers() ) );
+  connect( QgsProject::instance(), &QgsProject::layersAdded,
+           this, &QgsGrassModuleGdalInput::updateQgisLayers );
+  connect( QgsProject::instance(), &QgsProject::layersRemoved,
+           this, &QgsGrassModuleGdalInput::updateQgisLayers );
 
   // Fill in QGIS layers
   updateQgisLayers();
@@ -899,7 +867,7 @@ void QgsGrassModuleGdalInput::updateQgisLayers()
     mLayerComboBox->addItem( tr( "Select a layer" ), QVariant() );
   }
 
-  Q_FOREACH ( QgsMapLayer *layer, QgsMapLayerRegistry::instance()->mapLayers().values() )
+  Q_FOREACH ( QgsMapLayer *layer, QgsProject::instance()->mapLayers().values() )
   {
     if ( !layer ) continue;
 
@@ -934,18 +902,18 @@ void QgsGrassModuleGdalInput::updateQgisLayers()
       }
       else if ( vector->providerType() == QLatin1String( "ogr" ) )
       {
-        QStringList items = provider->dataSourceUri().split( QStringLiteral( "|" ) );
+        QStringList items = provider->dataSourceUri().split( '|' );
 
         if ( items.size() > 1 )
         {
           uri = items[0];
 
-          ogrLayer = QLatin1String( "" );
-          ogrWhere = QLatin1String( "" );
+          ogrLayer.clear();
+          ogrWhere.clear();
 
           for ( int i = 1; i < items.size(); i++ )
           {
-            QStringList args = items[i].split( QStringLiteral( "=" ) );
+            QStringList args = items[i].split( '=' );
 
             if ( args.size() != 2 )
               continue;
@@ -962,14 +930,14 @@ void QgsGrassModuleGdalInput::updateQgisLayers()
 
           if ( uri.endsWith( QLatin1String( ".shp" ), Qt::CaseInsensitive ) )
           {
-            ogrLayer = QLatin1String( "" );
+            ogrLayer.clear();
           }
         }
         else
         {
           uri = items[0];
-          ogrLayer = QLatin1String( "" );
-          ogrWhere = QLatin1String( "" );
+          ogrLayer.clear();
+          ogrWhere.clear();
         }
       }
 
@@ -991,8 +959,8 @@ void QgsGrassModuleGdalInput::updateQgisLayers()
       if ( layer->name() == current )
         mLayerComboBox->setItemText( mLayerComboBox->currentIndex(), current );
       mUri.push_back( uri );
-      mOgrLayers.push_back( QLatin1String( "" ) );
-      mOgrWheres.push_back( QLatin1String( "" ) );
+      mOgrLayers.push_back( QString() );
+      mOgrWheres.push_back( QString() );
     }
   }
 }
@@ -1024,29 +992,7 @@ QStringList QgsGrassModuleGdalInput::options()
   if ( !mOgrLayerOption.isEmpty() && mOgrLayers[current].size() > 0 )
   {
     opt = mOgrLayerOption + "=";
-    // GDAL 1.4.0 supports schemas (r9998)
-#if GDAL_VERSION_NUM >= 1400
     opt += mOgrLayers[current];
-#else
-    // Handle older versions of gdal gracefully
-    // OGR does not support schemas !!!
-    if ( current >= 0 && current <  mUri.size() )
-    {
-      QStringList l = mOgrLayers[current].split( "." );
-      opt += l.at( 1 );
-
-      // Currently only PostGIS is using layer
-      //  -> layer -> PostGIS -> warning
-      if ( mOgrLayers[current].length() > 0 )
-      {
-        QMessageBox::warning( 0, tr( "Warning" ),
-                              tr( "PostGIS driver in OGR does not support schemas!<br>"
-                                  "Only the table name will be used.<br>"
-                                  "It can result in wrong input if more tables of the same name<br>"
-                                  "are present in the database." ) );
-      }
-    }
-#endif //GDAL_VERSION_NUM
     list.push_back( opt );
   }
 
@@ -1076,14 +1022,10 @@ void QgsGrassModuleGdalInput::changed( int i )
   mLayerPassword->setEnabled( i < mUri.size() && mUri.value( i ).startsWith( QLatin1String( "PG:" ) ) && !mUri.value( i ).contains( QLatin1String( "password=" ) ) );
 }
 
-QgsGrassModuleGdalInput::~QgsGrassModuleGdalInput()
-{
-}
-
 /***************** QgsGrassModuleField *********************/
 QgsGrassModuleField::QgsGrassModuleField( QgsGrassModule *module, QString key,
-    QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget * parent )
-    : QgsGrassModuleOption( module, key, qdesc, gdesc, gnode, direct, parent )
+    QDomElement &qdesc, QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget *parent )
+  : QgsGrassModuleOption( module, key, qdesc, gdesc, gnode, direct, parent )
 {
   // Validator is disabled to also allow entering of expressions
 #if 0
@@ -1095,18 +1037,14 @@ QgsGrassModuleField::QgsGrassModuleField( QgsGrassModule *module, QString key,
 #endif
 }
 
-QgsGrassModuleField::~QgsGrassModuleField()
-{
-}
-
 /***************** QgsGrassModuleVectorField *********************/
 
 QgsGrassModuleVectorField::QgsGrassModuleVectorField(
   QgsGrassModule *module, QgsGrassModuleStandardOptions *options,
   QString key, QDomElement &qdesc,
-  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget * parent )
-    : QgsGrassModuleMultiParam( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mModuleStandardOptions( options ), mLayerInput( 0 )
+  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget *parent )
+  : QgsGrassModuleMultiParam( module, key, qdesc, gdesc, gnode, direct, parent )
+  , mModuleStandardOptions( options )
 {
   if ( mTitle.isEmpty() )
   {
@@ -1131,7 +1069,7 @@ QgsGrassModuleVectorField::QgsGrassModuleVectorField(
     if ( item )
     {
       mLayerInput = dynamic_cast<QgsGrassModuleInput *>( item );
-      connect( mLayerInput, SIGNAL( valueChanged() ), this, SLOT( updateFields() ) );
+      connect( mLayerInput, &QgsGrassModuleInput::valueChanged, this, &QgsGrassModuleVectorField::updateFields );
     }
   }
 
@@ -1173,13 +1111,13 @@ void QgsGrassModuleVectorField::updateFields()
     QString current = comboBox->currentText();
     comboBox->clear();
 
-    if ( mLayerInput == 0 )
+    if ( mLayerInput == nullptr )
     {
       continue;
     }
 
     int index = 0;
-    Q_FOREACH ( const QgsField& field, mLayerInput->currentFields() )
+    Q_FOREACH ( const QgsField &field, mLayerInput->currentFields() )
     {
       if ( mType.contains( field.typeName() ) )
       {
@@ -1217,20 +1155,14 @@ QStringList QgsGrassModuleVectorField::options()
   return list;
 }
 
-QgsGrassModuleVectorField::~QgsGrassModuleVectorField()
-{
-}
-
 /***************** QgsGrassModuleSelection *********************/
 
 QgsGrassModuleSelection::QgsGrassModuleSelection(
   QgsGrassModule *module, QgsGrassModuleStandardOptions *options,
   QString key, QDomElement &qdesc,
-  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget * parent )
-    : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mModuleStandardOptions( options )
-    , mLayerInput( 0 )
-    , mVectorLayer( 0 )
+  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget *parent )
+  : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
+  , mModuleStandardOptions( options )
 {
   if ( mTitle.isEmpty() )
   {
@@ -1250,7 +1182,7 @@ QgsGrassModuleSelection::QgsGrassModuleSelection(
   if ( item )
   {
     mLayerInput = dynamic_cast<QgsGrassModuleInput *>( item );
-    connect( mLayerInput, SIGNAL( valueChanged() ), SLOT( onLayerChanged() ) );
+    connect( mLayerInput, &QgsGrassModuleInput::valueChanged, this, &QgsGrassModuleSelection::onLayerChanged );
   }
 
   QHBoxLayout *l = new QHBoxLayout( this );
@@ -1260,11 +1192,11 @@ QgsGrassModuleSelection::QgsGrassModuleSelection(
   mModeComboBox = new QComboBox( this );
   mModeComboBox->setSizeAdjustPolicy( QComboBox::AdjustToContents );
   mModeComboBox->addItem( tr( "Manual entry" ), Manual );
-  connect( mModeComboBox, SIGNAL( currentIndexChanged( int ) ), SLOT( onModeChanged() ) );
+  connect( mModeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsGrassModuleSelection::onModeChanged );
   l->addWidget( mModeComboBox );
 
-  connect( QgsMapLayerRegistry::instance(), SIGNAL( layersAdded( QList<QgsMapLayer *> ) ), SLOT( onLayerChanged() ) );
-  connect( QgsMapLayerRegistry::instance(), SIGNAL( layersRemoved( QStringList ) ), SLOT( onLayerChanged() ) );
+  connect( QgsProject::instance(), &QgsProject::layersAdded, this, &QgsGrassModuleSelection::onLayerChanged );
+  connect( QgsProject::instance(), &QgsProject::layersRemoved, this, &QgsGrassModuleSelection::onLayerChanged );
 
   // Fill in layer current fields
   onLayerChanged();
@@ -1280,14 +1212,14 @@ void QgsGrassModuleSelection::onLayerChanged()
 
   QStringList layerIds;
   // add new layers matching selected input layer if not yet present
-  Q_FOREACH ( QgsMapLayer *layer, QgsMapLayerRegistry::instance()->mapLayers().values() )
+  Q_FOREACH ( QgsMapLayer *layer, QgsProject::instance()->mapLayers().values() )
   {
     QgsVectorLayer *vectorLayer = qobject_cast<QgsVectorLayer *>( layer );
     if ( vectorLayer && vectorLayer->providerType() == QLatin1String( "grass" ) )
     {
       QString uri = vectorLayer->dataProvider()->dataSourceUri();
       QgsDebugMsg( "uri = " + uri );
-      QString layerCode = uri.split( QStringLiteral( "/" ) ).last();
+      QString layerCode = uri.split( '/' ).last();
       if ( mLayerInput->currentLayerCodes().contains( layerCode ) )
       {
         // Qt::UserRole+1 may be also uri (AddLayer) but hardly matching layer id
@@ -1356,14 +1288,14 @@ QString QgsGrassModuleSelection::currentSelectionLayerId()
   return id;
 }
 
-QgsVectorLayer * QgsGrassModuleSelection::currentSelectionLayer()
+QgsVectorLayer *QgsGrassModuleSelection::currentSelectionLayer()
 {
   QString id = currentSelectionLayerId();
   if ( id.isEmpty() )
   {
-    return 0;
+    return nullptr;
   }
-  QgsMapLayer *layer = QgsMapLayerRegistry::instance()->mapLayer( id );
+  QgsMapLayer *layer = QgsProject::instance()->mapLayer( id );
   return qobject_cast<QgsVectorLayer *>( layer );
 }
 
@@ -1377,19 +1309,18 @@ void QgsGrassModuleSelection::onModeChanged()
     QgsDebugMsg( "uri = " + uri );
 
     QgsVectorLayer *layer = new QgsVectorLayer( uri, name, QStringLiteral( "grass" ) );
-    QgsMapLayerRegistry::instance()->addMapLayer( layer );
+    QgsProject::instance()->addMapLayer( layer );
     onLayerChanged(); // update with added layer
   }
   else if ( mModeComboBox->itemData( index ).toInt() == Layer )
   {
     QString id = mModeComboBox->itemData( index, Qt::UserRole + 1 ).toString();
-    QgsMapLayer *layer = QgsMapLayerRegistry::instance()->mapLayer( id );
+    QgsMapLayer *layer = QgsProject::instance()->mapLayer( id );
     QgsVectorLayer *vectorLayer = qobject_cast<QgsVectorLayer *>( layer );
     if ( vectorLayer )
     {
       onLayerSelectionChanged();
-      connect( vectorLayer, SIGNAL( selectionChanged( const QgsFeatureIds, const QgsFeatureIds, const bool ) ),
-               SLOT( onLayerSelectionChanged() ) );
+      connect( vectorLayer, &QgsVectorLayer::selectionChanged, this, &QgsGrassModuleSelection::onLayerSelectionChanged );
     }
   }
 }
@@ -1405,11 +1336,11 @@ void QgsGrassModuleSelection::onLayerSelectionChanged()
   }
 
   QList<int> cats;
-  Q_FOREACH ( QgsFeatureId fid, vectorLayer->selectedFeaturesIds() )
+  Q_FOREACH ( QgsFeatureId fid, vectorLayer->selectedFeatureIds() )
   {
     cats << QgsGrassFeatureIterator::catFromFid( fid );
   }
-  qSort( cats );
+  std::sort( cats.begin(), cats.end() );
   QString list;
   // make ranges of cats
   int last = -1;
@@ -1460,18 +1391,14 @@ QStringList QgsGrassModuleSelection::options()
   return list;
 }
 
-QgsGrassModuleSelection::~QgsGrassModuleSelection()
-{
-}
-
 /***************** QgsGrassModuleFile *********************/
 
 QgsGrassModuleFile::QgsGrassModuleFile(
   QgsGrassModule *module,
   QString key, QDomElement &qdesc,
-  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget * parent )
-    : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
-    , mType( Old )
+  QDomElement &gdesc, QDomNode &gnode, bool direct, QWidget *parent )
+  : QgsGrassModuleGroupBoxItem( module, key, qdesc, gdesc, gnode, direct, parent )
+  , mType( Old )
 {
   if ( mTitle.isEmpty() )
   {
@@ -1499,12 +1426,12 @@ QgsGrassModuleFile::QgsGrassModuleFile(
 
   QHBoxLayout *l = new QHBoxLayout( this );
   mLineEdit = new QLineEdit();
-  mBrowseButton = new QPushButton( QStringLiteral( "..." ) );
+  mBrowseButton = new QPushButton( QStringLiteral( "…" ) );
   l->addWidget( mLineEdit );
   l->addWidget( mBrowseButton );
 
-  connect( mBrowseButton, SIGNAL( clicked() ),
-           this, SLOT( browse() ) );
+  connect( mBrowseButton, &QAbstractButton::clicked,
+           this, &QgsGrassModuleFile::browse );
 }
 
 QStringList QgsGrassModuleFile::options()
@@ -1537,13 +1464,13 @@ void QgsGrassModuleFile::browse()
 
   if ( mType == Multiple )
   {
-    QString path = mLineEdit->text().split( QStringLiteral( "," ) ).first();
+    QString path = mLineEdit->text().split( ',' ).first();
     if ( path.isEmpty() )
       path = lastDir;
     else
       path = QFileInfo( path ).absolutePath();
 
-    QStringList files = QFileDialog::getOpenFileNames( this, 0, path, mFilters );
+    QStringList files = QFileDialog::getOpenFileNames( this, nullptr, path, mFilters );
     if ( files.isEmpty() )
       return;
 
@@ -1558,11 +1485,11 @@ void QgsGrassModuleFile::browse()
       selectedFile = lastDir;
 
     if ( mType == New )
-      selectedFile = QFileDialog::getSaveFileName( this, 0, selectedFile, mFilters );
+      selectedFile = QFileDialog::getSaveFileName( this, nullptr, selectedFile, mFilters );
     else if ( mType == Directory )
-      selectedFile = QFileDialog::getExistingDirectory( this, 0, selectedFile );
+      selectedFile = QFileDialog::getExistingDirectory( this, nullptr, selectedFile );
     else
-      selectedFile = QFileDialog::getOpenFileName( this, 0, selectedFile, mFilters );
+      selectedFile = QFileDialog::getOpenFileName( this, nullptr, selectedFile, mFilters );
 
     lastDir = QFileInfo( selectedFile ).absolutePath();
 
@@ -1593,34 +1520,26 @@ QString QgsGrassModuleFile::ready()
   return error;
 }
 
-QgsGrassModuleFile::~QgsGrassModuleFile()
-{
-}
-
 /***************************** QgsGrassModuleCheckBox *********************************/
 
-QgsGrassModuleCheckBox::QgsGrassModuleCheckBox( const QString & text, QWidget * parent )
-    : QCheckBox( text, parent )
-    , mText( text )
+QgsGrassModuleCheckBox::QgsGrassModuleCheckBox( const QString &text, QWidget *parent )
+  : QCheckBox( text, parent )
+  , mText( text )
 {
   adjustText();
 }
 
-QgsGrassModuleCheckBox::~QgsGrassModuleCheckBox()
-{
-}
-
-void QgsGrassModuleCheckBox::resizeEvent( QResizeEvent * event )
+void QgsGrassModuleCheckBox::resizeEvent( QResizeEvent *event )
 {
   Q_UNUSED( event );
   adjustText();
 }
-void QgsGrassModuleCheckBox::setText( const QString & text )
+void QgsGrassModuleCheckBox::setText( const QString &text )
 {
   mText = text;
   adjustText();
 }
-void QgsGrassModuleCheckBox::setToolTip( const QString & text )
+void QgsGrassModuleCheckBox::setToolTip( const QString &text )
 {
   mTip = text;
   QWidget::setToolTip( text );

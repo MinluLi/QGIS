@@ -1,20 +1,19 @@
+/***************************************************************************
+    qgsruntimeprofiler.cpp
+    ---------------------
+    begin                : June 2016
+    copyright            : (C) 2016 by Nathan Woodrow
+    email                : woodrow dot nathan at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 #include "qgsruntimeprofiler.h"
 #include "qgslogger.h"
-
-
-QgsRuntimeProfiler* QgsRuntimeProfiler::mInstance = nullptr;
-
-QgsRuntimeProfiler* QgsRuntimeProfiler::instance()
-{
-  if ( !mInstance )
-    mInstance = new QgsRuntimeProfiler();
-  return mInstance;
-}
-
-QgsRuntimeProfiler::QgsRuntimeProfiler()
-{
-
-}
 
 void QgsRuntimeProfiler::beginGroup( const QString &name )
 {
@@ -30,7 +29,7 @@ void QgsRuntimeProfiler::endGroup()
 {
   if ( mGroupStack.isEmpty() )
   {
-    qWarning( "QSettings::endGroup: No matching beginGroup()" );
+    qWarning( "QgsSettings::endGroup: No matching beginGroup()" );
     return;
   }
 
@@ -50,10 +49,9 @@ void QgsRuntimeProfiler::end()
 {
   QString name = mCurrentName;
   name.prepend( mGroupPrefix );
-  double timing =  mProfileTime.elapsed() / 1000.0;
+  double timing = mProfileTime.elapsed() / 1000.0;
   mProfileTimes.append( QPair<QString, double>( name, timing ) );
-  QString message =  QStringLiteral( "PROFILE: %1 - %2" ).arg( name ).arg( timing );
-  QgsDebugMsg( message );
+  QgsDebugMsg( QStringLiteral( "PROFILE: %1 - %2" ).arg( name ).arg( timing ) );
 }
 
 void QgsRuntimeProfiler::clear()

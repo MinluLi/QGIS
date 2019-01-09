@@ -40,7 +40,7 @@ bool QgsPluginSortFilterProxyModel::filterAcceptsRow( int sourceRow, const QMode
 
 
 
-void QgsPluginSortFilterProxyModel::setAcceptedStatuses( const QStringList& statuses )
+void QgsPluginSortFilterProxyModel::setAcceptedStatuses( const QStringList &statuses )
 {
   mAcceptedStatuses = statuses;
   invalidateFilter();
@@ -48,7 +48,7 @@ void QgsPluginSortFilterProxyModel::setAcceptedStatuses( const QStringList& stat
 
 
 
-void QgsPluginSortFilterProxyModel::setAcceptedSpacers( const QString& spacers )
+void QgsPluginSortFilterProxyModel::setAcceptedSpacers( const QString &spacers )
 {
   mAcceptedSpacers = spacers;
   invalidateFilter();
@@ -61,7 +61,7 @@ bool QgsPluginSortFilterProxyModel::filterByStatus( QModelIndex &index ) const
   if ( mAcceptedStatuses.contains( QStringLiteral( "invalid" ) )
        && sourceModel()->data( index, PLUGIN_ERROR_ROLE ).toString().isEmpty() )
   {
-    // Don't accept if the "invalid" filter is set and the plugin is ok
+    // Don't accept if the "invalid" filter is set and the plugin is OK
     return false;
   }
 
@@ -150,4 +150,25 @@ void QgsPluginSortFilterProxyModel::sortPluginsByStatus()
   setAcceptedSpacers( QStringLiteral( "status" ) );
   sort( 0, Qt::DescendingOrder );
   setSortRole( PLUGIN_STATUS_ROLE );
+}
+
+
+
+bool QgsPluginSortFilterProxyModel::lessThan( const QModelIndex &source_left, const QModelIndex &source_right ) const
+{
+  // Always move deprecated plugins to bottom, regardless of the sort order.
+  const bool isLeftDepreciated = sourceModel()->data( source_left, PLUGIN_ISDEPRECATED_ROLE ).toString() == QStringLiteral( "true" );
+  const bool isRightDepreciated = sourceModel()->data( source_right, PLUGIN_ISDEPRECATED_ROLE ).toString() == QStringLiteral( "true" );
+  if ( isRightDepreciated && !isLeftDepreciated )
+  {
+    return sortOrder() == Qt::AscendingOrder ? true : false;
+  }
+  else if ( isLeftDepreciated && !isRightDepreciated )
+  {
+    return sortOrder() == Qt::AscendingOrder ? false : true;
+  }
+  else
+  {
+    return QSortFilterProxyModel::lessThan( source_left, source_right );
+  }
 }

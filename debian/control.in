@@ -13,38 +13,39 @@ Build-Depends:
  libexpat1-dev,
  libfcgi-dev,
  libgdal-dev (>= 1.11),
-#trusty# libgsl0-dev,
-#sid stretch xenial yakkety# libgsl-dev,
+#sid buster stretch xenial bionic cosmic# libgsl-dev,
  libgeos-dev (>= 3.0.0),
  libpq-dev,
  libproj-dev,
- libspatialite-dev,
+ libspatialite-dev, libsqlite3-mod-spatialite,
  libsqlite3-dev,
  libspatialindex-dev,
- qtbase5-dev, qttools5-dev-tools, qttools5-dev, qtscript5-dev, qtpositioning5-dev,
- libqt5svg5-dev, libqt5xmlpatterns5-dev, libqt5webkit5-dev, libqt5opengl5-dev, libqt5sql5-sqlite, libqt5scintilla2-dev,
+ libzip-dev,
+ qtbase5-dev, qttools5-dev-tools, qttools5-dev, qtpositioning5-dev, qt5keychain-dev,
+#!xenial# qtbase5-private-dev,
+ libqt5svg5-dev, libqt5xmlpatterns5-dev, libqt5webkit5-dev, libqt5opengl5-dev, libqt5sql5-sqlite, libqt5serialport5-dev, libqt5scintilla2-dev,
  libqwt-qt5-dev, libqca-qt5-2-dev, libqca-qt5-2-plugins,
+ opencl-headers, ocl-icd-opencl-dev,
  python3-dev, python3-all-dev, python3-sip, python3-sip-dev,
  pyqt5-dev-tools, pyqt5-dev, pyqt5.qsci-dev,
  python3-pyqt5, python3-pyqt5.qsci, python3-pyqt5.qtsql, python3-pyqt5.qtsvg,
  python3-gdal,
- python3-nose2, python3-yaml, python3-mock, python3-psycopg2, python3-future, python3-termcolor,
+ python3-nose2, python3-yaml, python3-mock, python3-psycopg2, python3-future, python3-termcolor, python3-owslib,
  pkg-config,
  git,
  txt2tags,
  doxygen,
- gdal-bin,
+ gdal-bin, saga,
  spawn-fcgi, lighttpd, poppler-utils,
  graphviz,
  xvfb, xauth,
  xfonts-base, xfonts-100dpi, xfonts-75dpi, xfonts-scalable,
-#sid# libosgearth-dev,
-#oracle# oracle-instantclient12.1-devel,
+#sid buster bionic cosmic# libosgearth-dev, qt3d5-dev, qt3d-assimpsceneimport-plugin, qt3d-defaultgeometryloader-plugin, qt3d-gltfsceneio-plugin, qt3d-scene2d-plugin,
+#oracle# oracle-instantclient12.1-devel, oracle-instantclient12.1-basiclite,
  locales, ca-certificates, ninja-build
 Build-Conflicts: libqgis-dev, qgis-dev
-#sid stretch xenial yakkety#Standards-Version: 3.9.7
-#trusty#Standards-Version: 3.8.4
-#trusty xenial yakkety#XS-Python-Version: current
+#sid buster stretch xenial bionic cosmic#Standards-Version: 3.9.7
+#                   xenial bionic cosmic#XS-Python-Version: current
 Vcs-Browser: https://github.com/qgis/QGIS/
 Vcs-Git: https://github.com/qgis/QGIS.git
 Homepage: http://qgis.org/
@@ -75,9 +76,10 @@ Description: Geographic Information System (GIS)
 Package: qgis-common
 Architecture: all
 Depends:
-  libjs-jquery,
-  libjs-leaflet,
-  ${misc:Depends}
+ libjs-jquery,
+ libjs-leaflet,
+#sid buster bionic cosmic# qml-module-qtcharts,
+ ${misc:Depends}
 Description: QGIS - architecture-independent data
  QGIS is a Geographic Information System (GIS) which manages, analyzes and
  display databases of geographic information.
@@ -134,18 +136,31 @@ Description: QGIS - shared analysis library
  .
  This package contains the shared analysis library.
 
-Package: libqgis-networkanalysis{QGIS_ABI}
+Package: libqgis-native{QGIS_ABI}
 Architecture: any
 Section: libs
 Depends:
  ${shlibs:Depends},
  ${misc:Depends}
-Description: QGIS - shared network analysis library
+Description: QGIS - shared native gui library
  QGIS is a Geographic Information System (GIS) which manages, analyzes and
  display databases of geographic information.
  .
- This package contains the shared network analysis library.
+ This package contains the shared native gui library.
 
+#sid buster bionic cosmic#Package: libqgis-3d{QGIS_ABI}
+#sid buster bionic cosmic#Architecture: any
+#sid buster bionic cosmic#Section: libs
+#sid buster bionic cosmic#Depends:
+#sid buster bionic cosmic# qt3d-assimpsceneimport-plugin, qt3d-defaultgeometryloader-plugin, qt3d-gltfsceneio-plugin, qt3d-scene2d-plugin,
+#sid buster bionic cosmic# ${shlibs:Depends},
+#sid buster bionic cosmic# ${misc:Depends}
+#sid buster bionic cosmic#Description: QGIS - shared 3d library
+#sid buster bionic cosmic# QGIS is a Geographic Information System (GIS) which manages, analyzes and
+#sid buster bionic cosmic# display databases of geographic information.
+#sid buster bionic cosmic# .
+#sid buster bionic cosmic# This package contains the shared 3d library.
+#sid buster bionic cosmic#
 Package: libqgisgrass{GRASSVER}-{QGIS_ABI}
 Architecture: any
 Section: libs
@@ -202,15 +217,13 @@ Depends:
  libexpat1-dev,
  libgdal-dev (>= 1.11),
  libgeos-dev (>= 3.0.0),
-#trusty# libgsl0-dev,
-#sid stretch xenial yakkety# libgsl-dev,
+#sid buster stretch xenial bionic cosmic# libgsl-dev,
  libpq-dev,
  libproj-dev,
  libqgis-app{QGIS_ABI} (= ${binary:Version}),
  libqgis-core{QGIS_ABI} (= ${binary:Version}),
  libqgis-gui{QGIS_ABI} (= ${binary:Version}),
  libqgis-analysis{QGIS_ABI} (= ${binary:Version}),
- libqgis-networkanalysis{QGIS_ABI} (= ${binary:Version}),
  libqgisgrass{GRASSVER}-{QGIS_ABI} (= ${binary:Version}),
  libqgispython{QGIS_ABI} (= ${binary:Version}),
  libsqlite3-dev,
@@ -222,7 +235,6 @@ Depends:
  libqt5webkit5-dev,
  libqca-qt5-2-dev,
  libqwt-qt5-dev,
- qtscript5-dev,
  qtpositioning5-dev,
  pyqt5-dev-tools,
  python3-pyqt5,
@@ -247,7 +259,6 @@ Depends:
  libqgis-core{QGIS_ABI} (= ${binary:Version}),
  libqgis-gui{QGIS_ABI} (= ${binary:Version}),
  libqgis-analysis{QGIS_ABI} (= ${binary:Version}),
- libqgis-networkanalysis{QGIS_ABI} (= ${binary:Version}),
  libqgisgrass{GRASSVER}-{QGIS_ABI} (= ${binary:Version}),
  libqgispython{QGIS_ABI} (= ${binary:Version}),
  ${misc:Depends}
@@ -277,7 +288,8 @@ Depends:
  qgis-provider-grass (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
- grass-core
+ grass-core,
+ grass{GRASSABI}
 Description: GRASS plugin for QGIS
  QGIS is a Geographic Information System (GIS) which manages, analyzes and
  display databases of geographic information.
@@ -330,6 +342,8 @@ Section: python
 Depends:
  python3-pyqt5,
  python3-pyqt5.qtsql,
+ python3-pyqt5.qtsvg,
+ python3-pyqt5.qtwebkit,
  python3-sip,
  python-qgis-common (= ${source:Version}),
  python3-psycopg2,
@@ -344,6 +358,10 @@ Depends:
  python3-six,
  python3-yaml,
  python3-future,
+ python3-plotly,
+ python3-pyproj,
+ python3-owslib,
+ libsqlite3-mod-spatialite,
  libqgispython{QGIS_ABI},
  ${shlibs:Depends},
  ${python:Depends},
@@ -363,11 +381,12 @@ Section: python
 Provides: ${python:Provides}
 Depends:
  gdal-bin,
+ python-gdal,
  python3-gdal,
  python3-matplotlib,
- python3-shapely,
  libqgis-customwidgets,
  ${misc:Depends}
+Suggests: saga
 XB-Python-Version: ${python:Versions}
 Description: Python bindings to QGIS - architecture-independent files
  QGIS is a Geographic Information System (GIS) which manages, analyzes and
@@ -434,7 +453,7 @@ Description: QGIS API documentation
 
 #oracle#Package: qgis-oracle-provider
 #oracle#Architecture: any
-#oracle#Depends: ${shlibs:Depends}, ${misc:Depends}
+#oracle#Depends: libaio1, ${shlibs:Depends}, ${misc:Depends}
 #oracle#Section: contrib/database
 #oracle#Description: QGIS oracle provider
 #oracle# QGIS is a Geographic Information System (GIS) which manages, analyzes and

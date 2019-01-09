@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import next
 
 __author__ = 'Alexander Bruy'
 __date__ = 'April 2014'
@@ -29,66 +28,106 @@ __revision__ = '$Format:%H$'
 import random
 
 from qgis.PyQt.QtCore import QVariant
-from qgis.core import (Qgis, QgsFields, QgsField, QgsGeometry, QgsSpatialIndex, QgsWkbTypes,
-                       QgsDistanceArea, QgsFeatureRequest, QgsFeature,
-                       QgsPoint)
+from qgis.core import (QgsField,
+                       QgsFeatureSink,
+                       QgsFeature,
+                       QgsFields,
+                       QgsGeometry,
+                       QgsPointXY,
+                       QgsWkbTypes,
+                       QgsSpatialIndex,
+                       QgsFeatureRequest,
+                       QgsDistanceArea,
+                       QgsProject,
+                       QgsProcessing,
+                       QgsProcessingException,
+                       QgsProcessingParameterDistance,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterFeatureSink,
+                       QgsProcessingParameterDefinition)
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.ProcessingLog import ProcessingLog
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterNumber
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+from processing.tools import vector
 
 
-class RandomPointsAlongLines(GeoAlgorithm):
+class RandomPointsAlongLines(QgisAlgorithm):
 
-    VECTOR = 'VECTOR'
-    POINT_NUMBER = 'POINT_NUMBER'
+    INPUT = 'INPUT'
+    POINTS_NUMBER = 'POINTS_NUMBER'
     MIN_DISTANCE = 'MIN_DISTANCE'
     OUTPUT = 'OUTPUT'
 
-    def defineCharacteristics(self):
-        self.name, self.i18n_name = self.trAlgorithm('Random points along line')
-        self.group, self.i18n_group = self.trAlgorithm('Vector creation tools')
-        self.addParameter(ParameterVector(self.VECTOR,
-                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_LINE]))
-        self.addParameter(ParameterNumber(self.POINT_NUMBER,
-                                          self.tr('Number of points'), 1, None, 1))
-        self.addParameter(ParameterNumber(self.MIN_DISTANCE,
-                                          self.tr('Minimum distance'), 0.0, None, 0.0))
+    def group(self):
+        return self.tr('Vector creation')
 
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Random points'), datatype=[dataobjects.TYPE_VECTOR_POINT]))
+    def groupId(self):
+        return 'vectorcreation'
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-            self.getParameterValue(self.VECTOR))
-        pointCount = float(self.getParameterValue(self.POINT_NUMBER))
-        minDistance = float(self.getParameterValue(self.MIN_DISTANCE))
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer'),
+                                                              [QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterNumber(self.POINTS_NUMBER,
+                                                       self.tr('Number of points'),
+                                                       QgsProcessingParameterNumber.Integer,
+                                                       1, False, 1, 1000000000))
+        self.addParameter(QgsProcessingParameterDistance(self.MIN_DISTANCE,
+                                                         self.tr('Minimum distance between points'),
+                                                         0, self.INPUT, False, 0, 1000000000))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT,
+                                                            self.tr('Random points'),
+                                                            type=QgsProcessing.TypeVectorPoint))
+
+    def name(self):
+        return 'randompointsalongline'
+
+    def displayName(self):
+        return self.tr('Random points along line')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        pointCount = self.parameterAsDouble(parameters, self.POINTS_NUMBER, context)
+        minDistance = self.parameterAsDouble(parameters, self.MIN_DISTANCE, context)
 
         fields = QgsFields()
         fields.append(QgsField('id', QVariant.Int, '', 10, 0))
-        writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, QgsWkbTypes.Point, layer.crs())
+
+        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                                               fields, QgsWkbTypes.Point, source.sourceCrs())
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
         nPoints = 0
         nIterations = 0
         maxIterations = pointCount * 200
-        featureCount = layer.featureCount()
-        total = 100.0 / pointCount
+        featureCount = source.featureCount()
+        total = 100.0 / pointCount if pointCount else 1
 
         index = QgsSpatialIndex()
         points = dict()
 
         da = QgsDistanceArea()
+        da.setSourceCrs(source.sourceCrs(), context.transformContext())
+        da.setEllipsoid(context.project().ellipsoid())
+
         request = QgsFeatureRequest()
 
         random.seed()
 
         while nIterations < maxIterations and nPoints < pointCount:
+            if feedback.isCanceled():
+                break
+
             # pick random feature
             fid = random.randint(0, featureCount - 1)
-            f = next(layer.getFeatures(request.setFilterFid(fid).setSubsetOfAttributes([])))
+            f = next(source.getFeatures(request.setFilterFid(fid).setSubsetOfAttributes([])))
             fGeom = f.geometry()
 
             if fGeom.isMultipart():
@@ -115,24 +154,23 @@ class RandomPointsAlongLines(GeoAlgorithm):
                 ry = (startPoint.y() + d * endPoint.y()) / (1 + d)
 
                 # generate random point
-                pnt = QgsPoint(rx, ry)
-                geom = QgsGeometry.fromPoint(pnt)
-                if vector.checkMinDistance(pnt, index, minDistance, points):
+                p = QgsPointXY(rx, ry)
+                geom = QgsGeometry.fromPointXY(p)
+                if vector.checkMinDistance(p, index, minDistance, points):
                     f = QgsFeature(nPoints)
                     f.initAttributes(1)
                     f.setFields(fields)
                     f.setAttribute('id', nPoints)
                     f.setGeometry(geom)
-                    writer.addFeature(f)
-                    index.insertFeature(f)
-                    points[nPoints] = pnt
+                    sink.addFeature(f, QgsFeatureSink.FastInsert)
+                    index.addFeature(f)
+                    points[nPoints] = p
                     nPoints += 1
-                    progress.setPercentage(int(nPoints * total))
+                    feedback.setProgress(int(nPoints * total))
             nIterations += 1
 
         if nPoints < pointCount:
-            ProcessingLog.addToLog(ProcessingLog.LOG_INFO,
-                                   self.tr('Can not generate requested number of random points. '
-                                           'Maximum number of attempts exceeded.'))
+            feedback.pushInfo(self.tr('Could not generate requested number of random points. '
+                                      'Maximum number of attempts exceeded.'))
 
-        del writer
+        return {self.OUTPUT: dest_id}

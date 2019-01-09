@@ -29,6 +29,77 @@
    <property name="spacing">
     <number>3</number>
    </property>
+   <item row="6" column="0">
+    <widget class="QgsDualView" name="mMainView">
+     <property name="currentIndex">
+      <number>-1</number>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QFrame" name="mUpdateExpressionBox">
+     <layout class="QHBoxLayout" name="horizontalLayout_3">
+      <property name="spacing">
+       <number>3</number>
+      </property>
+      <property name="leftMargin">
+       <number>3</number>
+      </property>
+      <property name="topMargin">
+       <number>1</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>3</number>
+      </property>
+      <item>
+       <widget class="QgsFieldComboBox" name="mFieldCombo"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>=</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QgsFieldExpressionWidget" name="mUpdateExpressionText" native="true">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::StrongFocus</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="mRunFieldCalc">
+        <property name="text">
+         <string>Update All</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="mRunFieldCalcSelected">
+        <property name="text">
+         <string>Update Selected</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
    <item row="8" column="0">
     <layout class="QHBoxLayout">
      <property name="leftMargin">
@@ -170,6 +241,10 @@
      <addaction name="separator"/>
      <addaction name="mActionAddFeature"/>
      <addaction name="mActionDeleteSelected"/>
+     <addaction name="mActionCutSelectedRows"/>
+     <addaction name="mActionCopySelectedRows"/>
+     <addaction name="mActionPasteFeatures"/>
+     <addaction name="separator"/>
      <addaction name="mActionExpressionSelect"/>
      <addaction name="mActionSelectAll"/>
      <addaction name="mActionInvertSelection"/>
@@ -179,82 +254,13 @@
      <addaction name="mActionPanMapToSelectedRows"/>
      <addaction name="mActionZoomMapToSelectedRows"/>
      <addaction name="separator"/>
-     <addaction name="mActionCopySelectedRows"/>
-     <addaction name="mActionPasteFeatures"/>
-     <addaction name="separator"/>
      <addaction name="mActionAddAttribute"/>
      <addaction name="mActionRemoveAttribute"/>
      <addaction name="mActionOpenFieldCalculator"/>
      <addaction name="separator"/>
      <addaction name="mActionSetStyles"/>
-    </widget>
-   </item>
-   <item row="6" column="0">
-    <widget class="QgsDualView" name="mMainView">
-     <property name="currentIndex">
-      <number>-1</number>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="0">
-    <widget class="QFrame" name="mUpdateExpressionBox">
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
-      <property name="spacing">
-       <number>3</number>
-      </property>
-      <property name="leftMargin">
-       <number>3</number>
-      </property>
-      <property name="topMargin">
-       <number>1</number>
-      </property>
-      <property name="rightMargin">
-       <number>0</number>
-      </property>
-      <property name="bottomMargin">
-       <number>3</number>
-      </property>
-      <item>
-       <widget class="QgsFieldComboBox" name="mFieldCombo"/>
-      </item>
-      <item>
-       <widget class="QLabel" name="label">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>=</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QgsFieldExpressionWidget" name="mUpdateExpressionText" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QToolButton" name="mRunFieldCalc">
-        <property name="text">
-         <string>Update All</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QToolButton" name="mRunFieldCalcSelected">
-        <property name="text">
-         <string>Update Selected</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
+     <addaction name="separator"/>
+     <addaction name="mActionDockUndock"/>
     </widget>
    </item>
   </layout>
@@ -388,7 +394,7 @@
   <action name="mActionReload">
    <property name="icon">
     <iconset resource="../../images/images.qrc">
-     <normaloff>:/images/themes/default/mActionDraw.svg</normaloff>:/images/themes/default/mActionDraw.svg</iconset>
+     <normaloff>:/images/themes/default/mActionRefresh.svg</normaloff>:/images/themes/default/mActionRefresh.svg</iconset>
    </property>
    <property name="text">
     <string>Reload the table</string>
@@ -523,13 +529,28 @@
     <string>Ctrl+J</string>
    </property>
   </action>
+  <action name="mActionCutSelectedRows">
+   <property name="icon">
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditCut.svg</normaloff>:/images/themes/default/mActionEditCut.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Cut selected rows to clipboard</string>
+   </property>
+   <property name="toolTip">
+    <string>Cut selected rows to clipboard (Ctrl+X)</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+X</string>
+   </property>
+  </action>
   <action name="mActionCopySelectedRows">
    <property name="icon">
     <iconset resource="../../images/images.qrc">
      <normaloff>:/images/themes/default/mActionEditCopy.svg</normaloff>:/images/themes/default/mActionEditCopy.svg</iconset>
    </property>
    <property name="text">
-    <string>Copy selected rows to clipboard (Ctrl+C)</string>
+    <string>Copy selected rows to clipboard</string>
    </property>
    <property name="toolTip">
     <string>Copy selected rows to clipboard (Ctrl+C)</string>
@@ -613,6 +634,21 @@
     <string>Conditional formatting</string>
    </property>
   </action>
+  <action name="mActionDockUndock">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mDockify.svg</normaloff>:/images/themes/default/mDockify.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Dock Attribute Table</string>
+   </property>
+   <property name="toolTip">
+    <string>Dock Attribute Table</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -640,6 +676,7 @@
  </customwidgets>
  <tabstops>
   <tabstop>mFieldCombo</tabstop>
+  <tabstop>mUpdateExpressionText</tabstop>
   <tabstop>mRunFieldCalc</tabstop>
   <tabstop>mRunFieldCalcSelected</tabstop>
   <tabstop>mFilterButton</tabstop>
@@ -649,6 +686,35 @@
   <tabstop>mTableViewButton</tabstop>
  </tabstops>
  <resources>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
+  <include location="../../images/images.qrc"/>
   <include location="../../images/images.qrc"/>
  </resources>
  <connections>

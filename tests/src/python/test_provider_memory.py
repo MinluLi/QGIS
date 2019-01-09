@@ -14,16 +14,21 @@ __revision__ = '$Format:%H$'
 
 
 from qgis.core import (
-    Qgis,
     QgsField,
-    QgsPoint,
-    QgsMapLayer,
+    QgsFields,
+    QgsLayerDefinition,
+    QgsPointXY,
+    QgsReadWriteContext,
     QgsVectorLayer,
     QgsFeatureRequest,
     QgsFeature,
     QgsGeometry,
     QgsWkbTypes,
-    NULL
+    NULL,
+    QgsMemoryProviderUtils,
+    QgsCoordinateReferenceSystem,
+    QgsRectangle,
+    QgsTestUtils
 )
 
 from qgis.testing import (
@@ -46,13 +51,11 @@ TEST_DATA_DIR = unitTestDataPath()
 class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
 
     @classmethod
-    def setUpClass(cls):
-        """Run before all tests"""
-        # Create test layer
-        cls.vl = QgsVectorLayer('Point?crs=epsg:4326&field=pk:integer&field=cnt:integer&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
-                                'test', 'memory')
-        assert (cls.vl.isValid())
-        cls.provider = cls.vl.dataProvider()
+    def createLayer(cls):
+        vl = QgsVectorLayer(
+            'Point?crs=epsg:4326&field=pk:integer&field=cnt:integer&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
+            'test', 'memory')
+        assert (vl.isValid())
 
         f1 = QgsFeature()
         f1.setAttributes([5, -200, NULL, 'NuLl', '5'])
@@ -73,7 +76,16 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         f5.setAttributes([4, 400, 'Honey', 'Honey', '4'])
         f5.setGeometry(QgsGeometry.fromWkt('Point (-65.32 78.3)'))
 
-        cls.provider.addFeatures([f1, f2, f3, f4, f5])
+        vl.dataProvider().addFeatures([f1, f2, f3, f4, f5])
+        return vl
+
+    @classmethod
+    def setUpClass(cls):
+        """Run before all tests"""
+        # Create test layer
+        cls.vl = cls.createLayer()
+        assert (cls.vl.isValid())
+        cls.source = cls.vl.dataProvider()
 
         # poly layer
         cls.poly_vl = QgsVectorLayer('Polygon?crs=epsg:4326&field=pk:integer&key=pk',
@@ -101,6 +113,9 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
     @classmethod
     def tearDownClass(cls):
         """Run after all tests"""
+
+    def getEditableLayer(self):
+        return self.createLayer()
 
     def testGetFeaturesSubsetAttributes2(self):
         """ Override and skip this test for memory provider, as it's actually more efficient for the memory provider to return
@@ -178,7 +193,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         assert len(provider.fields()) == 3, myMessage
 
         ft = QgsFeature()
-        ft.setGeometry(QgsGeometry.fromPoint(QgsPoint(10, 10)))
+        ft.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(10, 10)))
         ft.setAttributes(["Johny",
                           20,
                           0.3])
@@ -209,9 +224,9 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
             geom = f.geometry()
 
             myMessage = ('Expected: %s\nGot: %s\n' %
-                         ("Point (10 10)", str(geom.exportToWkt())))
+                         ("Point (10 10)", str(geom.asWkt())))
 
-            assert compareWkt(str(geom.exportToWkt()), "Point (10 10)"), myMessage
+            assert compareWkt(str(geom.asWkt()), "Point (10 10)"), myMessage
 
     def testGetFields(self):
         layer = QgsVectorLayer("Point", "test", "memory")
@@ -226,7 +241,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         assert len(provider.fields()) == 3, myMessage
 
         ft = QgsFeature()
-        ft.setGeometry(QgsGeometry.fromPoint(QgsPoint(10, 10)))
+        ft.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(10, 10)))
         ft.setAttributes(["Johny",
                           20,
                           0.3])
@@ -250,6 +265,26 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         myProvider = myMemoryLayer.dataProvider()
         assert myProvider is not None
 
+    def testLengthPrecisionFromUri(self):
+        """Test we can assign length and precision from a uri"""
+        myMemoryLayer = QgsVectorLayer(
+            ('Point?crs=epsg:4326&field=size:double(12,9)&index=yes'),
+            'test',
+            'memory')
+
+        self.assertEqual(myMemoryLayer.fields().field('size').length(), 12)
+        self.assertEqual(myMemoryLayer.fields().field('size').precision(), 9)
+
+    def testFromUriWithEncodedField(self):
+        """Test we can construct the mem provider from a uri when a field name is encoded"""
+        layer = QgsVectorLayer(
+            ('Point?crs=epsg:4326&field=name:string(20)&'
+             'field=test%2Ffield:integer'),
+            'test',
+            'memory')
+        self.assertTrue(layer.isValid())
+        self.assertEqual([f.name() for f in layer.fields()], ['name', 'test/field'])
+
     def testSaveFields(self):
         # Create a new memory layer with no fields
         myMemoryLayer = QgsVectorLayer(
@@ -272,11 +307,11 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         myMemoryLayer.updateFields()
 
         # Export the layer to a layer-definition-XML
-        qlr = QgsMapLayer.asLayerDefinition([myMemoryLayer])
+        qlr = QgsLayerDefinition.exportLayerDefinitionLayers([myMemoryLayer], QgsReadWriteContext())
         assert qlr is not None
 
         # Import the layer from the layer-definition-XML
-        layers = QgsMapLayer.fromLayerDefinition(qlr)
+        layers = QgsLayerDefinition.loadLayerDefinitionLayers(qlr, QgsReadWriteContext())
         assert layers is not None
         myImportedLayer = layers[0]
         assert myImportedLayer is not None
@@ -297,7 +332,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         layer.updateFields()
         assert res, "Failed to add attributes"
         ft = QgsFeature()
-        ft.setGeometry(QgsGeometry.fromPoint(QgsPoint(10, 10)))
+        ft.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(10, 10)))
         ft.setAttributes(["Johny",
                           20,
                           0.3])
@@ -325,6 +360,155 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         self.assertEqual(fet.fields()[1].name(), 'mapinfo_is_the_stone_age')
         self.assertEqual(fet.fields()[2].name(), 'super_size')
 
+    def testUniqueSource(self):
+        """
+        Similar memory layers should have unique source - some code checks layer source to identify
+        matching layers
+        """
+        layer = QgsVectorLayer("Point", "test", "memory")
+        layer2 = QgsVectorLayer("Point", "test2", "memory")
+        self.assertNotEqual(layer.source(), layer2.source())
+
+    def testCreateMemoryLayer(self):
+        """
+        Test QgsMemoryProviderUtils.createMemoryLayer()
+        """
+
+        # no fields
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', QgsFields())
+        self.assertTrue(layer.isValid())
+        self.assertEqual(layer.name(), 'my name')
+        self.assertTrue(layer.fields().isEmpty())
+
+        # similar layers should have unique sources
+        layer2 = QgsMemoryProviderUtils.createMemoryLayer('my name', QgsFields())
+        self.assertNotEqual(layer.source(), layer2.source())
+
+        # geometry type
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', QgsFields(), QgsWkbTypes.Point)
+        self.assertTrue(layer.isValid())
+        self.assertEqual(layer.wkbType(), QgsWkbTypes.Point)
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', QgsFields(), QgsWkbTypes.PolygonZM)
+        self.assertTrue(layer.isValid())
+        self.assertEqual(layer.wkbType(), QgsWkbTypes.PolygonZM)
+
+        # crs
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', QgsFields(), QgsWkbTypes.PolygonZM, QgsCoordinateReferenceSystem.fromEpsgId(3111))
+        self.assertTrue(layer.isValid())
+        self.assertEqual(layer.wkbType(), QgsWkbTypes.PolygonZM)
+        self.assertTrue(layer.crs().isValid())
+        self.assertEqual(layer.crs().authid(), 'EPSG:3111')
+
+        # fields
+        fields = QgsFields()
+        fields.append(QgsField("string", QVariant.String))
+        fields.append(QgsField("long", QVariant.LongLong))
+        fields.append(QgsField("double", QVariant.Double))
+        fields.append(QgsField("integer", QVariant.Int))
+        fields.append(QgsField("date", QVariant.Date))
+        fields.append(QgsField("datetime", QVariant.DateTime))
+        fields.append(QgsField("time", QVariant.Time))
+        fields.append(QgsField("#complex_name", QVariant.String))
+        fields.append(QgsField("complex/name", QVariant.String))
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', fields)
+        self.assertTrue(layer.isValid())
+        self.assertFalse(layer.fields().isEmpty())
+        self.assertEqual(len(layer.fields()), len(fields))
+        for i in range(len(fields)):
+            self.assertEqual(layer.fields()[i].name(), fields[i].name())
+            self.assertEqual(layer.fields()[i].type(), fields[i].type())
+
+        # unsupported field type
+        fields = QgsFields()
+        fields.append(QgsField("rect", QVariant.RectF))
+        layer = QgsMemoryProviderUtils.createMemoryLayer('my name', fields)
+        self.assertTrue(layer.isValid())
+        self.assertFalse(layer.fields().isEmpty())
+        self.assertEqual(layer.fields()[0].name(), 'rect')
+        self.assertEqual(layer.fields()[0].type(), QVariant.String) # should be mapped to string
+
+    def testThreadSafetyWithIndex(self):
+        layer = QgsVectorLayer('Point?crs=epsg:4326&index=yes&field=pk:integer&field=cnt:int8&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
+                               'test', 'memory')
+
+        provider = layer.dataProvider()
+        f = QgsFeature()
+        f.setAttributes([5, -200, NULL, 'NuLl', '5'])
+        f.setGeometry(QgsGeometry.fromWkt('Point (-71.123 78.23)'))
+
+        for i in range(100000):
+            provider.addFeatures([f])
+
+        # filter rect request
+        extent = QgsRectangle(-73, 70, -63, 80)
+        request = QgsFeatureRequest().setFilterRect(extent)
+        self.assertTrue(QgsTestUtils.testProviderIteratorThreadSafety(self.source, request))
+
+    def testMinMaxCache(self):
+        """
+        Test that min/max cache is appropriately cleared
+        :return:
+        """
+        vl = QgsVectorLayer(
+            'Point?crs=epsg:4326&field=f1:integer&field=f2:integer',
+            'test', 'memory')
+        self.assertTrue(vl.isValid())
+
+        f1 = QgsFeature()
+        f1.setAttributes([5, -200])
+        f2 = QgsFeature()
+        f2.setAttributes([3, 300])
+        f3 = QgsFeature()
+        f3.setAttributes([1, 100])
+        f4 = QgsFeature()
+        f4.setAttributes([2, 200])
+        f5 = QgsFeature()
+        f5.setAttributes([4, 400])
+        res, [f1, f2, f3, f4, f5] = vl.dataProvider().addFeatures([f1, f2, f3, f4, f5])
+        self.assertTrue(res)
+
+        self.assertEqual(vl.dataProvider().minimumValue(0), 1)
+        self.assertEqual(vl.dataProvider().minimumValue(1), -200)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 5)
+        self.assertEqual(vl.dataProvider().maximumValue(1), 400)
+
+        # add feature
+        f6 = QgsFeature()
+        f6.setAttributes([15, 1400])
+        res, [f6] = vl.dataProvider().addFeatures([f6])
+        self.assertTrue(res)
+        self.assertEqual(vl.dataProvider().minimumValue(0), 1)
+        self.assertEqual(vl.dataProvider().minimumValue(1), -200)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 15)
+        self.assertEqual(vl.dataProvider().maximumValue(1), 1400)
+        f7 = QgsFeature()
+        f7.setAttributes([-1, -1400])
+        res, [f7] = vl.dataProvider().addFeatures([f7])
+        self.assertTrue(res)
+        self.assertEqual(vl.dataProvider().minimumValue(0), -1)
+        self.assertEqual(vl.dataProvider().minimumValue(1), -1400)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 15)
+        self.assertEqual(vl.dataProvider().maximumValue(1), 1400)
+
+        # change attribute values
+        self.assertTrue(vl.dataProvider().changeAttributeValues({f6.id(): {0: 3, 1: 150}, f7.id(): {0: 4, 1: -100}}))
+        self.assertEqual(vl.dataProvider().minimumValue(0), 1)
+        self.assertEqual(vl.dataProvider().minimumValue(1), -200)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 5)
+        self.assertEqual(vl.dataProvider().maximumValue(1), 400)
+
+        # delete features
+        self.assertTrue(vl.dataProvider().deleteFeatures([f4.id(), f1.id()]))
+        self.assertEqual(vl.dataProvider().minimumValue(0), 1)
+        self.assertEqual(vl.dataProvider().minimumValue(1), -100)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 4)
+        self.assertEqual(vl.dataProvider().maximumValue(1), 400)
+
+        # delete attributes
+        self.assertTrue(vl.dataProvider().deleteAttributes([0]))
+        self.assertEqual(vl.dataProvider().minimumValue(0), -100)
+        self.assertEqual(vl.dataProvider().maximumValue(0), 400)
+
 
 class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
 
@@ -337,7 +521,7 @@ class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
         cls.vl = QgsVectorLayer('Point?crs=epsg:4326&index=yes&field=pk:integer&field=cnt:int8&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
                                 'test', 'memory')
         assert (cls.vl.isValid())
-        cls.provider = cls.vl.dataProvider()
+        cls.source = cls.vl.dataProvider()
 
         f1 = QgsFeature()
         f1.setAttributes([5, -200, NULL, 'NuLl', '5'])
@@ -358,7 +542,7 @@ class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
         f5.setAttributes([4, 400, 'Honey', 'Honey', '4'])
         f5.setGeometry(QgsGeometry.fromWkt('Point (-65.32 78.3)'))
 
-        cls.provider.addFeatures([f1, f2, f3, f4, f5])
+        cls.source.addFeatures([f1, f2, f3, f4, f5])
 
         # poly layer
         cls.poly_vl = QgsVectorLayer('Polygon?crs=epsg:4326&index=yes&field=pk:integer&key=pk',
@@ -398,6 +582,7 @@ class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
         its features as direct copies (due to implicit sharing of QgsFeature)
         """
         pass
+
 
 if __name__ == '__main__':
     unittest.main()

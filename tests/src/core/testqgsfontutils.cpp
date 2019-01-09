@@ -12,12 +12,11 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QSettings>
-#include <QSharedPointer>
 
 #include "qgsapplication.h"
 #include "qgsfontutils.h"
@@ -164,5 +163,5 @@ void TestQgsFontUtils::toCss()
   QCOMPARE( QgsFontUtils::asCSS( f1, 10 ), QString( "font-family: QGIS Vera Sans;font-style: oblique;font-weight: 700;font-size: 125px;" ) );
 }
 
-QTEST_MAIN( TestQgsFontUtils )
+QGSTEST_MAIN( TestQgsFontUtils )
 #include "testqgsfontutils.moc"

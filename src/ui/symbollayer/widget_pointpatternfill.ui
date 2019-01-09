@@ -14,21 +14,35 @@
    <string>Form</string>
   </property>
   <layout class="QGridLayout" name="gridLayout" columnstretch="0,1,0">
-   <item row="0" column="0">
+   <item row="0" column="0" colspan="3">
     <widget class="QLabel" name="mHorizontalDistanceLabel">
      <property name="text">
-      <string>Horizontal distance</string>
+      <string>Distance</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="0">
+   <item row="3" column="0" colspan="3">
     <widget class="QLabel" name="mHorizontalDisplacementLabel">
      <property name="text">
-      <string>Horizontal displacement</string>
+      <string>Displacement</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="1">
+   <item row="1" column="0">
+    <widget class="QLabel" name="mHorizontalDistanceLabel1">
+     <property name="text">
+      <string>Horizontal</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="mHorizontalDisplacementLabel1">
+     <property name="text">
+      <string>Horizontal</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
       <widget class="QgsDoubleSpinBox" name="mVerticalDistanceSpinBox">
@@ -53,25 +67,29 @@
       </widget>
      </item>
      <item>
-      <widget class="QgsUnitSelectionWidget" name="mVerticalDistanceUnitWidget" native="true"/>
+      <widget class="QgsUnitSelectionWidget" name="mVerticalDistanceUnitWidget" native="true">
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
-   <item row="1" column="2">
-    <widget class="QgsDataDefinedButton" name="mVerticalDistanceDDBtn">
+   <item row="2" column="2">
+    <widget class="QgsPropertyOverrideButton" name="mVerticalDistanceDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="5" column="0">
     <widget class="QLabel" name="mVerticalDisplacementLabel">
      <property name="text">
-      <string>Vertical displacement</string>
+      <string>Vertical</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
+   <item row="5" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_5">
      <item>
       <widget class="QgsDoubleSpinBox" name="mVerticalDisplacementSpinBox">
@@ -103,25 +121,28 @@
          <height>0</height>
         </size>
        </property>
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-   <item row="0" column="2">
-    <widget class="QgsDataDefinedButton" name="mHorizontalDistanceDDBtn">
+   <item row="1" column="2">
+    <widget class="QgsPropertyOverrideButton" name="mHorizontalDistanceDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="2" column="0">
     <widget class="QLabel" name="mVerticalDistanceLabel">
      <property name="text">
-      <string>Vertical distance</string>
+      <string>Vertical</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="1">
+   <item row="4" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_4">
      <item>
       <widget class="QgsDoubleSpinBox" name="mHorizontalDisplacementSpinBox">
@@ -153,18 +174,21 @@
          <height>0</height>
         </size>
        </property>
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-   <item row="2" column="2">
-    <widget class="QgsDataDefinedButton" name="mHorizontalDisplacementDDBtn">
+   <item row="4" column="2">
+    <widget class="QgsPropertyOverrideButton" name="mHorizontalDisplacementDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="1">
+   <item row="1" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QgsDoubleSpinBox" name="mHorizontalDistanceSpinBox">
@@ -196,18 +220,21 @@
          <height>0</height>
         </size>
        </property>
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-   <item row="3" column="2">
-    <widget class="QgsDataDefinedButton" name="mVerticalDisplacementDDBtn">
+   <item row="5" column="2">
+    <widget class="QgsPropertyOverrideButton" name="mVerticalDisplacementDDBtn">
      <property name="text">
-      <string>...</string>
+      <string>…</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="0" colspan="2">
+   <item row="6" column="0" colspan="3">
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -224,14 +251,14 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsDataDefinedButton</class>
-   <extends>QToolButton</extends>
-   <header>qgsdatadefinedbutton.h</header>
-  </customwidget>
-  <customwidget>
    <class>QgsDoubleSpinBox</class>
    <extends>QDoubleSpinBox</extends>
    <header>qgsdoublespinbox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsPropertyOverrideButton</class>
+   <extends>QToolButton</extends>
+   <header>qgspropertyoverridebutton.h</header>
   </customwidget>
   <customwidget>
    <class>QgsUnitSelectionWidget</class>
@@ -240,6 +267,20 @@
    <container>1</container>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>mHorizontalDistanceSpinBox</tabstop>
+  <tabstop>mHorizontalDistanceUnitWidget</tabstop>
+  <tabstop>mHorizontalDistanceDDBtn</tabstop>
+  <tabstop>mVerticalDistanceSpinBox</tabstop>
+  <tabstop>mVerticalDistanceUnitWidget</tabstop>
+  <tabstop>mVerticalDistanceDDBtn</tabstop>
+  <tabstop>mHorizontalDisplacementSpinBox</tabstop>
+  <tabstop>mHorizontalDisplacementUnitWidget</tabstop>
+  <tabstop>mHorizontalDisplacementDDBtn</tabstop>
+  <tabstop>mVerticalDisplacementSpinBox</tabstop>
+  <tabstop>mVerticalDisplacementUnitWidget</tabstop>
+  <tabstop>mVerticalDisplacementDDBtn</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

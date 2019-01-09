@@ -20,8 +20,10 @@
 #include <QWidget>
 
 #include "qgis.h"
+#include "qgis_gui.h"
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Abstract base class for the edit widget of authentication method plugins
  */
 class GUI_EXPORT QgsAuthMethodEdit : public QWidget
@@ -40,9 +42,10 @@ class GUI_EXPORT QgsAuthMethodEdit : public QWidget
     void validityChanged( bool valid );
 
   public slots:
+
     /**
      * Load an existing config map into subclassed widget
-     * @param configmap
+     * \param configmap
      */
     virtual void loadConfig( const QgsStringMap &configmap ) = 0;
 
@@ -53,16 +56,17 @@ class GUI_EXPORT QgsAuthMethodEdit : public QWidget
     virtual void clearConfig() = 0;
 
   protected:
+
     /**
      * Construct widget to edit an authentication method configuration
-     * @note Non-public since this is an abstract base class
-     * @param parent Parent widget
+     * \note Non-public since this is an abstract base class
+     * \param parent Parent widget
      */
     explicit QgsAuthMethodEdit( QWidget *parent = nullptr )
-        : QWidget( parent )
+      : QWidget( parent )
     {}
 
-    virtual ~QgsAuthMethodEdit() {}
+    ~QgsAuthMethodEdit() override = default;
 };
 
 #endif // QGSAUTHMETHODEDIT_H

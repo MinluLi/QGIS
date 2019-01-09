@@ -17,7 +17,7 @@ email                : hugo dot mercier at oslandia dot com
 #ifndef QGSVIRTUAL_LAYER_PROVIDER_H
 #define QGSVIRTUAL_LAYER_PROVIDER_H
 
-#include <qgsvectordataprovider.h>
+#include "qgsvectordataprovider.h"
 
 #include "qgscoordinatereferencesystem.h"
 #include "qgsvirtuallayerdefinition.h"
@@ -32,54 +32,30 @@ class QgsVirtualLayerProvider: public QgsVectorDataProvider
 
     /**
      * Constructor of the vector provider
-     * @param uri  uniform resource locator (URI) for a dataset
+     * \param uri uniform resource locator (URI) for a dataset
+     * \param options generic data provider options
      */
-    explicit QgsVirtualLayerProvider( QString const &uri = "" );
+    explicit QgsVirtualLayerProvider( QString const &uri, const ProviderOptions &options );
 
-    //! Destructor
-    virtual ~QgsVirtualLayerProvider();
-
-    virtual QgsAbstractFeatureSource* featureSource() const override;
-
-    //! Returns the permanent storage type for this layer as a friendly name
-    virtual QString storageType() const override;
-
-    virtual QgsCoordinateReferenceSystem crs() const override;
-
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request ) const override;
-
-    //! Get the feature geometry type
+    QgsAbstractFeatureSource *featureSource() const override;
+    QString storageType() const override;
+    QgsCoordinateReferenceSystem crs() const override;
+    QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) const override;
     QgsWkbTypes::Type wkbType() const override;
-
-    //! Get the number of features in the layer
     long featureCount() const override;
-
-    virtual QgsRectangle extent() const override;
-
-    virtual QString subsetString() const override;
-
-    //! Set the subset string used to create a subset of features in the layer (WHERE clause)
-    virtual bool setSubsetString( const QString& subset, bool updateFeatureCount = true ) override;
-
-    virtual bool supportsSubsetString() const override { return true; }
-
+    QgsRectangle extent() const override;
+    QString subsetString() const override;
+    bool setSubsetString( const QString &subset, bool updateFeatureCount = true ) override;
+    bool supportsSubsetString() const override { return true; }
     QgsFields fields() const override;
-
     bool isValid() const override;
-
-    //! Returns a bitmask containing the supported capabilities
     QgsVectorDataProvider::Capabilities capabilities() const override;
-
-    //! Return the provider name
     QString name() const override;
-
-    //! Return description
     QString description() const override;
-
     QgsAttributeList pkAttributeIndexes() const override;
-
-    //! Get the list of layer ids on which this layer depends
     QSet<QgsMapLayerDependency> dependencies() const override;
+    bool cancelReload() override;
+    void reloadData() override;
 
   private:
 
@@ -91,20 +67,19 @@ class QgsVirtualLayerProvider: public QgsVectorDataProvider
     // underlying vector layers
     struct SourceLayer
     {
-      SourceLayer(): layer( nullptr ) {}
-      SourceLayer( QgsVectorLayer *l, const QString& n = "" )
-          : layer( l )
-          , name( n )
+      SourceLayer() = default;
+      SourceLayer( QgsVectorLayer *l, const QString &n = QString() )
+        : layer( l )
+        , name( n )
       {}
-      SourceLayer( const QString& p, const QString& s, const QString& n, const QString& e = "UTF-8" )
-          : layer( nullptr )
-          , name( n )
-          , source( s )
-          , provider( p )
-          , encoding( e )
+      SourceLayer( const QString &p, const QString &s, const QString &n, const QString &e = QStringLiteral( "UTF-8" ) )
+        : name( n )
+        , source( s )
+        , provider( p )
+        , encoding( e )
       {}
       // non-null if it refers to a live layer
-      QgsVectorLayer* layer;
+      QgsVectorLayer *layer = nullptr;
       QString name;
       // non-empty if it is an embedded layer
       QString source;
@@ -115,7 +90,7 @@ class QgsVirtualLayerProvider: public QgsVectorDataProvider
     SourceLayers mLayers;
 
 
-    bool mValid;
+    bool mValid = true;
 
     QString mTableName;
 
@@ -127,8 +102,8 @@ class QgsVirtualLayerProvider: public QgsVectorDataProvider
 
     void resetSqlite();
 
-    mutable bool mCachedStatistics;
-    mutable qint64 mFeatureCount;
+    mutable bool mCachedStatistics = false;
+    mutable qint64 mFeatureCount = 0;
     mutable QgsRectangle mExtent;
 
     void updateStatistics() const;
@@ -137,10 +112,12 @@ class QgsVirtualLayerProvider: public QgsVectorDataProvider
     bool createIt();
     bool loadSourceLayers();
 
-    friend class QgsVirtualLayerFeatureIterator;
+    friend class QgsVirtualLayerFeatureSource;
 
   private slots:
     void invalidateStatistics();
 };
+
+// clazy:excludeall=qstring-allocations
 
 #endif

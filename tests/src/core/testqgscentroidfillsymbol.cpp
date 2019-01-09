@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -26,15 +26,17 @@
 #include <qgsvectorlayer.h>
 #include <qgsapplication.h>
 #include <qgsproviderregistry.h>
-#include <qgsmaplayerregistry.h>
+#include <qgsproject.h>
 #include <qgssymbol.h>
 #include <qgssinglesymbolrenderer.h>
 #include <qgsfillsymbollayer.h>
+#include "qgsmarkersymbollayer.h"
 
 //qgis test includes
 #include "qgsrenderchecker.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for line fill symbol types.
  */
 class TestQgsCentroidFillSymbol : public QObject
@@ -42,13 +44,7 @@ class TestQgsCentroidFillSymbol : public QObject
     Q_OBJECT
 
   public:
-    TestQgsCentroidFillSymbol()
-        : mTestHasError( false )
-        , mpPolysLayer( 0 )
-        , mCentroidFill( 0 )
-        , mFillSymbol( 0 )
-        , mSymbolRenderer( 0 )
-    {}
+    TestQgsCentroidFillSymbol() = default;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -60,14 +56,14 @@ class TestQgsCentroidFillSymbol : public QObject
     void centroidFillSymbolPartBiggest();
 
   private:
-    bool mTestHasError;
+    bool mTestHasError =  false ;
 
-    bool imageCheck( const QString& theType );
+    bool imageCheck( const QString &type );
     QgsMapSettings mMapSettings;
-    QgsVectorLayer * mpPolysLayer;
-    QgsCentroidFillSymbolLayer* mCentroidFill;
-    QgsFillSymbol* mFillSymbol;
-    QgsSingleSymbolRenderer* mSymbolRenderer;
+    QgsVectorLayer *mpPolysLayer = nullptr;
+    QgsCentroidFillSymbolLayer *mCentroidFill = nullptr;
+    QgsFillSymbol *mFillSymbol = nullptr;
+    QgsSingleSymbolRenderer *mSymbolRenderer = nullptr;
     QString mTestDataDir;
     QString mReport;
 };
@@ -97,12 +93,9 @@ void TestQgsCentroidFillSymbol::initTestCase()
   simplifyMethod.setSimplifyHints( QgsVectorSimplifyMethod::NoSimplification );
   mpPolysLayer->setSimplifyMethod( simplifyMethod );
 
-  // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPolysLayer );
-
   //setup gradient fill
   mCentroidFill = new QgsCentroidFillSymbolLayer();
+  static_cast< QgsSimpleMarkerSymbolLayer * >( mCentroidFill->subSymbol()->symbolLayer( 0 ) )->setStrokeColor( Qt::black );
   mFillSymbol = new QgsFillSymbol();
   mFillSymbol->changeSymbolLayer( 0, mCentroidFill );
   mSymbolRenderer = new QgsSingleSymbolRenderer( mFillSymbol );
@@ -112,7 +105,7 @@ void TestQgsCentroidFillSymbol::initTestCase()
   // since maprender does not require a qui
   // and is more light weight
   //
-  mMapSettings.setLayers( QStringList() << mpPolysLayer->id() );
+  mMapSettings.setLayers( QList<QgsMapLayer *>() << mpPolysLayer );
   mReport += QLatin1String( "<h1>Centroid Fill Symbol Tests</h1>\n" );
 
 }
@@ -126,6 +119,8 @@ void TestQgsCentroidFillSymbol::cleanupTestCase()
     myQTextStream << mReport;
     myFile.close();
   }
+
+  delete mpPolysLayer;
 
   QgsApplication::exitQgis();
 }
@@ -149,7 +144,7 @@ void TestQgsCentroidFillSymbol::centroidFillSymbolPartBiggest()
 //
 
 
-bool TestQgsCentroidFillSymbol::imageCheck( const QString& theTestType )
+bool TestQgsCentroidFillSymbol::imageCheck( const QString &testType )
 {
   //use the QgsRenderChecker test utility class to
   //ensure the rendered output matches our control image
@@ -157,12 +152,12 @@ bool TestQgsCentroidFillSymbol::imageCheck( const QString& theTestType )
   mMapSettings.setOutputDpi( 96 );
   QgsRenderChecker myChecker;
   myChecker.setControlPathPrefix( QStringLiteral( "symbol_centroidfill" ) );
-  myChecker.setControlName( "expected_" + theTestType );
+  myChecker.setControlName( "expected_" + testType );
   myChecker.setMapSettings( mMapSettings );
-  bool myResultFlag = myChecker.runTest( theTestType );
+  bool myResultFlag = myChecker.runTest( testType );
   mReport += myChecker.report();
   return myResultFlag;
 }
 
-QTEST_MAIN( TestQgsCentroidFillSymbol )
+QGSTEST_MAIN( TestQgsCentroidFillSymbol )
 #include "testqgscentroidfillsymbol.moc"

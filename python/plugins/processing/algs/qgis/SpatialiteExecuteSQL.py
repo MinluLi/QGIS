@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import str
 
 __author__ = 'Mathieu Pellerin'
 __date__ = 'October 2016'
@@ -26,37 +25,63 @@ __copyright__ = '(C) 2016, Mathieu Pellerin'
 
 __revision__ = '$Format:%H$'
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterString
+from qgis.core import (QgsDataSourceUri,
+                       QgsProcessing,
+                       QgsProcessingAlgorithm,
+                       QgsProcessingException,
+                       QgsProcessingParameterVectorLayer,
+                       QgsProcessingParameterString)
+
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
 from processing.tools import spatialite
 
-from qgis.core import QgsDataSourceUri, QgsMessageLog
 
-
-class SpatialiteExecuteSQL(GeoAlgorithm):
+class SpatialiteExecuteSQL(QgisAlgorithm):
 
     DATABASE = 'DATABASE'
     SQL = 'SQL'
 
-    def defineCharacteristics(self):
-        self.name, self.i18n_name = self.trAlgorithm('Spatialite execute SQL')
-        self.group, self.i18n_group = self.trAlgorithm('Database')
-        self.addParameter(ParameterVector(self.DATABASE, self.tr('File Database'), False, False))
-        self.addParameter(ParameterString(self.SQL, self.tr('SQL query'), '', True))
+    def group(self):
+        return self.tr('Database')
 
-    def processAlgorithm(self, progress):
-        database = self.getParameterValue(self.DATABASE)
-        uri = QgsDataSourceUri(database)
+    def groupId(self):
+        return 'database'
+
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterVectorLayer(self.DATABASE, self.tr('File Database'), types=[QgsProcessing.TypeVector], optional=False))
+        self.addParameter(QgsProcessingParameterString(self.SQL, self.tr('SQL query'), multiLine=True))
+
+    def name(self):
+        return 'spatialiteexecutesql'
+
+    def displayName(self):
+        return self.tr('SpatiaLite execute SQL')
+
+    def shortDescription(self):
+        return self.tr('Executes a SQL command on a SpatiaLite database')
+
+    def flags(self):
+        return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
+
+    def processAlgorithm(self, parameters, context, feedback):
+        database = self.parameterAsVectorLayer(parameters, self.DATABASE, context)
+        databaseuri = database.dataProvider().dataSourceUri()
+        uri = QgsDataSourceUri(databaseuri)
         if uri.database() is '':
-            if '|layerid' in database:
-                database = database[:database.find('|layerid')]
-            uri = QgsDataSourceUri('dbname=\'%s\'' % (database))
-        self.db = spatialite.GeoDB(uri)
-        sql = self.getParameterValue(self.SQL).replace('\n', ' ')
+            if '|layername' in databaseuri:
+                databaseuri = databaseuri[:databaseuri.find('|layername')]
+            elif '|layerid' in databaseuri:
+                databaseuri = databaseuri[:databaseuri.find('|layerid')]
+            uri = QgsDataSourceUri('dbname=\'%s\'' % (databaseuri))
+        db = spatialite.GeoDB(uri)
+        sql = self.parameterAsString(parameters, self.SQL, context).replace('\n', ' ')
         try:
-            self.db._exec_sql_and_commit(str(sql))
+            db._exec_sql_and_commit(str(sql))
         except spatialite.DbError as e:
-            raise GeoAlgorithmExecutionException(
-                self.tr('Error executing SQL:\n%s') % str(e))
+            raise QgsProcessingException(
+                self.tr('Error executing SQL:\n{0}').format(str(e)))
+
+        return {}

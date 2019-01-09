@@ -74,7 +74,7 @@ class TestQgsFilterLineEdit(unittest.TestCase):
         # ND: I don't think this following logic is correct - should be a distinction between
         # the widget's representation of null and the actual value. Ie isNull()
         # should be false and value() should return 'null'
-        # in other words - if you break this test to match my desired behaviour, feel free to remove it!
+        # in other words - if you break this test to match my desired behavior, feel free to remove it!
         self.assertTrue(w.isNull())
         self.assertFalse(w.value())
 
@@ -118,6 +118,18 @@ class TestQgsFilterLineEdit(unittest.TestCase):
         self.assertEqual(w.value(), 'def')
         self.assertEqual(w.text(), 'def')
         self.assertFalse(w.isNull())
+
+    def test_selectedText(self):
+        """ test that NULL value is selected on focus and not-null value is not"""
+        w = qgis.gui.QgsFilterLineEdit(nullValue='my_null_value')
+        w.clearValue()
+        self.assertEqual(w.selectedText(), 'my_null_value')
+
+        w.setValue('my new value')
+        self.assertEqual(w.selectedText(), '')
+
+        w.clearValue()
+        self.assertEqual(w.selectedText(), 'my_null_value')
 
     @unittest.skipIf(not use_signal_spy, "No QSignalSpy available")
     def test_ChangedSignals(self):

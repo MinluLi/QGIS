@@ -14,11 +14,12 @@
  ***************************************************************************/
 
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include "qgsdockwidget.h"
 #include <QApplication>
 #include <QMainWindow>
+#include <QAction>
 
 class TestQgsDockWidget: public QObject
 {
@@ -32,6 +33,8 @@ class TestQgsDockWidget: public QObject
     void testSignals();
     void testUserVisible();
     void testSetUserVisible();
+    void testToggleUserVisible();
+    void testAction();
 
   private:
 
@@ -55,9 +58,9 @@ void TestQgsDockWidget::cleanup()
 
 void TestQgsDockWidget::testSignals()
 {
-  QWidget* w = new QWidget();
+  QWidget *w = new QWidget();
   QApplication::setActiveWindow( w ); //required for focus events
-  QgsDockWidget* d = new QgsDockWidget( w );
+  QgsDockWidget *d = new QgsDockWidget( w );
 
   QSignalSpy spyClosedStateChanged( d, SIGNAL( closedStateChanged( bool ) ) );
   QSignalSpy spyClosed( d, SIGNAL( closed() ) );
@@ -87,7 +90,7 @@ void TestQgsDockWidget::testSignals()
 
 void TestQgsDockWidget::testUserVisible()
 {
-  QgsDockWidget* w = new QgsDockWidget();
+  QgsDockWidget *w = new QgsDockWidget();
   QVERIFY( !w->isUserVisible() );
 
   w->show();
@@ -100,10 +103,10 @@ void TestQgsDockWidget::testUserVisible()
 
 void TestQgsDockWidget::testSetUserVisible()
 {
-  QMainWindow* w = new QMainWindow();
+  QMainWindow *w = new QMainWindow();
   QApplication::setActiveWindow( w ); //required for focus events
-  QgsDockWidget* d1 = new QgsDockWidget( w );
-  QgsDockWidget* d2 = new QgsDockWidget( w );
+  QgsDockWidget *d1 = new QgsDockWidget( w );
+  QgsDockWidget *d2 = new QgsDockWidget( w );
   w->addDockWidget( Qt::RightDockWidgetArea, d1 );
   w->addDockWidget( Qt::RightDockWidgetArea, d2 );
   w->tabifyDockWidget( d1, d2 );
@@ -176,5 +179,104 @@ void TestQgsDockWidget::testSetUserVisible()
 
 }
 
-QTEST_MAIN( TestQgsDockWidget )
+void TestQgsDockWidget::testToggleUserVisible()
+{
+  QMainWindow *w = new QMainWindow();
+  QApplication::setActiveWindow( w ); //required for focus events
+  QgsDockWidget *d1 = new QgsDockWidget( w );
+  QgsDockWidget *d2 = new QgsDockWidget( w );
+  w->addDockWidget( Qt::RightDockWidgetArea, d1 );
+  w->addDockWidget( Qt::RightDockWidgetArea, d2 );
+  w->tabifyDockWidget( d1, d2 );
+  w->show();
+
+  QVERIFY( d2->isUserVisible() );
+  QVERIFY( !d1->isUserVisible() );
+
+  d1->toggleUserVisible();
+  QVERIFY( !d2->isUserVisible() );
+  QVERIFY( d2->isVisible() );
+  QVERIFY( d1->isUserVisible() );
+  QVERIFY( d1->isVisible() );
+
+  d2->hide();
+  d2->toggleUserVisible();
+  QVERIFY( d2->isUserVisible() );
+  QVERIFY( d2->isVisible() );
+  QVERIFY( !d1->isUserVisible() );
+  QVERIFY( d1->isVisible() );
+
+  d2->hide();
+  d1->raise(); //shouldn't be necessary outside of tests
+  QVERIFY( !d2->isUserVisible() );
+  QVERIFY( !d2->isVisible() );
+  QVERIFY( d1->isUserVisible() );
+  QVERIFY( d1->isVisible() );
+
+  d1->toggleUserVisible();
+  QVERIFY( !d2->isVisible() );
+  QVERIFY( !d1->isUserVisible() );
+  QVERIFY( !d1->isVisible() );
+
+  delete w;
+
+}
+
+void TestQgsDockWidget::testAction()
+{
+  QMainWindow *w = new QMainWindow();
+  QApplication::setActiveWindow( w ); //required for focus events
+  QgsDockWidget *d1 = new QgsDockWidget( w );
+  QgsDockWidget *d2 = new QgsDockWidget( w );
+  w->addDockWidget( Qt::RightDockWidgetArea, d1 );
+  w->addDockWidget( Qt::RightDockWidgetArea, d2 );
+  w->tabifyDockWidget( d1, d2 );
+  w->show();
+
+  QAction *a1 = new QAction( w );
+  QAction *a2 = new QAction( w );
+
+  QVERIFY( ! d1->toggleVisibilityAction() );
+  d1->setToggleVisibilityAction( a1 );
+  d2->setToggleVisibilityAction( a2 );
+  QVERIFY( a1->isCheckable() );
+  QVERIFY( a2->isCheckable() );
+  QCOMPARE( d1->toggleVisibilityAction(), a1 );
+  QCOMPARE( d2->toggleVisibilityAction(), a2 );
+
+  QVERIFY( d2->isUserVisible() );
+  QVERIFY( a2->isChecked() );
+  QVERIFY( !d1->isUserVisible() );
+  QVERIFY( !a1->isChecked() );
+
+  a1->setChecked( true );
+  QVERIFY( !d2->isUserVisible() );
+  QVERIFY( !a2->isChecked() );
+  QVERIFY( d1->isUserVisible() );
+  QVERIFY( a1->isChecked() );
+
+  a1->setChecked( true );
+  QVERIFY( !d2->isUserVisible() );
+  QVERIFY( !a2->isChecked() );
+  QVERIFY( d1->isUserVisible() );
+  QVERIFY( a1->isChecked() );
+
+  a2->setChecked( true );
+  QVERIFY( d2->isUserVisible() );
+  QVERIFY( a2->isChecked() );
+  QVERIFY( !d1->isUserVisible() );
+  QVERIFY( !a1->isChecked() );
+
+  d2->hide();
+  d1->raise(); //shouldn't be necessary outside of tests
+  QVERIFY( !a2->isChecked() );
+  QVERIFY( d1->isUserVisible() );
+  QVERIFY( a1->isChecked() );
+
+  a1->setChecked( false );
+  QVERIFY( !d1->isUserVisible() );
+  QVERIFY( !a1->isChecked() );
+}
+
+QGSTEST_MAIN( TestQgsDockWidget )
 #include "testqgsdockwidget.moc"

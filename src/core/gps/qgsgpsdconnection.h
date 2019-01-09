@@ -18,18 +18,19 @@
 #ifndef QGSGPSDCONNECTION_H
 #define QGSGPSDCONNECTION_H
 
+#include "qgis_core.h"
 #include "qgsnmeaconnection.h"
 
 #include <QAbstractSocket>
 
-/** \ingroup core
+/**
+ * \ingroup core
  * Evaluates NMEA sentences coming from gpsd*/
-class CORE_EXPORT QgsGpsdConnection: public QgsNMEAConnection
+class CORE_EXPORT QgsGpsdConnection: public QgsNmeaConnection
 {
     Q_OBJECT
   public:
-    QgsGpsdConnection( const QString& host, qint16 port, const QString& device );
-    ~QgsGpsdConnection();
+    QgsGpsdConnection( const QString &host, qint16 port, const QString &device );
 
   private slots:
     void connected();

@@ -22,43 +22,50 @@
 #include "qgsvectorlayer.h"
 #include "qgsexpressionbuilderdialog.h"
 
-QgsRelationReferenceConfigDlg::QgsRelationReferenceConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget* parent )
-    : QgsEditorConfigWidget( vl, fieldIdx, parent )
-    , mReferencedLayer( nullptr )
+QgsRelationReferenceConfigDlg::QgsRelationReferenceConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
+  : QgsEditorConfigWidget( vl, fieldIdx, parent )
+
 {
   setupUi( this );
+  connect( mAddFilterButton, &QToolButton::clicked, this, &QgsRelationReferenceConfigDlg::mAddFilterButton_clicked );
+  connect( mRemoveFilterButton, &QToolButton::clicked, this, &QgsRelationReferenceConfigDlg::mRemoveFilterButton_clicked );
 
   mExpressionWidget->registerExpressionContextGenerator( vl );
 
-  connect( mComboRelation, SIGNAL( currentIndexChanged( int ) ), this, SLOT( relationChanged( int ) ) );
+  connect( mComboRelation, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsRelationReferenceConfigDlg::relationChanged );
 
-  Q_FOREACH ( const QgsRelation& relation, vl->referencingRelations( fieldIdx ) )
+  Q_FOREACH ( const QgsRelation &relation, vl->referencingRelations( fieldIdx ) )
   {
-    mComboRelation->addItem( QStringLiteral( "%1 (%2)" ).arg( relation.id(), relation.referencedLayerId() ), relation.id() );
+    if ( relation.name().isEmpty() )
+      mComboRelation->addItem( QStringLiteral( "%1 (%2)" ).arg( relation.id(), relation.referencedLayerId() ), relation.id() );
+    else
+      mComboRelation->addItem( QStringLiteral( "%1 (%2)" ).arg( relation.name(), relation.referencedLayerId() ), relation.id() );
     if ( relation.referencedLayer() )
     {
       mExpressionWidget->setField( relation.referencedLayer()->displayExpression() );
     }
   }
 
-  connect( mCbxAllowNull, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mCbxOrderByValue, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mCbxShowForm, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mCbxMapIdentification, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mCbxReadOnly, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mComboRelation, SIGNAL( currentIndexChanged( int ) ), this, SIGNAL( changed() ) );
-  connect( mCbxAllowAddFeatures, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mFilterGroupBox, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mFilterFieldsList, SIGNAL( itemChanged( QListWidgetItem* ) ), this, SIGNAL( changed() ) );
-  connect( mCbxChainFilters, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
-  connect( mExpressionWidget, SIGNAL( fieldChanged( QString ) ), this, SIGNAL( changed() ) );
+  connect( mCbxAllowNull, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxOrderByValue, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxShowForm, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxShowOpenFormButton, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxMapIdentification, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxReadOnly, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mComboRelation, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsEditorConfigWidget::changed );
+  connect( mCbxAllowAddFeatures, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mFilterGroupBox, &QGroupBox::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mFilterFieldsList, &QListWidget::itemChanged, this, &QgsEditorConfigWidget::changed );
+  connect( mCbxChainFilters, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
+  connect( mExpressionWidget, static_cast<void ( QgsFieldExpressionWidget::* )( const QString & )>( &QgsFieldExpressionWidget::fieldChanged ), this, &QgsEditorConfigWidget::changed );
 }
 
-void QgsRelationReferenceConfigDlg::setConfig( const QgsEditorWidgetConfig& config )
+void QgsRelationReferenceConfigDlg::setConfig( const QVariantMap &config )
 {
   mCbxAllowNull->setChecked( config.value( QStringLiteral( "AllowNULL" ), false ).toBool() );
   mCbxOrderByValue->setChecked( config.value( QStringLiteral( "OrderByValue" ), false ).toBool() );
-  mCbxShowForm->setChecked( config.value( QStringLiteral( "ShowForm" ), true ).toBool() );
+  mCbxShowForm->setChecked( config.value( QStringLiteral( "ShowForm" ), false ).toBool() );
+  mCbxShowOpenFormButton->setChecked( config.value( QStringLiteral( "ShowOpenFormButton" ), true ).toBool() );
 
   if ( config.contains( QStringLiteral( "Relation" ) ) )
   {
@@ -73,7 +80,7 @@ void QgsRelationReferenceConfigDlg::setConfig( const QgsEditorWidgetConfig& conf
   if ( config.contains( QStringLiteral( "FilterFields" ) ) )
   {
     mFilterGroupBox->setChecked( true );
-    Q_FOREACH ( const QString& fld, config.value( "FilterFields" ).toStringList() )
+    Q_FOREACH ( const QString &fld, config.value( "FilterFields" ).toStringList() )
     {
       addFilterField( fld );
     }
@@ -92,35 +99,36 @@ void QgsRelationReferenceConfigDlg::relationChanged( int idx )
   if ( mReferencedLayer )
   {
     mExpressionWidget->setField( mReferencedLayer->displayExpression() );
-    mCbxMapIdentification->setEnabled( mReferencedLayer->hasGeometryType() );
+    mCbxMapIdentification->setEnabled( mReferencedLayer->isSpatial() );
   }
 
   loadFields();
 }
 
-void QgsRelationReferenceConfigDlg::on_mAddFilterButton_clicked()
+void QgsRelationReferenceConfigDlg::mAddFilterButton_clicked()
 {
-  Q_FOREACH ( QListWidgetItem* item, mAvailableFieldsList->selectedItems() )
+  Q_FOREACH ( QListWidgetItem *item, mAvailableFieldsList->selectedItems() )
   {
     addFilterField( item );
   }
 }
 
-void QgsRelationReferenceConfigDlg::on_mRemoveFilterButton_clicked()
+void QgsRelationReferenceConfigDlg::mRemoveFilterButton_clicked()
 {
-  Q_FOREACH ( QListWidgetItem* item , mFilterFieldsList->selectedItems() )
+  Q_FOREACH ( QListWidgetItem *item, mFilterFieldsList->selectedItems() )
   {
     mFilterFieldsList->takeItem( indexFromListWidgetItem( item ) );
     mAvailableFieldsList->addItem( item );
   }
 }
 
-QgsEditorWidgetConfig QgsRelationReferenceConfigDlg::config()
+QVariantMap QgsRelationReferenceConfigDlg::config()
 {
-  QgsEditorWidgetConfig myConfig;
+  QVariantMap myConfig;
   myConfig.insert( QStringLiteral( "AllowNULL" ), mCbxAllowNull->isChecked() );
   myConfig.insert( QStringLiteral( "OrderByValue" ), mCbxOrderByValue->isChecked() );
   myConfig.insert( QStringLiteral( "ShowForm" ), mCbxShowForm->isChecked() );
+  myConfig.insert( QStringLiteral( "ShowOpenFormButton" ), mCbxShowOpenFormButton->isChecked() );
   myConfig.insert( QStringLiteral( "MapIdentification" ), mCbxMapIdentification->isEnabled() && mCbxMapIdentification->isChecked() );
   myConfig.insert( QStringLiteral( "ReadOnly" ), mCbxReadOnly->isChecked() );
   myConfig.insert( QStringLiteral( "Relation" ), mComboRelation->currentData() );
@@ -154,8 +162,8 @@ void QgsRelationReferenceConfigDlg::loadFields()
 
   if ( mReferencedLayer )
   {
-    QgsVectorLayer* l = mReferencedLayer;
-    const QgsFields& flds = l->fields();
+    QgsVectorLayer *l = mReferencedLayer;
+    const QgsFields &flds = l->fields();
     for ( int i = 0; i < flds.count(); i++ )
     {
       mAvailableFieldsList->addItem( flds.at( i ).displayName() );
@@ -164,7 +172,7 @@ void QgsRelationReferenceConfigDlg::loadFields()
   }
 }
 
-void QgsRelationReferenceConfigDlg::addFilterField( const QString& field )
+void QgsRelationReferenceConfigDlg::addFilterField( const QString &field )
 {
   for ( int i = 0; i < mAvailableFieldsList->count(); i++ )
   {
@@ -176,15 +184,15 @@ void QgsRelationReferenceConfigDlg::addFilterField( const QString& field )
   }
 }
 
-void QgsRelationReferenceConfigDlg::addFilterField( QListWidgetItem* item )
+void QgsRelationReferenceConfigDlg::addFilterField( QListWidgetItem *item )
 {
   mAvailableFieldsList->takeItem( indexFromListWidgetItem( item ) );
   mFilterFieldsList->addItem( item );
 }
 
-int QgsRelationReferenceConfigDlg::indexFromListWidgetItem( QListWidgetItem* item )
+int QgsRelationReferenceConfigDlg::indexFromListWidgetItem( QListWidgetItem *item )
 {
-  QListWidget* lw = item->listWidget();
+  QListWidget *lw = item->listWidget();
 
   for ( int i = 0; i < lw->count(); i++ )
   {

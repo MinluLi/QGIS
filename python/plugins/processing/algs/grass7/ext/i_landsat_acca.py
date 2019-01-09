@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import absolute_import
 
 __author__ = 'Médéric Ribreux'
 __date__ = 'March 2016'
@@ -29,22 +28,14 @@ __revision__ = '$Format:%H$'
 from .i import verifyRasterNum, orderedInput
 
 
-def checkParameterValuesBeforeExecuting(alg):
-    return verifyRasterNum(alg, 'rasters', 5, 5)
+def checkParameterValuesBeforeExecuting(alg, parameters, context):
+    return verifyRasterNum(alg, parameters, context, 'rasters', 5, 5)
 
 
-def processInputs(alg):
-    orderedInput(alg, 'rasters',
-                 "ParameterString|input|Base name of input raster bands|None|False|False",
+def processInputs(alg, parameters, context, feedback):
+    orderedInput(alg, parameters, context, 'rasters', 'input',
                  [2, 3, 4, 5, 61])
 
 
-def processCommand(alg):
-    # Remove rasters parameter
-    rasters = alg.getParameterFromName('rasters')
-    alg.parameters.remove(rasters)
-
-    alg.processCommand()
-
-    # re-add rasters
-    alg.addParameter(rasters)
+def processCommand(alg, parameters, context, feedback):
+    alg.processCommand(parameters, context, feedback)

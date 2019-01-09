@@ -17,9 +17,9 @@
 #include "qgsgpsdevice.h"
 
 
-QgsGPSDevice::QgsGPSDevice( const QString& wptDlCmd, const QString& wptUlCmd,
-                            const QString& rteDlCmd, const QString& rteUlCmd,
-                            const QString& trkDlCmd, const QString& trkUlCmd )
+QgsGpsDevice::QgsGpsDevice( const QString &wptDlCmd, const QString &wptUlCmd,
+                            const QString &rteDlCmd, const QString &rteUlCmd,
+                            const QString &trkDlCmd, const QString &trkUlCmd )
 {
   if ( !wptDlCmd.isEmpty() )
     mWptDlCmd = wptDlCmd.split( QRegExp( "\\s" ), QString::SkipEmptyParts );
@@ -36,12 +36,12 @@ QgsGPSDevice::QgsGPSDevice( const QString& wptDlCmd, const QString& wptUlCmd,
 }
 
 
-QStringList QgsGPSDevice::importCommand( const QString& babel,
-    const QString& type,
-    const QString& in,
-    const QString& out ) const
+QStringList QgsGpsDevice::importCommand( const QString &babel,
+    const QString &type,
+    const QString &in,
+    const QString &out ) const
 {
-  const QStringList* original;
+  const QStringList *original = nullptr;
   if ( type == QLatin1String( "-w" ) )
     original = &mWptDlCmd;
   else if ( type == QLatin1String( "-r" ) )
@@ -68,12 +68,12 @@ QStringList QgsGPSDevice::importCommand( const QString& babel,
 }
 
 
-QStringList QgsGPSDevice::exportCommand( const QString& babel,
-    const QString& type,
-    const QString& in,
-    const QString& out ) const
+QStringList QgsGpsDevice::exportCommand( const QString &babel,
+    const QString &type,
+    const QString &in,
+    const QString &out ) const
 {
-  const QStringList* original;
+  const QStringList *original = nullptr;
   if ( type == QLatin1String( "-w" ) )
     original = &mWptUlCmd;
   else if ( type == QLatin1String( "-r" ) )

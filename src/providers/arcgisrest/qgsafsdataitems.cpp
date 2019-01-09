@@ -13,116 +13,196 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgslogger.h"
-#include "qgsnewhttpconnection.h"
 #include "qgsowsconnection.h"
 #include "qgsafsdataitems.h"
 #include "qgsafsprovider.h"
 #include "qgsarcgisrestutils.h"
-#include "qgsafssourceselect.h"
 
+#ifdef HAVE_GUI
+#include "qgsnewhttpconnection.h"
+#include "qgsafssourceselect.h"
+#endif
+
+#include <QMessageBox>
 #include <QCoreApplication>
 #include <QSettings>
 #include <QUrl>
 
 
-QgsAfsRootItem::QgsAfsRootItem( QgsDataItem* parent, const QString &name, const QString &path )
-    : QgsDataCollectionItem( parent, name, path )
+QgsAfsRootItem::QgsAfsRootItem( QgsDataItem *parent, const QString &name, const QString &path )
+  : QgsDataCollectionItem( parent, name, path )
 {
   mCapabilities |= Fast;
   mIconName = QStringLiteral( "mIconAfs.svg" );
   populate();
 }
 
-QVector<QgsDataItem*> QgsAfsRootItem::createChildren()
+QVector<QgsDataItem *> QgsAfsRootItem::createChildren()
 {
-  QVector<QgsDataItem*> connections;
+  QVector<QgsDataItem *> connections;
 
-  Q_FOREACH ( const QString& connName, QgsOwsConnection::connectionList( "ArcGisFeatureServer" ) )
+  const QStringList connectionList = QgsOwsConnection::connectionList( QStringLiteral( "ARCGISFEATURESERVER" ) );
+  for ( const QString &connName : connectionList )
   {
-    QgsOwsConnection connection( QStringLiteral( "ArcGisFeatureServer" ), connName );
-    QString path = "afs:/" + connName;
-    connections.append( new QgsAfsConnectionItem( this, connName, path, connection.uri().param( QStringLiteral( "url" ) ) ) );
+    const QString path = QStringLiteral( "afs:/" ) + connName;
+    connections.append( new QgsAfsConnectionItem( this, connName, path, connName ) );
   }
   return connections;
 }
 
-QList<QAction*> QgsAfsRootItem::actions()
+#ifdef HAVE_GUI
+QList<QAction *> QgsAfsRootItem::actions( QWidget *parent )
 {
-  QAction* actionNew = new QAction( tr( "New Connection..." ), this );
-  connect( actionNew, SIGNAL( triggered() ), this, SLOT( newConnection() ) );
-  return QList<QAction*>() << actionNew;
+  QAction *actionNew = new QAction( tr( "New Connection…" ), parent );
+  connect( actionNew, &QAction::triggered, this, &QgsAfsRootItem::newConnection );
+  return QList<QAction *>() << actionNew;
 }
 
-QWidget * QgsAfsRootItem::paramWidget()
+QWidget *QgsAfsRootItem::paramWidget()
 {
-  QgsAfsSourceSelect *select = new QgsAfsSourceSelect( 0, 0, true );
-  connect( select, SIGNAL( connectionsChanged() ), this, SLOT( connectionsChanged() ) );
+  QgsAfsSourceSelect *select = new QgsAfsSourceSelect( nullptr, nullptr, QgsProviderRegistry::WidgetMode::Manager );
+  connect( select, &QgsArcGisServiceSourceSelect::connectionsChanged, this, &QgsAfsRootItem::onConnectionsChanged );
   return select;
 }
 
-void QgsAfsRootItem::connectionsChanged()
+void QgsAfsRootItem::onConnectionsChanged()
 {
   refresh();
 }
 
 void QgsAfsRootItem::newConnection()
 {
-  QgsNewHttpConnection nc( 0, QStringLiteral( "/Qgis/connections-afs/" ) );
-  nc.setWindowTitle( tr( "Create a new AFS connection" ) );
+  QgsNewHttpConnection nc( nullptr, QgsNewHttpConnection::ConnectionOther, QStringLiteral( "qgis/connections-arcgisfeatureserver/" ) );
+  nc.setWindowTitle( tr( "Create a New ArcGIS Feature Server Connection" ) );
 
   if ( nc.exec() )
   {
     refresh();
   }
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
-QgsAfsConnectionItem::QgsAfsConnectionItem( QgsDataItem* parent, const QString &name, const QString &path, const QString &url )
-    : QgsDataCollectionItem( parent, name, path )
-    , mUrl( url )
+void addFolderItems( QVector< QgsDataItem * > &items, const QVariantMap &serviceData, const QString &baseUrl, const QString &authcfg, QgsDataItem *parent )
 {
-  mIconName = QStringLiteral( "mIconAfs.svg" );
+  QgsArcGisRestUtils::visitFolderItems( [parent, &baseUrl, &items, authcfg]( const QString & name, const QString & url )
+  {
+    std::unique_ptr< QgsAfsFolderItem > folderItem = qgis::make_unique< QgsAfsFolderItem >( parent, name, url, baseUrl, authcfg );
+    items.append( folderItem.release() );
+  }, serviceData, baseUrl );
 }
 
-QVector<QgsDataItem*> QgsAfsConnectionItem::createChildren()
+void addServiceItems( QVector< QgsDataItem * > &items, const QVariantMap &serviceData, const QString &baseUrl, const QString &authcfg, QgsDataItem *parent )
 {
-  QVector<QgsDataItem*> layers;
+  QgsArcGisRestUtils::visitServiceItems(
+    [&items, parent, authcfg]( const QString & name, const QString & url )
+  {
+    std::unique_ptr< QgsAfsServiceItem > serviceItem = qgis::make_unique< QgsAfsServiceItem >( parent, name, url, url, authcfg );
+    items.append( serviceItem.release() );
+  }, serviceData, baseUrl );
+}
+
+void addLayerItems( QVector< QgsDataItem * > &items, const QVariantMap &serviceData, const QString &parentUrl, const QString &authcfg, QgsDataItem *parent )
+{
+  QMap< QString, QgsDataItem * > layerItems;
+  QMap< QString, QString > parents;
+
+  QgsArcGisRestUtils::addLayerItems( [parent, &layerItems, &parents, authcfg]( const QString & parentLayerId, const QString & id, const QString & name, const QString & description, const QString & url, bool isParent, const QString & authid )
+  {
+    Q_UNUSED( description );
+
+    if ( !parentLayerId.isEmpty() )
+      parents.insert( id, parentLayerId );
+
+    if ( isParent )
+    {
+      std::unique_ptr< QgsAfsParentLayerItem > layerItem = qgis::make_unique< QgsAfsParentLayerItem >( parent, name, url, authcfg );
+      layerItems.insert( id, layerItem.release() );
+    }
+    else
+    {
+      std::unique_ptr< QgsAfsLayerItem > layerItem = qgis::make_unique< QgsAfsLayerItem >( parent, name, url, name, authid, authcfg );
+      layerItems.insert( id, layerItem.release() );
+    }
+
+  }, serviceData, parentUrl );
+
+  // create groups
+  for ( auto it = layerItems.constBegin(); it != layerItems.constEnd(); ++it )
+  {
+    const QString id = it.key();
+    QgsDataItem *item = it.value();
+    const QString parentId = parents.value( id );
+
+    if ( QgsDataItem *layerParent = parentId.isEmpty() ? nullptr : layerItems.value( parentId ) )
+      layerParent->addChildItem( item );
+    else
+      items.append( item );
+  }
+}
+
+QgsAfsConnectionItem::QgsAfsConnectionItem( QgsDataItem *parent, const QString &name, const QString &path, const QString &connectionName )
+  : QgsDataCollectionItem( parent, name, path )
+  , mConnName( connectionName )
+{
+  mIconName = QStringLiteral( "mIconConnect.svg" );
+  mCapabilities |= Collapse;
+}
+
+QVector<QgsDataItem *> QgsAfsConnectionItem::createChildren()
+{
+  const QgsOwsConnection connection( QStringLiteral( "ARCGISFEATURESERVER" ), mConnName );
+  const QString url = connection.uri().param( QStringLiteral( "url" ) );
+  const QString authcfg = connection.uri().param( QStringLiteral( "authcfg" ) );
+
+  QVector<QgsDataItem *> items;
   QString errorTitle, errorMessage;
-  QVariantMap serviceData = QgsArcGisRestUtils::getServiceInfo( mUrl, errorTitle, errorMessage );
+  const QVariantMap serviceData = QgsArcGisRestUtils::getServiceInfo( url, authcfg, errorTitle, errorMessage );
   if ( serviceData.isEmpty() )
   {
-    return layers;
-  }
-  QString authid = QgsArcGisRestUtils::parseSpatialReference( serviceData[QStringLiteral( "spatialReference" )].toMap() ).authid();
-
-  foreach ( const QVariant& layerInfo, serviceData["layers"].toList() )
-  {
-    QVariantMap layerInfoMap = layerInfo.toMap();
-    QString id = layerInfoMap[QStringLiteral( "id" )].toString();
-    QgsAfsLayerItem* layer = new QgsAfsLayerItem( this, mName, mUrl + "/" + id, layerInfoMap[QStringLiteral( "name" )].toString(), authid );
-    layers.append( layer );
+    if ( !errorMessage.isEmpty() )
+    {
+      std::unique_ptr< QgsErrorItem > error = qgis::make_unique< QgsErrorItem >( this, tr( "Connection failed: %1" ).arg( errorTitle ), mPath + "/error" );
+      error->setToolTip( errorMessage );
+      items.append( error.release() );
+      QgsDebugMsg( "Connection failed - " + errorMessage );
+    }
+    return items;
   }
 
-  return layers;
+  addFolderItems( items, serviceData, url, authcfg, this );
+  addServiceItems( items, serviceData, url, authcfg, this );
+  addLayerItems( items, serviceData, url, authcfg, this );
+
+  return items;
 }
 
 bool QgsAfsConnectionItem::equal( const QgsDataItem *other )
 {
-  const QgsAfsConnectionItem *o = dynamic_cast<const QgsAfsConnectionItem *>( other );
-  return ( type() == other->type() && o != 0 && mPath == o->mPath && mName == o->mName );
+  const QgsAfsConnectionItem *o = qobject_cast<const QgsAfsConnectionItem *>( other );
+  return ( type() == other->type() && o && mPath == o->mPath && mName == o->mName );
 }
 
-QList<QAction*> QgsAfsConnectionItem::actions()
+#ifdef HAVE_GUI
+QList<QAction *> QgsAfsConnectionItem::actions( QWidget *parent )
 {
-  QList<QAction*> lst;
+  QList<QAction *> lst;
 
-  QAction* actionEdit = new QAction( tr( "Edit..." ), this );
-  connect( actionEdit, SIGNAL( triggered() ), this, SLOT( editConnection() ) );
+  QAction *actionRefresh = new QAction( tr( "Refresh" ), parent );
+  connect( actionRefresh, &QAction::triggered, this, &QgsAfsConnectionItem::refreshConnection );
+  lst.append( actionRefresh );
+
+  QAction *separator = new QAction( parent );
+  separator->setSeparator( true );
+  lst.append( separator );
+
+  QAction *actionEdit = new QAction( tr( "Edit Connection…" ), parent );
+  connect( actionEdit, &QAction::triggered, this, &QgsAfsConnectionItem::editConnection );
   lst.append( actionEdit );
 
-  QAction* actionDelete = new QAction( tr( "Delete" ), this );
-  connect( actionDelete, SIGNAL( triggered() ), this, SLOT( deleteConnection() ) );
+  QAction *actionDelete = new QAction( tr( "Delete Connection" ), parent );
+  connect( actionDelete, &QAction::triggered, this, &QgsAfsConnectionItem::deleteConnection );
   lst.append( actionDelete );
 
   return lst;
@@ -130,27 +210,173 @@ QList<QAction*> QgsAfsConnectionItem::actions()
 
 void QgsAfsConnectionItem::editConnection()
 {
-  QgsNewHttpConnection nc( 0, QStringLiteral( "/Qgis/connections-afs/" ), mName );
-  nc.setWindowTitle( tr( "Modify AFS connection" ) );
+  QgsNewHttpConnection nc( nullptr, QgsNewHttpConnection::ConnectionOther, QStringLiteral( "qgis/connections-arcgisfeatureserver/" ), mName );
+  nc.setWindowTitle( tr( "Modify ArcGIS Feature Server Connection" ) );
 
   if ( nc.exec() )
   {
-    mParent->refresh();
+    // the parent should be updated
+    refresh();
+    if ( mParent )
+      mParent->refreshConnections();
   }
 }
 
 void QgsAfsConnectionItem::deleteConnection()
 {
-  QgsOwsConnection::deleteConnection( QStringLiteral( "ArcGisFeatureServer" ), mName );
-  mParent->refresh();
+  if ( QMessageBox::question( nullptr, QObject::tr( "Delete Connection" ),
+                              QObject::tr( "Are you sure you want to delete the connection to %1?" ).arg( mName ),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No ) != QMessageBox::Yes )
+    return;
+
+  QgsOwsConnection::deleteConnection( QStringLiteral( "arcgisfeatureserver" ), mName );
+
+  // the parent should be updated
+  if ( mParent )
+    mParent->refreshConnections();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+void QgsAfsConnectionItem::refreshConnection()
+{
+  refresh();
+  // the parent should be updated
+  if ( mParent )
+    mParent->refreshConnections();
+}
+#endif
 
-QgsAfsLayerItem::QgsAfsLayerItem( QgsDataItem* parent, const QString &name, const QString &url, const QString &title, const QString& authid )
-    : QgsLayerItem( parent, title, parent->path() + "/" + name, QString(), QgsLayerItem::Vector, QStringLiteral( "arcgisfeatureserver" ) )
+
+QgsAfsFolderItem::QgsAfsFolderItem( QgsDataItem *parent, const QString &name, const QString &path, const QString &baseUrl, const QString &authcfg )
+  : QgsDataCollectionItem( parent, name, path )
+  , mBaseUrl( baseUrl )
+  , mAuthCfg( authcfg )
+{
+  mIconName = QStringLiteral( "mIconDbSchema.svg" );
+  mCapabilities |= Collapse;
+  setToolTip( path );
+}
+
+
+QVector<QgsDataItem *> QgsAfsFolderItem::createChildren()
+{
+  const QString url = mPath;
+
+  QVector<QgsDataItem *> items;
+  QString errorTitle, errorMessage;
+  const QVariantMap serviceData = QgsArcGisRestUtils::getServiceInfo( url, mAuthCfg, errorTitle, errorMessage );
+  if ( serviceData.isEmpty() )
+  {
+    if ( !errorMessage.isEmpty() )
+    {
+      std::unique_ptr< QgsErrorItem > error = qgis::make_unique< QgsErrorItem >( this, tr( "Connection failed: %1" ).arg( errorTitle ), mPath + "/error" );
+      error->setToolTip( errorMessage );
+      items.append( error.release() );
+      QgsDebugMsg( "Connection failed - " + errorMessage );
+    }
+    return items;
+  }
+
+  addFolderItems( items, serviceData, mBaseUrl, mAuthCfg, this );
+  addServiceItems( items, serviceData, mBaseUrl, mAuthCfg, this );
+  addLayerItems( items, serviceData, mPath, mAuthCfg, this );
+  return items;
+}
+
+bool QgsAfsFolderItem::equal( const QgsDataItem *other )
+{
+  const QgsAfsFolderItem *o = qobject_cast<const QgsAfsFolderItem *>( other );
+  return ( type() == other->type() && o && mPath == o->mPath && mName == o->mName );
+}
+
+QgsAfsServiceItem::QgsAfsServiceItem( QgsDataItem *parent, const QString &name, const QString &path, const QString &baseUrl, const QString &authcfg )
+  : QgsDataCollectionItem( parent, name, path )
+  , mBaseUrl( baseUrl )
+  , mAuthCfg( authcfg )
+{
+  mIconName = QStringLiteral( "mIconDbSchema.svg" );
+  mCapabilities |= Collapse;
+  setToolTip( path );
+}
+
+QVector<QgsDataItem *> QgsAfsServiceItem::createChildren()
+{
+  const QString url = mPath;
+
+  QVector<QgsDataItem *> items;
+  QString errorTitle, errorMessage;
+  const QVariantMap serviceData = QgsArcGisRestUtils::getServiceInfo( url, mAuthCfg, errorTitle, errorMessage );
+  if ( serviceData.isEmpty() )
+  {
+    if ( !errorMessage.isEmpty() )
+    {
+      std::unique_ptr< QgsErrorItem > error = qgis::make_unique< QgsErrorItem >( this, tr( "Connection failed: %1" ).arg( errorTitle ), mPath + "/error" );
+      error->setToolTip( errorMessage );
+      items.append( error.release() );
+      QgsDebugMsg( "Connection failed - " + errorMessage );
+    }
+    return items;
+  }
+
+  addFolderItems( items, serviceData, mBaseUrl, mAuthCfg, this );
+  addServiceItems( items, serviceData, mBaseUrl, mAuthCfg, this );
+  addLayerItems( items, serviceData, mPath, mAuthCfg, this );
+  return items;
+}
+
+bool QgsAfsServiceItem::equal( const QgsDataItem *other )
+{
+  const QgsAfsServiceItem *o = qobject_cast<const QgsAfsServiceItem *>( other );
+  return ( type() == other->type() && o && mPath == o->mPath && mName == o->mName );
+}
+
+QgsAfsLayerItem::QgsAfsLayerItem( QgsDataItem *parent, const QString &, const QString &url, const QString &title, const QString &authid, const QString &authcfg )
+  : QgsLayerItem( parent, title, url, QString(), QgsLayerItem::Vector, QStringLiteral( "arcgisfeatureserver" ) )
 {
   mUri = QStringLiteral( "crs='%1' url='%2'" ).arg( authid, url );
+  if ( !authcfg.isEmpty() )
+    mUri += QStringLiteral( " authcfg='%1'" ).arg( authcfg );
   setState( Populated );
-  mIconName = QStringLiteral( "mIconConnect.png" );
+  mIconName = QStringLiteral( "mIconAfs.svg" );
+  setToolTip( url );
+}
+
+QgsAfsParentLayerItem::QgsAfsParentLayerItem( QgsDataItem *parent, const QString &name, const QString &path, const QString &authcfg )
+  : QgsDataItem( QgsDataItem::Collection, parent, name, path )
+  , mAuthCfg( authcfg )
+{
+  mCapabilities |= Fast;
+  mIconName = QStringLiteral( "mIconDbSchema.svg" );
+  setToolTip( path );
+}
+
+bool QgsAfsParentLayerItem::equal( const QgsDataItem *other )
+{
+  const QgsAfsParentLayerItem *o = qobject_cast<const QgsAfsParentLayerItem *>( other );
+  return ( type() == other->type() && o && mPath == o->mPath && mName == o->mName );
+}
+
+
+//
+// QgsAfsDataItemProvider
+//
+
+QgsDataItem *QgsAfsDataItemProvider::createDataItem( const QString &path, QgsDataItem *parentItem )
+{
+  if ( path.isEmpty() )
+  {
+    return new QgsAfsRootItem( parentItem, QStringLiteral( "ArcGisFeatureServer" ), QStringLiteral( "arcgisfeatureserver:" ) );
+  }
+
+  // path schema: afs:/connection name (used by OWS)
+  if ( path.startsWith( QLatin1String( "afs:/" ) ) )
+  {
+    QString connectionName = path.split( '/' ).last();
+    if ( QgsOwsConnection::connectionList( QStringLiteral( "arcgisfeatureserver" ) ).contains( connectionName ) )
+    {
+      QgsOwsConnection connection( QStringLiteral( "arcgisfeatureserver" ), connectionName );
+      return new QgsAfsConnectionItem( parentItem, QStringLiteral( "ArcGisFeatureServer" ), path, connection.uri().param( QStringLiteral( "url" ) ) );
+    }
+  }
+
+  return nullptr;
 }

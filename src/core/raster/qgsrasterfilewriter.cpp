@@ -14,6 +14,7 @@
  ***************************************************************************/
 #include <typeinfo>
 
+#include "qgsgdalutils.h"
 #include "qgsrasterfilewriter.h"
 #include "qgscoordinatetransform.h"
 #include "qgsproviderregistry.h"
@@ -29,43 +30,48 @@
 #include <QTextStream>
 #include <QMessageBox>
 
-QgsRasterFileWriter::QgsRasterFileWriter( const QString& outputUrl )
-    : mMode( Raw )
-    , mOutputUrl( outputUrl )
-    , mOutputProviderKey( QStringLiteral( "gdal" ) )
-    , mOutputFormat( QStringLiteral( "GTiff" ) )
-    , mTiledMode( false )
-    , mMaxTileWidth( 500 )
-    , mMaxTileHeight( 500 )
-    , mBuildPyramidsFlag( QgsRaster::PyramidsFlagNo )
-    , mPyramidsFormat( QgsRaster::PyramidsGTiff )
-    , mProgressDialog( nullptr )
-    , mPipe( nullptr )
-    , mInput( nullptr )
+#include <gdal.h>
+#include <cpl_string.h>
+
+QgsRasterDataProvider *QgsRasterFileWriter::createOneBandRaster( Qgis::DataType dataType, int width, int height, const QgsRectangle &extent, const QgsCoordinateReferenceSystem &crs )
+{
+  if ( mTiledMode )
+    return nullptr;  // does not make sense with tiled mode
+
+  double pixelSize;
+  double geoTransform[6];
+  globalOutputParameters( extent, width, height, geoTransform, pixelSize );
+
+  return initOutput( width, height, crs, geoTransform, 1, dataType, QList<bool>(), QList<double>() );
+}
+
+QgsRasterDataProvider *QgsRasterFileWriter::createMultiBandRaster( Qgis::DataType dataType, int width, int height, const QgsRectangle &extent, const QgsCoordinateReferenceSystem &crs, int nBands )
+{
+  if ( mTiledMode )
+    return nullptr;  // does not make sense with tiled mode
+
+  double pixelSize;
+  double geoTransform[6];
+  globalOutputParameters( extent, width, height, geoTransform, pixelSize );
+
+  return initOutput( width, height, crs, geoTransform, nBands, dataType, QList<bool>(), QList<double>() );
+}
+
+QgsRasterFileWriter::QgsRasterFileWriter( const QString &outputUrl )
+  : mOutputUrl( outputUrl )
 {
 
 }
 
 QgsRasterFileWriter::QgsRasterFileWriter()
-    : mMode( Raw )
-    , mOutputProviderKey( QStringLiteral( "gdal" ) )
-    , mOutputFormat( QStringLiteral( "GTiff" ) )
-    , mTiledMode( false )
-    , mMaxTileWidth( 500 )
-    , mMaxTileHeight( 500 )
-    , mBuildPyramidsFlag( QgsRaster::PyramidsFlagNo )
-    , mPyramidsFormat( QgsRaster::PyramidsGTiff )
-    , mProgressDialog( nullptr )
-    , mPipe( nullptr )
-    , mInput( nullptr )
 {
 
 }
 
-QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeRaster( const QgsRasterPipe* pipe, int nCols, int nRows, const QgsRectangle& outputExtent,
-    const QgsCoordinateReferenceSystem& crs, QProgressDialog* progressDialog )
+QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeRaster( const QgsRasterPipe *pipe, int nCols, int nRows, const QgsRectangle &outputExtent,
+    const QgsCoordinateReferenceSystem &crs, QgsRasterBlockFeedback *feedback )
 {
-  QgsDebugMsgLevel( "Entered", 4 );
+  QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
 
   if ( !pipe )
   {
@@ -74,7 +80,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeRaster( const QgsRast
   mPipe = pipe;
 
   //const QgsRasterInterface* iface = iter->input();
-  const QgsRasterInterface* iface = pipe->last();
+  const QgsRasterInterface *iface = pipe->last();
   if ( !iface )
   {
     return SourceProviderError;
@@ -90,19 +96,19 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeRaster( const QgsRast
     mMode = Raw;
   }
 
-  QgsDebugMsgLevel( QString( "reading from %1" ).arg( typeid( *iface ).name() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "reading from %1" ).arg( typeid( *iface ).name() ), 4 );
 
   if ( !iface->sourceInput() )
   {
-    QgsDebugMsg( "iface->srcInput() == 0" );
+    QgsDebugMsg( QStringLiteral( "iface->srcInput() == 0" ) );
     return SourceProviderError;
   }
 #ifdef QGISDEBUG
   const QgsRasterInterface &srcInput = *iface->sourceInput();
-  QgsDebugMsgLevel( QString( "srcInput = %1" ).arg( typeid( srcInput ).name() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "srcInput = %1" ).arg( typeid( srcInput ).name() ), 4 );
 #endif
 
-  mProgressDialog = progressDialog;
+  mFeedback = feedback;
 
   QgsRasterIterator iter( pipe->last() );
 
@@ -121,39 +127,45 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeRaster( const QgsRast
     }
   }
 
+  // Remove pre-existing overview files to avoid using those with new raster
+  QFile pyramidFile( mOutputUrl + ( mTiledMode ? ".vrt.ovr" : ".ovr" ) );
+  if ( pyramidFile.exists() )
+    pyramidFile.remove();
+  pyramidFile.setFileName( mOutputUrl + ( mTiledMode ? ".vrt.rrd" : ".rrd" ) );
+  if ( pyramidFile.exists() )
+    pyramidFile.remove();
+
   if ( mMode == Image )
   {
-    WriterError e = writeImageRaster( &iter, nCols, nRows, outputExtent, crs, progressDialog );
-    mProgressDialog = nullptr;
+    WriterError e = writeImageRaster( &iter, nCols, nRows, outputExtent, crs, feedback );
     return e;
   }
   else
   {
-    mProgressDialog = nullptr;
-    WriterError e = writeDataRaster( pipe, &iter, nCols, nRows, outputExtent, crs, progressDialog );
+    WriterError e = writeDataRaster( pipe, &iter, nCols, nRows, outputExtent, crs, feedback );
     return e;
   }
 }
 
-QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const QgsRasterPipe* pipe, QgsRasterIterator* iter, int nCols, int nRows, const QgsRectangle& outputExtent,
-    const QgsCoordinateReferenceSystem& crs, QProgressDialog* progressDialog )
+QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const QgsRasterPipe *pipe, QgsRasterIterator *iter, int nCols, int nRows, const QgsRectangle &outputExtent,
+    const QgsCoordinateReferenceSystem &crs, QgsRasterBlockFeedback *feedback )
 {
-  QgsDebugMsgLevel( "Entered", 4 );
+  QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
   if ( !iter )
   {
     return SourceProviderError;
   }
 
-  const QgsRasterInterface* iface = pipe->last();
+  const QgsRasterInterface *iface = pipe->last();
   if ( !iface )
   {
     return SourceProviderError;
   }
 
-  QgsRasterDataProvider* srcProvider = const_cast<QgsRasterDataProvider*>( dynamic_cast<const QgsRasterDataProvider*>( iface->sourceInput() ) );
+  QgsRasterDataProvider *srcProvider = const_cast<QgsRasterDataProvider *>( dynamic_cast<const QgsRasterDataProvider *>( iface->sourceInput() ) );
   if ( !srcProvider )
   {
-    QgsDebugMsg( "Cannot get source data provider" );
+    QgsDebugMsg( QStringLiteral( "Cannot get source data provider" ) );
     return SourceProviderError;
   }
 
@@ -198,7 +210,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
     double destNoDataValue = std::numeric_limits<double>::quiet_NaN();
     Qgis::DataType destDataType = srcProvider->sourceDataType( bandNo );
     // TODO: verify what happens/should happen if srcNoDataValue is disabled by setUseSrcNoDataValue
-    QgsDebugMsgLevel( QString( "srcHasNoDataValue = %1 srcNoDataValue = %2" ).arg( srcHasNoDataValue ).arg( srcProvider->sourceNoDataValue( bandNo ) ), 4 );
+    QgsDebugMsgLevel( QStringLiteral( "srcHasNoDataValue = %1 srcNoDataValue = %2" ).arg( srcHasNoDataValue ).arg( srcProvider->sourceNoDataValue( bandNo ) ), 4 );
     if ( srcHasNoDataValue )
     {
 
@@ -214,12 +226,14 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
     }
     else
     {
-      // Verify if we realy need no data value, i.e.
+      // Verify if we really need no data value, i.e.
       QgsRectangle srcExtent = outputExtent;
       QgsRasterProjector *projector = pipe->projector();
       if ( projector && projector->destinationCrs() != projector->sourceCrs() )
       {
+        Q_NOWARN_DEPRECATED_PUSH
         QgsCoordinateTransform ct( projector->destinationCrs(), projector->sourceCrs() );
+        Q_NOWARN_DEPRECATED_POP
         srcExtent = ct.transformBoundingBox( outputExtent );
       }
       if ( !srcProvider->extent().contains( srcExtent ) )
@@ -253,7 +267,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
       nuller->setOutputNoDataValue( bandNo, destNoDataValue );
     }
 
-    QgsDebugMsgLevel( QString( "bandNo = %1 destDataType = %2 destHasNoDataValue = %3 destNoDataValue = %4" ).arg( bandNo ).arg( destDataType ).arg( destHasNoDataValue ).arg( destNoDataValue ), 4 );
+    QgsDebugMsgLevel( QStringLiteral( "bandNo = %1 destDataType = %2 destHasNoDataValue = %3 destNoDataValue = %4" ).arg( bandNo ).arg( destDataType ).arg( destHasNoDataValue ).arg( destNoDataValue ), 4 );
     destDataTypeList.append( destDataType );
     destHasNoDataValueList.append( destHasNoDataValue );
     destNoDataValueList.append( destNoDataValue );
@@ -271,7 +285,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
   }
 
   //create destProvider for whole dataset here
-  QgsRasterDataProvider* destProvider = nullptr;
+  QgsRasterDataProvider *destProvider = nullptr;
   double pixelSize;
   double geoTransform[6];
   globalOutputParameters( outputExtent, nCols, nRows, geoTransform, pixelSize );
@@ -279,7 +293,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
   // initOutput() returns 0 in tile mode!
   destProvider = initOutput( nCols, nRows, crs, geoTransform, nBands, destDataType, destHasNoDataValueList, destNoDataValueList );
 
-  WriterError error = writeDataRaster( pipe, iter, nCols, nRows, outputExtent, crs, destDataType, destHasNoDataValueList, destNoDataValueList, destProvider, progressDialog );
+  WriterError error = writeDataRaster( pipe, iter, nCols, nRows, outputExtent, crs, destDataType, destHasNoDataValueList, destNoDataValueList, destProvider, feedback );
 
   if ( error == NoDataConflict )
   {
@@ -303,39 +317,36 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const Qgs
       destDataTypeList.replace( i, destDataType );
       destNoDataValueList.replace( i, destNoDataValue );
     }
-    destDataType =  destDataTypeList.value( 0 );
+    destDataType = destDataTypeList.value( 0 );
 
     // Try again
     destProvider = initOutput( nCols, nRows, crs, geoTransform, nBands, destDataType, destHasNoDataValueList, destNoDataValueList );
-    error = writeDataRaster( pipe, iter, nCols, nRows, outputExtent, crs, destDataType, destHasNoDataValueList, destNoDataValueList, destProvider, progressDialog );
+    error = writeDataRaster( pipe, iter, nCols, nRows, outputExtent, crs, destDataType, destHasNoDataValueList, destNoDataValueList, destProvider, feedback );
   }
 
-  if ( destProvider )
-    delete destProvider;
-
+  delete destProvider;
   return error;
 }
 
-QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
-  const QgsRasterPipe* pipe,
-  QgsRasterIterator* iter,
-  int nCols, int nRows,
-  const QgsRectangle& outputExtent,
-  const QgsCoordinateReferenceSystem& crs,
-  Qgis::DataType destDataType,
-  const QList<bool>& destHasNoDataValueList,
-  const QList<double>& destNoDataValueList,
-  QgsRasterDataProvider* destProvider,
-  QProgressDialog* progressDialog )
+QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster( const QgsRasterPipe *pipe,
+    QgsRasterIterator *iter,
+    int nCols, int nRows,
+    const QgsRectangle &outputExtent,
+    const QgsCoordinateReferenceSystem &crs,
+    Qgis::DataType destDataType,
+    const QList<bool> &destHasNoDataValueList,
+    const QList<double> &destNoDataValueList,
+    QgsRasterDataProvider *destProvider,
+    QgsRasterBlockFeedback *feedback )
 {
   Q_UNUSED( pipe );
   Q_UNUSED( destHasNoDataValueList );
-  QgsDebugMsgLevel( "Entered", 4 );
+  QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
 
-  const QgsRasterInterface* iface = iter->input();
-  const QgsRasterDataProvider *srcProvider = dynamic_cast<const QgsRasterDataProvider*>( iface->sourceInput() );
+  const QgsRasterInterface *iface = iter->input();
+  const QgsRasterDataProvider *srcProvider = dynamic_cast<const QgsRasterDataProvider *>( iface->sourceInput() );
   int nBands = iface->bandCount();
-  QgsDebugMsgLevel( QString( "nBands = %1" ).arg( nBands ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "nBands = %1" ).arg( nBands ), 4 );
 
   //Get output map units per pixel
   int iterLeft = 0;
@@ -343,7 +354,7 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
   int iterCols = 0;
   int iterRows = 0;
 
-  QList<QgsRasterBlock*> blockList;
+  QList<QgsRasterBlock *> blockList;
   blockList.reserve( nBands );
   for ( int i = 1; i <= nBands; ++i )
   {
@@ -357,14 +368,11 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
 
   int nParts = 0;
   int fileIndex = 0;
-  if ( progressDialog )
+  if ( feedback )
   {
     int nPartsX = nCols / iter->maximumTileWidth() + 1;
     int nPartsY = nRows / iter->maximumTileHeight() + 1;
     nParts = nPartsX * nPartsY;
-    progressDialog->setMaximum( nParts );
-    progressDialog->show();
-    progressDialog->setLabelText( QObject::tr( "Reading raster part %1 of %2" ).arg( fileIndex + 1 ).arg( nParts ) );
   }
 
   // hmm why is there a for(;;) here ..
@@ -389,22 +397,20 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
         {
           if ( mBuildPyramidsFlag == QgsRaster::PyramidsFlagYes )
           {
-            buildPyramids( mOutputUrl );
+            buildPyramids( mOutputUrl, destProvider );
           }
         }
 
-        QgsDebugMsgLevel( "Done", 4 );
+        QgsDebugMsgLevel( QStringLiteral( "Done" ), 4 );
         return NoError; //reached last tile, bail out
       }
       // TODO: verify if NoDataConflict happened, to do that we need the whole pipe or nuller interface
     }
 
-    if ( progressDialog && fileIndex < ( nParts - 1 ) )
+    if ( feedback && fileIndex < ( nParts - 1 ) )
     {
-      progressDialog->setValue( fileIndex + 1 );
-      progressDialog->setLabelText( QObject::tr( "Reading raster part %1 of %2" ).arg( fileIndex + 2 ).arg( nParts ) );
-      QCoreApplication::processEvents( QEventLoop::AllEvents, 1000 );
-      if ( progressDialog->wasCanceled() )
+      feedback->setProgress( 100.0 * fileIndex / static_cast< double >( nParts ) );
+      if ( feedback->isCanceled() )
       {
         for ( int i = 0; i < nBands; ++i )
         {
@@ -415,25 +421,25 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
     }
 
     // It may happen that internal data type (dataType) is wider than destDataType
-    QList<QgsRasterBlock*> destBlockList;
+    QList<QgsRasterBlock *> destBlockList;
     for ( int i = 1; i <= nBands; ++i )
     {
       if ( srcProvider && srcProvider->dataType( i ) == destDataType )
       {
-        destBlockList.push_back( blockList[i-1] );
+        destBlockList.push_back( blockList[i - 1] );
       }
       else
       {
         // TODO: this conversion should go to QgsRasterDataProvider::write with additional input data type param
-        blockList[i-1]->convert( destDataType );
-        destBlockList.push_back( blockList[i-1] );
+        blockList[i - 1]->convert( destDataType );
+        destBlockList.push_back( blockList[i - 1] );
       }
-      blockList[i-1] = nullptr;
+      blockList[i - 1] = nullptr;
     }
 
     if ( mTiledMode ) //write to file
     {
-      QgsRasterDataProvider* partDestProvider = createPartProvider( outputExtent,
+      QgsRasterDataProvider *partDestProvider = createPartProvider( outputExtent,
           nCols, iterCols, iterRows,
           iterLeft, iterTop, mOutputUrl,
           fileIndex, nBands, destDataType, crs );
@@ -466,20 +472,20 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeDataRaster(
     ++fileIndex;
   }
 
-  QgsDebugMsgLevel( "Done", 4 );
-  return NoError;
+  QgsDebugMsgLevel( QStringLiteral( "Done" ), 4 );
+  return ( feedback && feedback->isCanceled() ) ? WriteCanceled : NoError;
 }
 
-QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRasterIterator* iter, int nCols, int nRows, const QgsRectangle& outputExtent,
-    const QgsCoordinateReferenceSystem& crs, QProgressDialog* progressDialog )
+QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRasterIterator *iter, int nCols, int nRows, const QgsRectangle &outputExtent,
+    const QgsCoordinateReferenceSystem &crs, QgsRasterBlockFeedback *feedback )
 {
-  QgsDebugMsgLevel( "Entered", 4 );
+  QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
   if ( !iter )
   {
     return SourceProviderError;
   }
 
-  const QgsRasterInterface* iface = iter->input();
+  const QgsRasterInterface *iface = iter->input();
   if ( !iface )
     return SourceProviderError;
 
@@ -492,51 +498,43 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRaste
   iter->setMaximumTileWidth( mMaxTileWidth );
   iter->setMaximumTileHeight( mMaxTileHeight );
 
-  void* redData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
-  void* greenData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
-  void* blueData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
-  void* alphaData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
-  QgsRectangle mapRect;
+  void *redData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
+  void *greenData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
+  void *blueData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
+  void *alphaData = qgsMalloc( mMaxTileWidth * mMaxTileHeight );
   int iterLeft = 0, iterTop = 0, iterCols = 0, iterRows = 0;
   int fileIndex = 0;
 
   //create destProvider for whole dataset here
-  QgsRasterDataProvider* destProvider = nullptr;
   double pixelSize;
   double geoTransform[6];
   globalOutputParameters( outputExtent, nCols, nRows, geoTransform, pixelSize );
 
-  destProvider = initOutput( nCols, nRows, crs, geoTransform, 4, Qgis::Byte );
+  std::unique_ptr< QgsRasterDataProvider > destProvider( initOutput( nCols, nRows, crs, geoTransform, 4, Qgis::Byte ) );
 
-  iter->startRasterRead( 1, nCols, nRows, outputExtent );
+  iter->startRasterRead( 1, nCols, nRows, outputExtent, feedback );
 
   int nParts = 0;
-  if ( progressDialog )
+  if ( feedback )
   {
     int nPartsX = nCols / iter->maximumTileWidth() + 1;
     int nPartsY = nRows / iter->maximumTileHeight() + 1;
     nParts = nPartsX * nPartsY;
-    progressDialog->setMaximum( nParts );
-    progressDialog->show();
-    progressDialog->setLabelText( QObject::tr( "Reading raster part %1 of %2" ).arg( fileIndex + 1 ).arg( nParts ) );
   }
 
-  QgsRasterBlock *inputBlock = nullptr;
-  while ( iter->readNextRasterPart( 1, iterCols, iterRows, &inputBlock, iterLeft, iterTop ) )
+  std::unique_ptr< QgsRasterBlock > inputBlock;
+  while ( iter->readNextRasterPart( 1, iterCols, iterRows, inputBlock, iterLeft, iterTop ) )
   {
     if ( !inputBlock )
     {
       continue;
     }
 
-    if ( progressDialog && fileIndex < ( nParts - 1 ) )
+    if ( feedback && fileIndex < ( nParts - 1 ) )
     {
-      progressDialog->setValue( fileIndex + 1 );
-      progressDialog->setLabelText( QObject::tr( "Reading raster part %1 of %2" ).arg( fileIndex + 2 ).arg( nParts ) );
-      QCoreApplication::processEvents( QEventLoop::AllEvents, 1000 );
-      if ( progressDialog->wasCanceled() )
+      feedback->setProgress( 100.0 * fileIndex / static_cast< double >( nParts ) );
+      if ( feedback->isCanceled() )
       {
-        delete inputBlock;
         break;
       }
     }
@@ -559,26 +557,25 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRaste
       if ( inputDataType == Qgis::ARGB32_Premultiplied )
       {
         double a = alpha / 255.;
-        QgsDebugMsgLevel( QString( "red = %1 green = %2 blue = %3 alpha = %4 p = %5 a = %6" ).arg( red ).arg( green ).arg( blue ).arg( alpha ).arg( static_cast< int >( c ), 0, 16 ).arg( a ), 5 );
+        QgsDebugMsgLevel( QStringLiteral( "red = %1 green = %2 blue = %3 alpha = %4 p = %5 a = %6" ).arg( red ).arg( green ).arg( blue ).arg( alpha ).arg( static_cast< int >( c ), 0, 16 ).arg( a ), 5 );
         red /= a;
         green /= a;
         blue /= a;
       }
-      memcpy( reinterpret_cast< char* >( redData ) + i, &red, 1 );
-      memcpy( reinterpret_cast< char* >( greenData ) + i, &green, 1 );
-      memcpy( reinterpret_cast< char* >( blueData ) + i, &blue, 1 );
-      memcpy( reinterpret_cast< char* >( alphaData ) + i, &alpha, 1 );
+      memcpy( reinterpret_cast< char * >( redData ) + i, &red, 1 );
+      memcpy( reinterpret_cast< char * >( greenData ) + i, &green, 1 );
+      memcpy( reinterpret_cast< char * >( blueData ) + i, &blue, 1 );
+      memcpy( reinterpret_cast< char * >( alphaData ) + i, &alpha, 1 );
     }
-    delete inputBlock;
 
     //create output file
     if ( mTiledMode )
     {
       //delete destProvider;
-      QgsRasterDataProvider* partDestProvider = createPartProvider( outputExtent,
+      std::unique_ptr< QgsRasterDataProvider > partDestProvider( createPartProvider( outputExtent,
           nCols, iterCols, iterRows,
           iterLeft, iterTop, mOutputUrl, fileIndex,
-          4, Qgis::Byte, crs );
+          4, Qgis::Byte, crs ) );
 
       if ( partDestProvider )
       {
@@ -592,7 +589,6 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRaste
         addToVRT( partFileName( fileIndex ), 2, iterCols, iterRows, iterLeft, iterTop );
         addToVRT( partFileName( fileIndex ), 3, iterCols, iterRows, iterLeft, iterTop );
         addToVRT( partFileName( fileIndex ), 4, iterCols, iterRows, iterLeft, iterTop );
-        delete partDestProvider;
       }
     }
     else if ( destProvider )
@@ -605,18 +601,16 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRaste
 
     ++fileIndex;
   }
-
-  if ( destProvider )
-    delete destProvider;
+  destProvider.reset();
 
   qgsFree( redData );
   qgsFree( greenData );
   qgsFree( blueData );
   qgsFree( alphaData );
 
-  if ( progressDialog )
+  if ( feedback )
   {
-    progressDialog->setValue( progressDialog->maximum() );
+    feedback->setProgress( 100.0 );
   }
 
   if ( mTiledMode )
@@ -635,10 +629,10 @@ QgsRasterFileWriter::WriterError QgsRasterFileWriter::writeImageRaster( QgsRaste
       buildPyramids( mOutputUrl );
     }
   }
-  return NoError;
+  return ( feedback && feedback->isCanceled() ) ? WriteCanceled : NoError;
 }
 
-void QgsRasterFileWriter::addToVRT( const QString& filename, int band, int xSize, int ySize, int xOffset, int yOffset )
+void QgsRasterFileWriter::addToVRT( const QString &filename, int band, int xSize, int ySize, int xOffset, int yOffset )
 {
   QDomElement bandElem = mVRTBands.value( band - 1 );
 
@@ -685,47 +679,20 @@ void QgsRasterFileWriter::addToVRT( const QString& filename, int band, int xSize
   bandElem.appendChild( simpleSourceElem );
 }
 
-#if 0
-void QgsRasterFileWriter::buildPyramids( const QString& filename )
-{
-  GDALDatasetH dataSet;
-  GDALAllRegister();
-  dataSet = GDALOpen( filename.toLocal8Bit().data(), GA_Update );
-  if ( !dataSet )
-  {
-    return;
-  }
-
-  //2,4,8,16,32,64
-  int overviewList[6];
-  overviewList[0] = 2;
-  overviewList[1] = 4;
-  overviewList[2] = 8;
-  overviewList[3] = 16;
-  overviewList[4] = 32;
-  overviewList[5] = 64;
-
-#if 0
-  if ( mProgressDialog )
-  {
-    mProgressDialog->setLabelText( QObject::tr( "Building Pyramids..." ) );
-    mProgressDialog->setValue( 0 );
-    mProgressDialog->setWindowModality( Qt::WindowModal );
-    mProgressDialog->show();
-  }
-#endif
-  GDALBuildOverviews( dataSet, "AVERAGE", 6, overviewList, 0, 0, /*pyramidsProgress*/ 0, /*mProgressDialog*/ 0 );
-}
-#endif
-
-void QgsRasterFileWriter::buildPyramids( const QString& filename )
+void QgsRasterFileWriter::buildPyramids( const QString &filename, QgsRasterDataProvider *destProviderIn )
 {
   QgsDebugMsgLevel( "filename = " + filename, 4 );
   // open new dataProvider so we can build pyramids with it
-  QgsRasterDataProvider* destProvider = dynamic_cast< QgsRasterDataProvider* >( QgsProviderRegistry::instance()->provider( mOutputProviderKey, filename ) );
+  QgsDataProvider::ProviderOptions providerOptions;
+  QgsRasterDataProvider *destProvider = destProviderIn;
   if ( !destProvider )
   {
-    return;
+    destProvider = dynamic_cast< QgsRasterDataProvider * >( QgsProviderRegistry::instance()->createProvider( mOutputProviderKey, filename, providerOptions ) );
+    if ( !destProvider || !destProvider->isValid() )
+    {
+      delete destProvider;
+      return;
+    }
   }
 
   // TODO progress report
@@ -739,7 +706,7 @@ void QgsRasterFileWriter::buildPyramids( const QString& filename )
     myPyramidList[myCounterInt].build = true;
   }
 
-  QgsDebugMsgLevel( QString( "building pyramids : %1 pyramids, %2 resampling, %3 format, %4 options" ).arg( myPyramidList.count() ).arg( mPyramidsResampling ).arg( mPyramidsFormat ).arg( mPyramidsConfigOptions.count() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "building pyramids : %1 pyramids, %2 resampling, %3 format, %4 options" ).arg( myPyramidList.count() ).arg( mPyramidsResampling ).arg( mPyramidsFormat ).arg( mPyramidsConfigOptions.count() ), 4 );
   // QApplication::setOverrideCursor( Qt::WaitCursor );
   QString res = destProvider->buildPyramids( myPyramidList, mPyramidsResampling,
                 mPyramidsFormat, mPyramidsConfigOptions );
@@ -751,42 +718,38 @@ void QgsRasterFileWriter::buildPyramids( const QString& filename )
     QString title, message;
     if ( res == QLatin1String( "ERROR_WRITE_ACCESS" ) )
     {
-      title = QObject::tr( "Building pyramids failed - write access denied" );
+      title = QObject::tr( "Building Pyramids" );
       message = QObject::tr( "Write access denied. Adjust the file permissions and try again." );
     }
     else if ( res == QLatin1String( "ERROR_WRITE_FORMAT" ) )
     {
-      title = QObject::tr( "Building pyramids failed." );
+      title = QObject::tr( "Building Pyramids" );
       message = QObject::tr( "The file was not writable. Some formats do not "
                              "support pyramid overviews. Consult the GDAL documentation if in doubt." );
     }
     else if ( res == QLatin1String( "FAILED_NOT_SUPPORTED" ) )
     {
-      title = QObject::tr( "Building pyramids failed." );
+      title = QObject::tr( "Building Pyramids" );
       message = QObject::tr( "Building pyramid overviews is not supported on this type of raster." );
-    }
-    else if ( res == QLatin1String( "ERROR_JPEG_COMPRESSION" ) )
-    {
-      title = QObject::tr( "Building pyramids failed." );
-      message = QObject::tr( "Building internal pyramid overviews is not supported on raster layers with JPEG compression and your current libtiff library." );
     }
     else if ( res == QLatin1String( "ERROR_VIRTUAL" ) )
     {
-      title = QObject::tr( "Building pyramids failed." );
+      title = QObject::tr( "Building Pyramids" );
       message = QObject::tr( "Building pyramid overviews is not supported on this type of raster." );
     }
     QMessageBox::warning( nullptr, title, message );
     QgsDebugMsgLevel( res + " - " + message, 4 );
   }
-  delete destProvider;
+  if ( !destProviderIn )
+    delete destProvider;
 }
 
 #if 0
-int QgsRasterFileWriter::pyramidsProgress( double dfComplete, const char *pszMessage, void* pData )
+int QgsRasterFileWriter::pyramidsProgress( double dfComplete, const char *pszMessage, void *pData )
 {
   Q_UNUSED( pszMessage );
   GDALTermProgress( dfComplete, 0, 0 );
-  QProgressDialog* progressDialog = static_cast<QProgressDialog*>( pData );
+  QProgressDialog *progressDialog = static_cast<QProgressDialog *>( pData );
   if ( pData && progressDialog->wasCanceled() )
   {
     return 0;
@@ -801,7 +764,7 @@ int QgsRasterFileWriter::pyramidsProgress( double dfComplete, const char *pszMes
 }
 #endif
 
-void QgsRasterFileWriter::createVRT( int xSize, int ySize, const QgsCoordinateReferenceSystem& crs, double* geoTransform, Qgis::DataType type, const QList<bool>& destHasNoDataValueList, const QList<double>& destNoDataValueList )
+void QgsRasterFileWriter::createVRT( int xSize, int ySize, const QgsCoordinateReferenceSystem &crs, double *geoTransform, Qgis::DataType type, const QList<bool> &destHasNoDataValueList, const QList<double> &destNoDataValueList )
 {
   mVRTDocument.clear();
   QDomElement VRTDatasetElem = mVRTDocument.createElement( QStringLiteral( "VRTDataset" ) );
@@ -821,8 +784,8 @@ void QgsRasterFileWriter::createVRT( int xSize, int ySize, const QgsCoordinateRe
   if ( geoTransform )
   {
     QDomElement geoTransformElem = mVRTDocument.createElement( QStringLiteral( "GeoTransform" ) );
-    QString geoTransformString = QString::number( geoTransform[0] ) + ", " + QString::number( geoTransform[1] ) + ", " + QString::number( geoTransform[2] ) +
-                                 ", "  + QString::number( geoTransform[3] ) + ", " + QString::number( geoTransform[4] ) + ", " + QString::number( geoTransform[5] );
+    QString geoTransformString = QString::number( geoTransform[0], 'f', 6 ) + ", " + QString::number( geoTransform[1] ) + ", " + QString::number( geoTransform[2] ) +
+                                 ", "  + QString::number( geoTransform[3], 'f', 6 ) + ", " + QString::number( geoTransform[4] ) + ", " + QString::number( geoTransform[5] );
     QDomText geoTransformText = mVRTDocument.createTextNode( geoTransformString );
     geoTransformElem.appendChild( geoTransformText );
     VRTDatasetElem.appendChild( geoTransformElem );
@@ -880,7 +843,7 @@ void QgsRasterFileWriter::createVRT( int xSize, int ySize, const QgsCoordinateRe
   }
 }
 
-bool QgsRasterFileWriter::writeVRT( const QString& file )
+bool QgsRasterFileWriter::writeVRT( const QString &file )
 {
   QFile outputFile( file );
   if ( ! outputFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
@@ -893,9 +856,9 @@ bool QgsRasterFileWriter::writeVRT( const QString& file )
   return true;
 }
 
-QgsRasterDataProvider* QgsRasterFileWriter::createPartProvider( const QgsRectangle& extent, int nCols, int iterCols,
-    int iterRows, int iterLeft, int iterTop, const QString& outputUrl, int fileIndex, int nBands, Qgis::DataType type,
-    const QgsCoordinateReferenceSystem& crs )
+QgsRasterDataProvider *QgsRasterFileWriter::createPartProvider( const QgsRectangle &extent, int nCols, int iterCols,
+    int iterRows, int iterLeft, int iterTop, const QString &outputUrl, int fileIndex, int nBands, Qgis::DataType type,
+    const QgsCoordinateReferenceSystem &crs )
 {
   double mup = extent.width() / nCols;
   double mapLeft = extent.xMinimum() + iterLeft * mup;
@@ -917,15 +880,15 @@ QgsRasterDataProvider* QgsRasterFileWriter::createPartProvider( const QgsRectang
 
   // perhaps we need a separate createOptions for tiles ?
 
-  QgsRasterDataProvider* destProvider = QgsRasterDataProvider::create( mOutputProviderKey, outputFile, mOutputFormat, nBands, type, iterCols, iterRows, geoTransform, crs, mCreateOptions );
+  QgsRasterDataProvider *destProvider = QgsRasterDataProvider::create( mOutputProviderKey, outputFile, mOutputFormat, nBands, type, iterCols, iterRows, geoTransform, crs, mCreateOptions );
 
   // TODO: return provider and report error
   return destProvider;
 }
 
-QgsRasterDataProvider* QgsRasterFileWriter::initOutput( int nCols, int nRows, const QgsCoordinateReferenceSystem& crs,
-    double* geoTransform, int nBands, Qgis::DataType type,
-    const QList<bool>& destHasNoDataValueList, const QList<double>& destNoDataValueList )
+QgsRasterDataProvider *QgsRasterFileWriter::initOutput( int nCols, int nRows, const QgsCoordinateReferenceSystem &crs,
+    double *geoTransform, int nBands, Qgis::DataType type,
+    const QList<bool> &destHasNoDataValueList, const QList<double> &destNoDataValueList )
 {
   if ( mTiledMode )
   {
@@ -937,30 +900,30 @@ QgsRasterDataProvider* QgsRasterFileWriter::initOutput( int nCols, int nRows, co
 #if 0
     // TODO enable "use existing", has no effect for now, because using Create() in gdal provider
     // should this belong in provider? should also test that source provider is gdal
-    if ( mBuildPyramidsFlag == -4 && mOutputProviderKey == "gdal" && mOutputFormat.toLower() == "gtiff" )
+    if ( mBuildPyramidsFlag == -4 && mOutputProviderKey == "gdal" && mOutputFormat.compare( QLatin1String( "gtiff" ), Qt::CaseInsensitive ) == 0 )
       mCreateOptions << "COPY_SRC_OVERVIEWS=YES";
 #endif
 
-    QgsRasterDataProvider* destProvider = QgsRasterDataProvider::create( mOutputProviderKey, mOutputUrl, mOutputFormat, nBands, type, nCols, nRows, geoTransform, crs, mCreateOptions );
+    QgsRasterDataProvider *destProvider = QgsRasterDataProvider::create( mOutputProviderKey, mOutputUrl, mOutputFormat, nBands, type, nCols, nRows, geoTransform, crs, mCreateOptions );
 
     if ( !destProvider )
     {
-      QgsDebugMsg( "No provider created" );
+      QgsDebugMsg( QStringLiteral( "No provider created" ) );
     }
 
     return destProvider;
   }
 }
 
-void QgsRasterFileWriter::globalOutputParameters( const QgsRectangle& extent, int nCols, int& nRows,
-    double* geoTransform, double& pixelSize )
+void QgsRasterFileWriter::globalOutputParameters( const QgsRectangle &extent, int nCols, int &nRows,
+    double *geoTransform, double &pixelSize )
 {
   pixelSize = extent.width() / nCols;
 
   //calculate nRows automatically for providers without exact resolution
   if ( nRows < 0 )
   {
-    nRows = static_cast< double >( nCols ) / extent.width() * extent.height() + 0.5;
+    nRows = static_cast< double >( nCols ) / extent.width() * extent.height() + 0.5; //NOLINT
   }
   geoTransform[0] = extent.xMinimum();
   geoTransform[1] = pixelSize;
@@ -981,4 +944,151 @@ QString QgsRasterFileWriter::vrtFileName()
 {
   QFileInfo outputInfo( mOutputUrl );
   return QStringLiteral( "%1.vrt" ).arg( outputInfo.fileName() );
+}
+
+QString QgsRasterFileWriter::driverForExtension( const QString &extension )
+{
+  QString ext = extension.trimmed();
+  if ( ext.isEmpty() )
+    return QString();
+
+  if ( ext.startsWith( '.' ) )
+    ext.remove( 0, 1 );
+
+  GDALAllRegister();
+  int const drvCount = GDALGetDriverCount();
+
+  for ( int i = 0; i < drvCount; ++i )
+  {
+    GDALDriverH drv = GDALGetDriver( i );
+    if ( drv )
+    {
+      char **driverMetadata = GDALGetMetadata( drv, nullptr );
+      if ( CSLFetchBoolean( driverMetadata, GDAL_DCAP_RASTER, false ) )
+      {
+        QString drvName = GDALGetDriverShortName( drv );
+        QStringList driverExtensions = QString( GDALGetMetadataItem( drv, GDAL_DMD_EXTENSIONS, nullptr ) ).split( ' ' );
+
+        Q_FOREACH ( const QString &driver, driverExtensions )
+        {
+          if ( driver.compare( ext, Qt::CaseInsensitive ) == 0 )
+            return drvName;
+        }
+      }
+    }
+  }
+  return QString();
+}
+
+QStringList QgsRasterFileWriter::extensionsForFormat( const QString &format )
+{
+  GDALDriverH drv = GDALGetDriverByName( format.toLocal8Bit().data() );
+  if ( drv )
+  {
+    char **driverMetadata = GDALGetMetadata( drv, nullptr );
+    if ( CSLFetchBoolean( driverMetadata, GDAL_DCAP_RASTER, false ) )
+    {
+      return QString( GDALGetMetadataItem( drv, GDAL_DMD_EXTENSIONS, nullptr ) ).split( ' ' );
+    }
+  }
+  return QStringList();
+}
+
+QString QgsRasterFileWriter::filterForDriver( const QString &driverName )
+{
+  GDALDriverH drv = GDALGetDriverByName( driverName.toLocal8Bit().data() );
+  if ( drv )
+  {
+    QString drvName = GDALGetDriverLongName( drv );
+    QString extensionsString = QString( GDALGetMetadataItem( drv, GDAL_DMD_EXTENSIONS, nullptr ) );
+    if ( extensionsString.isEmpty() )
+    {
+      return QString();
+    }
+    QStringList extensions = extensionsString.split( ' ' );
+    QString filter = drvName + " (";
+    for ( const QString &ext : extensions )
+    {
+      filter.append( QStringLiteral( "*.%1 *.%2 " ).arg( ext.toLower(), ext.toUpper() ) );
+    }
+    filter = filter.trimmed().append( QStringLiteral( ")" ) );
+    return filter;
+  }
+
+  return QString();
+}
+
+QList< QgsRasterFileWriter::FilterFormatDetails > QgsRasterFileWriter::supportedFiltersAndFormats( RasterFormatOptions options )
+{
+  QList< FilterFormatDetails > results;
+
+  GDALAllRegister();
+  int const drvCount = GDALGetDriverCount();
+
+  FilterFormatDetails tifFormat;
+
+  for ( int i = 0; i < drvCount; ++i )
+  {
+    GDALDriverH drv = GDALGetDriver( i );
+    if ( drv )
+    {
+      if ( QgsGdalUtils::supportsRasterCreate( drv ) )
+      {
+        QString drvName = GDALGetDriverShortName( drv );
+        QString filterString = filterForDriver( drvName );
+        if ( filterString.isEmpty() )
+          continue;
+
+        FilterFormatDetails details;
+        details.driverName = drvName;
+        details.filterString = filterString;
+
+        if ( options & SortRecommended )
+        {
+          if ( drvName == QLatin1String( "GTiff" ) )
+          {
+            tifFormat = details;
+            continue;
+          }
+        }
+
+        results << details;
+      }
+    }
+  }
+
+  std::sort( results.begin(), results.end(), []( const FilterFormatDetails & a, const FilterFormatDetails & b ) -> bool
+  {
+    return a.driverName < b.driverName;
+  } );
+
+  if ( options & SortRecommended )
+  {
+    if ( !tifFormat.filterString.isEmpty() )
+    {
+      results.insert( 0, tifFormat );
+    }
+  }
+
+  return results;
+}
+
+QStringList QgsRasterFileWriter::supportedFormatExtensions( const RasterFormatOptions options )
+{
+  const auto formats = supportedFiltersAndFormats( options );
+  QStringList extensions;
+
+  QRegularExpression rx( QStringLiteral( "\\*\\.([a-zA-Z0-9]*)" ) );
+
+  for ( const FilterFormatDetails &format : formats )
+  {
+    QString ext = format.filterString;
+    QRegularExpressionMatch match = rx.match( ext );
+    if ( !match.hasMatch() )
+      continue;
+
+    QString matched = match.captured( 1 );
+    extensions << matched;
+  }
+  return extensions;
 }

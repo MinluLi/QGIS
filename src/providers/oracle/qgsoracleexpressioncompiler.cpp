@@ -15,29 +15,31 @@
 
 #include "qgsoracleexpressioncompiler.h"
 #include "qgssqlexpressioncompiler.h"
+#include "qgsexpressionnodeimpl.h"
 
-QgsOracleExpressionCompiler::QgsOracleExpressionCompiler( QgsOracleFeatureSource* source )
-    : QgsSqlExpressionCompiler( source->mFields )
+QgsOracleExpressionCompiler::QgsOracleExpressionCompiler( QgsOracleFeatureSource *source )
+  : QgsSqlExpressionCompiler( source->mFields )
 {
 }
 
-QgsSqlExpressionCompiler::Result QgsOracleExpressionCompiler::compileNode( const QgsExpression::Node* node, QString& result )
+QgsSqlExpressionCompiler::Result QgsOracleExpressionCompiler::compileNode( const QgsExpressionNode *node, QString &result )
 {
-  if ( node->nodeType() == QgsExpression::ntBinaryOperator )
+  if ( node->nodeType() == QgsExpressionNode::ntBinaryOperator )
   {
-    const QgsExpression::NodeBinaryOperator *bin( static_cast<const QgsExpression::NodeBinaryOperator*>( node ) );
+    const QgsExpressionNodeBinaryOperator *bin( static_cast<const QgsExpressionNodeBinaryOperator *>( node ) );
 
     switch ( bin->op() )
     {
-      case QgsExpression::boConcat:
+      case QgsExpressionNodeBinaryOperator::boConcat:
         // oracle's handling of || WRT null is not standards compliant
         return Fail;
 
-      case QgsExpression::boPow:
-      case QgsExpression::boRegexp:
-      case QgsExpression::boILike:
-      case QgsExpression::boNotILike:
-      case QgsExpression::boMod:
+      case QgsExpressionNodeBinaryOperator::boPow:
+      case QgsExpressionNodeBinaryOperator::boRegexp:
+      case QgsExpressionNodeBinaryOperator::boILike:
+      case QgsExpressionNodeBinaryOperator::boNotILike:
+      case QgsExpressionNodeBinaryOperator::boMod:
+      case QgsExpressionNodeBinaryOperator::boIntDiv:
       {
         QString op1, op2;
 
@@ -47,29 +49,35 @@ QgsSqlExpressionCompiler::Result QgsOracleExpressionCompiler::compileNode( const
 
         switch ( bin->op() )
         {
-          case QgsExpression::boPow:
-            result = QString( "power(%1,%2)" ).arg( op1, op2 );
+          case QgsExpressionNodeBinaryOperator::boPow:
+            result = QStringLiteral( "power(%1,%2)" ).arg( op1, op2 );
             return Complete;
 
-          case QgsExpression::boRegexp:
-            result = QString( "regexp_like(%1,%2)" ).arg( op1, op2 );
+          case QgsExpressionNodeBinaryOperator::boRegexp:
+            result = QStringLiteral( "regexp_like(%1,%2)" ).arg( op1, op2 );
             return Complete;
 
-          case QgsExpression::boILike:
-            result = QString( "lower(%1) LIKE lower(%2)" ).arg( op1, op2 );
+          case QgsExpressionNodeBinaryOperator::boILike:
+            result = QStringLiteral( "lower(%1) LIKE lower(%2)" ).arg( op1, op2 );
             return Complete;
 
-          case QgsExpression::boNotILike:
-            result = QString( "NOT lower(%1) LIKE lower(%2)" ).arg( op1, op2 );
+          case QgsExpressionNodeBinaryOperator::boNotILike:
+            result = QStringLiteral( "NOT lower(%1) LIKE lower(%2)" ).arg( op1, op2 );
             return Complete;
 
-          case QgsExpression::boMod  :
-            result = QString( "MOD(%1,%2)" ).arg( op1, op2 );
+          case QgsExpressionNodeBinaryOperator::boIntDiv:
+            result = QStringLiteral( "FLOOR(%1 / %2)" ).arg( op1, op2 );
+            return Complete;
+
+
+          case QgsExpressionNodeBinaryOperator::boMod  :
+            result = QStringLiteral( "MOD(%1,%2)" ).arg( op1, op2 );
             return Complete;
 
           default:
             break;
         }
+        break; // no warnings
       }
 
       default:
@@ -81,12 +89,12 @@ QgsSqlExpressionCompiler::Result QgsOracleExpressionCompiler::compileNode( const
   return QgsSqlExpressionCompiler::compileNode( node, result );
 }
 
-QString QgsOracleExpressionCompiler::quotedIdentifier( const QString& identifier )
+QString QgsOracleExpressionCompiler::quotedIdentifier( const QString &identifier )
 {
   return QgsOracleConn::quotedIdentifier( identifier );
 }
 
-QString QgsOracleExpressionCompiler::quotedValue( const QVariant& value, bool& ok )
+QString QgsOracleExpressionCompiler::quotedValue( const QVariant &value, bool &ok )
 {
   ok = true;
 
@@ -94,9 +102,34 @@ QString QgsOracleExpressionCompiler::quotedValue( const QVariant& value, bool& o
   {
     case QVariant::Bool:
       //no boolean literal support in Oracle, so fake it
-      return value.toBool() ? "(1=1)" : "(1=0)";
+      return value.toBool() ? QStringLiteral( "(1=1)" ) : QStringLiteral( "(1=0)" );
 
     default:
       return QgsOracleConn::quotedValue( value );
   }
+}
+
+static const QMap<QString, QString> FUNCTION_NAMES_SQL_FUNCTIONS_MAP
+{
+  { "sqrt", "sqrt" },
+  { "abs", "abs" },
+  { "cos", "cos" },
+  { "sin", "sin" },
+  { "tan", "tan" },
+  { "acos", "acos" },
+  { "asin", "asin" },
+  { "atan", "atan" },
+  { "exp", "exp" },
+  { "ln", "ln" },
+  { "log", "log" },
+  { "round", "round" },
+  { "floor", "floor" },
+  { "ceil", "ceil" },
+  { "lower", "lower" },
+  { "upper", "upper" },
+};
+
+QString QgsOracleExpressionCompiler::sqlFunctionFromFunctionName( const QString &fnName ) const
+{
+  return FUNCTION_NAMES_SQL_FUNCTIONS_MAP.value( fnName, QString() );
 }

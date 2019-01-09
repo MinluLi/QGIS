@@ -34,22 +34,10 @@
 #include "feature.h"
 #include "geomfunction.h"
 
-#include <qgslogger.h>
+#include "qgslogger.h"
 #include <cfloat>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#ifndef M_PI_2
-#define M_PI_2 1.57079632679489661923
-#endif
-
-#ifndef M_SQRT2
-#define M_SQRT2 1.41421356237309504880
-#endif
-
-void pal::Util::sort( void** items, int N, bool ( *greater )( void *l, void *r ) )
+void pal::Util::sort( void **items, int N, bool ( *greater )( void *l, void *r ) )
 {
 
   if ( N <= 0 )
@@ -96,18 +84,18 @@ void pal::Util::sort( void** items, int N, bool ( *greater )( void *l, void *r )
   }
 }
 
-QLinkedList<const GEOSGeometry *>* pal::Util::unmulti( const GEOSGeometry *the_geom )
+QLinkedList<const GEOSGeometry *> *pal::Util::unmulti( const GEOSGeometry *the_geom )
 {
-  QLinkedList<const GEOSGeometry*> *queue = new QLinkedList<const GEOSGeometry*>;
-  QLinkedList<const GEOSGeometry*> *final_queue = new QLinkedList<const GEOSGeometry*>;
+  QLinkedList<const GEOSGeometry *> *queue = new QLinkedList<const GEOSGeometry *>;
+  QLinkedList<const GEOSGeometry *> *final_queue = new QLinkedList<const GEOSGeometry *>;
 
-  const GEOSGeometry *geom;
+  const GEOSGeometry *geom = nullptr;
 
   queue->append( the_geom );
   int nGeom;
   int i;
 
-  GEOSContextHandle_t geosctxt = geosContext();
+  GEOSContextHandle_t geosctxt = QgsGeos::getGEOSHandler();
 
   while ( !queue->isEmpty() )
   {
@@ -130,7 +118,7 @@ QLinkedList<const GEOSGeometry *>* pal::Util::unmulti( const GEOSGeometry *the_g
         final_queue->append( geom );
         break;
       default:
-        QgsDebugMsg( QString( "unexpected geometry type:%1" ).arg( type ) );
+        QgsDebugMsg( QStringLiteral( "unexpected geometry type:%1" ).arg( type ) );
         delete final_queue;
         delete queue;
         return nullptr;

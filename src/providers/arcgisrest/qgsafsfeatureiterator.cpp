@@ -14,33 +14,80 @@
  ***************************************************************************/
 #include "qgsafsfeatureiterator.h"
 #include "qgsspatialindex.h"
-#include "qgsafsprovider.h"
+#include "qgsafsshareddata.h"
 #include "qgsmessagelog.h"
 #include "geometry/qgsgeometry.h"
+#include "qgsexception.h"
+#include "qgsarcgisrestutils.h"
+#include "qgsfeedback.h"
 
-
-QgsAfsFeatureSource::QgsAfsFeatureSource( const QgsAfsProvider* provider )
-// FIXME: ugly const_cast...
-    : mProvider( const_cast<QgsAfsProvider*>( provider ) )
+QgsAfsFeatureSource::QgsAfsFeatureSource( const std::shared_ptr<QgsAfsSharedData> &sharedData )
+  : mSharedData( sharedData )
 {
 }
 
-QgsFeatureIterator QgsAfsFeatureSource::getFeatures( const QgsFeatureRequest& request )
+QgsFeatureIterator QgsAfsFeatureSource::getFeatures( const QgsFeatureRequest &request )
 {
   return QgsFeatureIterator( new QgsAfsFeatureIterator( this, false, request ) );
 }
 
-QgsAfsProvider* QgsAfsFeatureSource::provider() const
+QgsAfsSharedData *QgsAfsFeatureSource::sharedData() const
 {
-  return mProvider;
+  return mSharedData.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-QgsAfsFeatureIterator::QgsAfsFeatureIterator( QgsAfsFeatureSource* source, bool ownSource, const QgsFeatureRequest& request )
-    : QgsAbstractFeatureIteratorFromSource<QgsAfsFeatureSource>( source, ownSource, request )
+QgsAfsFeatureIterator::QgsAfsFeatureIterator( QgsAfsFeatureSource *source, bool ownSource, const QgsFeatureRequest &request )
+  : QgsAbstractFeatureIteratorFromSource<QgsAfsFeatureSource>( source, ownSource, request )
 {
-  mFeatureIterator = 0;
+  if ( mRequest.destinationCrs().isValid() && mRequest.destinationCrs() != mSource->sharedData()->crs() )
+  {
+    mTransform = QgsCoordinateTransform( mSource->sharedData()->crs(), mRequest.destinationCrs(), mRequest.transformContext() );
+  }
+  try
+  {
+    mFilterRect = filterRectToSourceCrs( mTransform );
+    if ( !mRequest.filterRect().isNull() && mFilterRect.isNull() )
+    {
+      close();
+      return;
+    }
+  }
+  catch ( QgsCsException & )
+  {
+    // can't reproject mFilterRect
+    close();
+    return;
+  }
+
+  QgsFeatureIds requestIds;
+  if ( mRequest.filterType() == QgsFeatureRequest::FilterFids )
+  {
+    requestIds = mRequest.filterFids();
+  }
+  else if ( mRequest.filterType() == QgsFeatureRequest::FilterFid )
+  {
+    requestIds.insert( mRequest.filterFid() );
+  }
+
+  if ( !mFilterRect.isNull() && !mSource->sharedData()->hasCachedAllFeatures() )
+  {
+    // defer request to find features in filter rect until first feature is requested
+    // this allows time for a interruption checker to be installed on the iterator
+    // and avoids performing this expensive check in the main thread when just
+    // preparing iterators
+
+    // (but if we've already cached ALL the features, we skip this -- there's no need for
+    // firing off another request to the server)
+    mDeferredFeaturesInFilterRectCheck = true;
+  }
+
+  mFeatureIdList = requestIds.toList();
+  std::sort( mFeatureIdList.begin(), mFeatureIdList.end() );
+  mRemainingFeatureIds = mFeatureIdList;
+  if ( !mRemainingFeatureIds.empty() )
+    mFeatureIterator = mRemainingFeatureIds.at( 0 );
 }
 
 QgsAfsFeatureIterator::~QgsAfsFeatureIterator()
@@ -48,40 +95,124 @@ QgsAfsFeatureIterator::~QgsAfsFeatureIterator()
   close();
 }
 
-bool QgsAfsFeatureIterator::fetchFeature( QgsFeature& f )
+bool QgsAfsFeatureIterator::fetchFeature( QgsFeature &f )
 {
+  f.setValid( false );
+
   if ( mClosed )
     return false;
 
-  if ( mFeatureIterator >= mSource->provider()->featureCount() )
+  if ( mInterruptionChecker && mInterruptionChecker->isCanceled() )
     return false;
 
-  bool fetchGeometries = ( mRequest.flags() & QgsFeatureRequest::NoGeometry ) == 0;
-  QgsAttributeList fetchAttribures;
-  if (( mRequest.flags() & QgsFeatureRequest::SubsetOfAttributes ) != 0 )
-    fetchAttribures = mRequest.subsetOfAttributes();
-  else
+  if ( mFeatureIterator >= mSource->sharedData()->featureCount() )
+    return false;
+
+  if ( mDeferredFeaturesInFilterRectCheck )
   {
-    for ( int i = 0; i < mSource->provider()->fields().size(); ++i )
-      fetchAttribures.append( i );
+    QgsFeatureIds featuresInRect = mSource->sharedData()->getFeatureIdsInExtent( mFilterRect, mInterruptionChecker );
+    if ( !mFeatureIdList.isEmpty() )
+    {
+      QgsFeatureIds requestIds = mFeatureIdList.toSet();
+      requestIds.intersect( featuresInRect );
+      mFeatureIdList = requestIds.toList();
+    }
+    else
+    {
+      mFeatureIdList = featuresInRect.toList();
+    }
+    if ( mFeatureIdList.empty() )
+    {
+      return false;
+    }
+
+    std::sort( mFeatureIdList.begin(), mFeatureIdList.end() );
+    mRemainingFeatureIds = mFeatureIdList;
+    if ( !mRemainingFeatureIds.empty() )
+      mFeatureIterator = mRemainingFeatureIds.at( 0 );
+
+    mDeferredFeaturesInFilterRectCheck = false;
+
+    if ( !( mRequest.flags() & QgsFeatureRequest::ExactIntersect ) )
+    {
+      // discard the filter rect - we know that the features in mRemainingFeatureIds are guaranteed
+      // to be intersecting the rect, so avoid any extra unnecessary checks
+      mFilterRect = QgsRectangle();
+    }
   }
 
-  if ( mRequest.filterType() == QgsFeatureRequest::FilterFid )
+  if ( !mFeatureIdList.empty() && mRemainingFeatureIds.empty() )
+    return false;
+
+  switch ( mRequest.filterType() )
   {
-    return mSource->provider()->getFeature( mRequest.filterFid(), f, fetchGeometries, fetchAttribures );
-  }
-  else
-  {
-    QgsRectangle filterRect = mSource->provider()->extent();
-    if ( mRequest.filterType() == QgsFeatureRequest::FilterRect )
-      filterRect = filterRect.intersect( &mRequest.filterRect() );
-    while ( mFeatureIterator < mSource->provider()->featureCount() )
+    case QgsFeatureRequest::FilterFid:
     {
-      bool success = mSource->provider()->getFeature( mFeatureIterator, f, fetchGeometries, fetchAttribures, filterRect );
-      ++mFeatureIterator;
-      if ( !success )
-        continue;
-      return true;
+      if ( mRemainingFeatureIds.empty() )
+        return false;
+
+      bool result = mSource->sharedData()->getFeature( mRequest.filterFid(), f, QgsRectangle(), mInterruptionChecker );
+      if ( mInterruptionChecker && mInterruptionChecker->isCanceled() )
+        return false;
+
+      geometryToDestinationCrs( f, mTransform );
+      f.setValid( result );
+      mRemainingFeatureIds.removeAll( f.id() );
+      return result;
+    }
+
+    case QgsFeatureRequest::FilterFids:
+    case QgsFeatureRequest::FilterExpression:
+    case QgsFeatureRequest::FilterNone:
+    {
+      while ( mFeatureIterator < mSource->sharedData()->featureCount() )
+      {
+        if ( mInterruptionChecker && mInterruptionChecker->isCanceled() )
+          return false;
+
+        if ( !mFeatureIdList.empty() && mRemainingFeatureIds.empty() )
+          return false;
+
+        bool success = mSource->sharedData()->getFeature( mFeatureIterator, f, QgsRectangle(), mInterruptionChecker );
+        if ( !mFeatureIdList.empty() )
+        {
+          mRemainingFeatureIds.removeAll( mFeatureIterator );
+          if ( !mRemainingFeatureIds.empty() )
+            mFeatureIterator = mRemainingFeatureIds.at( 0 );
+        }
+        else
+        {
+          ++mFeatureIterator;
+        }
+
+        if ( !mFilterRect.isNull() )
+        {
+          if ( !f.hasGeometry() )
+            success = false;
+          else
+          {
+            if ( mRequest.flags() & QgsFeatureRequest::ExactIntersect )
+            {
+              // exact intersection check requested
+              if ( !f.geometry().intersects( mFilterRect ) )
+                success = false;
+            }
+            else
+            {
+              // bounding box intersect check only
+              if ( !f.geometry().boundingBoxIntersects( mFilterRect ) )
+                success = false;
+            }
+          }
+        }
+
+        if ( !success )
+          continue;
+        geometryToDestinationCrs( f, mTransform );
+        f.setValid( true );
+        return true;
+      }
+      return false;
     }
   }
   return false;
@@ -92,6 +223,9 @@ bool QgsAfsFeatureIterator::rewind()
   if ( mClosed )
     return false;
   mFeatureIterator = 0;
+  mRemainingFeatureIds = mFeatureIdList;
+  if ( !mRemainingFeatureIds.empty() )
+    mFeatureIterator = mRemainingFeatureIds.at( 0 );
   return true;
 }
 
@@ -102,4 +236,9 @@ bool QgsAfsFeatureIterator::close()
   iteratorClosed();
   mClosed = true;
   return true;
+}
+
+void QgsAfsFeatureIterator::setInterruptionChecker( QgsFeedback *interruptionChecker )
+{
+  mInterruptionChecker = interruptionChecker;
 }

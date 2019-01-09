@@ -15,14 +15,15 @@ IF(TXT2TAGS_EXECUTABLE)
   IF(WITH_TXT2TAGS_PDF)
     ADD_TXT2TAGS_PDFS(QGIS_DOC_FILES INSTALL.t2t news.t2t)
   ENDIF(WITH_TXT2TAGS_PDF)
-  ADD_CUSTOM_TARGET (t2tdoc ALL DEPENDS ${QGIS_DOC_FILES})
+  FILE(GLOB t2tfiles doc/*.t2t)
+  ADD_CUSTOM_TARGET (t2tdoc ALL DEPENDS ${QGIS_DOC_FILES} ${t2tfiles})
 ELSE(TXT2TAGS_EXECUTABLE)
   SET(QGIS_DOC_FILES
     ${CMAKE_SOURCE_DIR}/INSTALL
   )
 ENDIF(TXT2TAGS_EXECUTABLE)
 
-SET(QGIS_DOC_FILES ${QGIS_DOC_FILES} index.html news.html developersmap.html contributors.json favicon.ico style.css release-sponsors.html AUTHORS CONTRIBUTORS SPONSORS DONORS TRANSLATORS LICENSE)
+SET(QGIS_DOC_FILES ${QGIS_DOC_FILES} index.html news.html developersmap.html nohelp.html favicon.ico style.css AUTHORS CONTRIBUTORS SPONSORS DONORS TRANSLATORS LICENSE)
 
 INSTALL(FILES ${QGIS_DOC_FILES} DESTINATION ${QGIS_DATA_DIR}/doc)
 INSTALL(FILES ../images/icons/qgis-icon-60x60.png DESTINATION ${QGIS_DATA_DIR}/doc/images)
@@ -45,20 +46,38 @@ IF(WITH_APIDOC)
       SET(WITH_QHP NO)
     ENDIF(GENERATE_QHP)
 
+    SET(DOXYGEN_INCLUDE_PATH
+      ${CMAKE_SOURCE_DIR}/src/core
+    )
+    STRING(REPLACE ";" " " DOXYGEN_INCLUDE_PATH "${DOXYGEN_INCLUDE_PATH}")
+
     SET(DOXYGEN_INPUT
       ${CMAKE_SOURCE_DIR}/doc
       ${CMAKE_SOURCE_DIR}/src/core
+      ${CMAKE_SOURCE_DIR}/src/core/3d
+      ${CMAKE_SOURCE_DIR}/src/core/annotations
       ${CMAKE_SOURCE_DIR}/src/core/auth
-      ${CMAKE_SOURCE_DIR}/src/core/composer
       ${CMAKE_SOURCE_DIR}/src/core/diagram
       ${CMAKE_SOURCE_DIR}/src/core/dxf
       ${CMAKE_SOURCE_DIR}/src/core/effects
+      ${CMAKE_SOURCE_DIR}/src/core/expression
+      ${CMAKE_SOURCE_DIR}/src/core/fieldformatter
       ${CMAKE_SOURCE_DIR}/src/core/geometry
+      ${CMAKE_SOURCE_DIR}/src/core/geocms
+      ${CMAKE_SOURCE_DIR}/src/core/geocms/geonode
       ${CMAKE_SOURCE_DIR}/src/core/gps
       ${CMAKE_SOURCE_DIR}/src/core/layertree
+      ${CMAKE_SOURCE_DIR}/src/core/layout
+      ${CMAKE_SOURCE_DIR}/src/core/locator
+      ${CMAKE_SOURCE_DIR}/src/core/metadata
+      ${CMAKE_SOURCE_DIR}/src/core/mesh
       ${CMAKE_SOURCE_DIR}/src/core/pal
+      ${CMAKE_SOURCE_DIR}/src/core/processing
+      ${CMAKE_SOURCE_DIR}/src/core/providers
+      ${CMAKE_SOURCE_DIR}/src/core/providers/memory
       ${CMAKE_SOURCE_DIR}/src/core/raster
-      ${CMAKE_SOURCE_DIR}/src/core/symbology-ng
+      ${CMAKE_SOURCE_DIR}/src/core/scalebar
+      ${CMAKE_SOURCE_DIR}/src/core/symbology
       ${CMAKE_SOURCE_DIR}/src/gui
       ${CMAKE_SOURCE_DIR}/src/gui/auth
       ${CMAKE_SOURCE_DIR}/src/gui/attributetable
@@ -66,29 +85,36 @@ IF(WITH_APIDOC)
       ${CMAKE_SOURCE_DIR}/src/gui/editorwidgets/core
       ${CMAKE_SOURCE_DIR}/src/gui/effects
       ${CMAKE_SOURCE_DIR}/src/gui/layertree
+      ${CMAKE_SOURCE_DIR}/src/gui/layout
+      ${CMAKE_SOURCE_DIR}/src/gui/locator
+      ${CMAKE_SOURCE_DIR}/src/gui/processing
       ${CMAKE_SOURCE_DIR}/src/gui/raster
-      ${CMAKE_SOURCE_DIR}/src/gui/symbology-ng
+      ${CMAKE_SOURCE_DIR}/src/gui/symbology
       ${CMAKE_SOURCE_DIR}/src/analysis
       ${CMAKE_SOURCE_DIR}/src/analysis/interpolation
       ${CMAKE_SOURCE_DIR}/src/analysis/network
-      ${CMAKE_SOURCE_DIR}/src/analysis/openstreetmap
+      ${CMAKE_SOURCE_DIR}/src/analysis/processing
       ${CMAKE_SOURCE_DIR}/src/analysis/raster
       ${CMAKE_SOURCE_DIR}/src/analysis/vector
+      ${CMAKE_SOURCE_DIR}/src/3d
+      ${CMAKE_SOURCE_DIR}/src/3d/chunks
+      ${CMAKE_SOURCE_DIR}/src/3d/symbols
+      ${CMAKE_SOURCE_DIR}/src/3d/terrain
       ${CMAKE_SOURCE_DIR}/src/plugins
+      ${CMAKE_SOURCE_DIR}/src/quickgui
+      ${CMAKE_SOURCE_DIR}/src/quickgui/plugin
     )
 
-    IF(WITH_SERVER_PLUGINS)
+    IF(WITH_SERVER)
       SET(DOXYGEN_INPUT
         ${DOXYGEN_INPUT}
-        ${CMAKE_SOURCE_DIR}/src/server/qgsserver.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgscapabilitiescache.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgsmapserviceexception.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgsrequesthandler.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgsserverfilter.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgsaccesscontrolfilter.h
-        ${CMAKE_SOURCE_DIR}/src/server/qgsserverinterface.h
+        ${CMAKE_SOURCE_DIR}/src/server/
+        ${CMAKE_SOURCE_DIR}/src/server/services/
+        ${CMAKE_SOURCE_DIR}/src/server/services/wms
+        ${CMAKE_SOURCE_DIR}/src/server/services/wfs
+        ${CMAKE_SOURCE_DIR}/src/server/services/wcs
       )
-    ENDIF(WITH_SERVER_PLUGINS)
+    ENDIF(WITH_SERVER)
 
     SET(DOXYGEN_FILE_PATTERNS *.h *.cpp *.dox)
 

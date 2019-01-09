@@ -22,12 +22,13 @@
 #include <QMutex>
 #include <QSharedMemory>
 
-/** Utility class to deal mostly with the management of the temporary directory
+/**
+ * Utility class to deal mostly with the management of the temporary directory
     that holds the on-disk cache. */
 class QgsWFSUtils
 {
   public:
-    //! Return the name of temporary directory.
+    //! Returns the name of temporary directory.
     static QString acquireCacheDirectory();
 
     //! To be called when a temporary file is removed from the directory
@@ -37,24 +38,24 @@ class QgsWFSUtils
     static void init();
 
     //! Removes a possible namespace prefix from a typename
-    static QString removeNamespacePrefix( const QString& tname );
+    static QString removeNamespacePrefix( const QString &tname );
     //! Returns namespace prefix (or an empty string if there is no prefix)
-    static QString nameSpacePrefix( const QString& tname );
+    static QString nameSpacePrefix( const QString &tname );
 
-    //! Return a unique identifier made from feature content
-    static QString getMD5( const QgsFeature& f );
+    //! Returns a unique identifier made from feature content
+    static QString getMD5( const QgsFeature &f );
 
   protected:
     friend class QgsWFSUtilsKeepAlive;
-    static QSharedMemory* createAndAttachSHM();
+    static QSharedMemory *createAndAttachSHM();
 
   private:
-    static QMutex gmMutex;
-    static QThread* gmThread;
-    static bool gmKeepAliveWorks;
-    static int gmCounter;
+    static QMutex sMutex;
+    static QThread *sThread;
+    static bool sKeepAliveWorks;
+    static int sCounter;
 
-    //! Return the name of temporary directory.
+    //! Returns the name of temporary directory.
     static QString getCacheDirectory( bool createIfNotExisting );
 
     static QString getBaseCacheDirectory( bool createIfNotExisting );
@@ -69,13 +70,13 @@ class QgsWFSUtilsKeepAlive: public QThread
     Q_OBJECT
   public:
     QgsWFSUtilsKeepAlive();
-    ~QgsWFSUtilsKeepAlive();
+    ~QgsWFSUtilsKeepAlive() override;
 
-    void run();
+    void run() override;
   private slots:
     void updateTimestamp();
   private:
-    QSharedMemory* mSharedMemory;
+    QSharedMemory *mSharedMemory = nullptr;
 };
 
 #endif // QGSWFSUTILS_H

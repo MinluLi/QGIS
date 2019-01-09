@@ -30,21 +30,19 @@ QgsFields::QgsFields()
   d = new QgsFieldsPrivate();
 }
 
-QgsFields::QgsFields( const QgsFields& other )
-    : d( other.d )
+QgsFields::QgsFields( const QgsFields &other ) //NOLINT
+  : d( other.d )
 {
 }
 
-QgsFields& QgsFields::operator =( const QgsFields & other )
+QgsFields &QgsFields::operator =( const QgsFields &other )  //NOLINT
 {
   d = other.d;
   return *this;
 }
 
-QgsFields::~QgsFields()
-{
-
-}
+QgsFields::~QgsFields() //NOLINT
+{}
 
 void QgsFields::clear()
 {
@@ -58,7 +56,7 @@ void QgsFields::clear()
  * See details in QEP #17
  ****************************************************************************/
 
-bool QgsFields::append( const QgsField& field, FieldOrigin origin, int originIndex )
+bool QgsFields::append( const QgsField &field, FieldOrigin origin, int originIndex )
 {
   if ( d->nameToIndex.contains( field.name() ) )
     return false;
@@ -71,7 +69,7 @@ bool QgsFields::append( const QgsField& field, FieldOrigin origin, int originInd
   return true;
 }
 
-bool QgsFields::appendExpressionField( const QgsField& field, int originIndex )
+bool QgsFields::appendExpressionField( const QgsField &field, int originIndex )
 {
   if ( d->nameToIndex.contains( field.name() ) )
     return false;
@@ -95,7 +93,7 @@ void QgsFields::remove( int fieldIdx )
   }
 }
 
-void QgsFields::extend( const QgsFields& other )
+void QgsFields::extend( const QgsFields &other )
 {
   for ( int i = 0; i < other.count(); ++i )
   {
@@ -122,6 +120,16 @@ int QgsFields::count() const
 int QgsFields::size() const
 {
   return d->fields.count();
+}
+
+QStringList QgsFields::names() const
+{
+  QStringList lst;
+  for ( int i = 0; i < d->fields.count(); ++i )
+  {
+    lst.append( d->fields[i].field.name() );
+  }
+  return lst;
 }
 
 bool QgsFields::exists( int i ) const
@@ -173,12 +181,12 @@ int QgsFields::fieldOriginIndex( int fieldIdx ) const
   return d->fields[fieldIdx].originIndex;
 }
 
-int QgsFields::indexFromName( const QString& fieldName ) const
+int QgsFields::indexFromName( const QString &fieldName ) const
 {
   return d->nameToIndex.value( fieldName, -1 );
 }
 
-int QgsFields::indexOf( const QString& fieldName ) const
+int QgsFields::indexOf( const QString &fieldName ) const
 {
   return d->nameToIndex.value( fieldName, -1 );
 }
@@ -250,6 +258,9 @@ QIcon QgsFields::iconForField( int fieldIdx ) const
 {
   switch ( d->fields.at( fieldIdx ).field.type() )
   {
+    case QVariant::Bool:
+      return QgsApplication::getThemeIcon( "/mIconFieldBool.svg" );
+
     case QVariant::Int:
     case QVariant::UInt:
     case QVariant::LongLong:
@@ -288,8 +299,11 @@ QIcon QgsFields::iconForField( int fieldIdx ) const
  * See details in QEP #17
  ****************************************************************************/
 
-int QgsFields::lookupField( const QString& fieldName ) const
+int QgsFields::lookupField( const QString &fieldName ) const
 {
+  if ( fieldName.isEmpty() ) //shortcut
+    return -1;
+
   for ( int idx = 0; idx < count(); ++idx )
   {
     if ( d->fields[idx].field.name() == fieldName )
@@ -305,7 +319,7 @@ int QgsFields::lookupField( const QString& fieldName ) const
   for ( int idx = 0; idx < count(); ++idx )
   {
     QString alias = d->fields[idx].field.alias();
-    if ( !alias.isNull() && QString::compare( alias, fieldName, Qt::CaseInsensitive ) == 0 )
+    if ( !alias.isEmpty() && QString::compare( alias, fieldName, Qt::CaseInsensitive ) == 0 )
       return idx;
   }
 
@@ -326,7 +340,7 @@ QgsAttributeList QgsFields::allAttributesList() const
  * See details in QEP #17
  ****************************************************************************/
 
-QDataStream& operator<<( QDataStream& out, const QgsFields& fields )
+QDataStream &operator<<( QDataStream &out, const QgsFields &fields )
 {
   out << static_cast< quint32 >( fields.size() );
   for ( int i = 0; i < fields.size(); i++ )
@@ -336,7 +350,7 @@ QDataStream& operator<<( QDataStream& out, const QgsFields& fields )
   return out;
 }
 
-QDataStream& operator>>( QDataStream& in, QgsFields& fields )
+QDataStream &operator>>( QDataStream &in, QgsFields &fields )
 {
   fields.clear();
   quint32 size;

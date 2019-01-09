@@ -15,24 +15,21 @@ __revision__ = '$Format:%H$'
 import qgis  # NOQA
 import os
 
-from qgis.core import (QgsMapLayerRegistry,
+from qgis.core import (QgsProject,
                        QgsVectorLayer,
                        QgsMapSettings,
                        QgsSnappingUtils,
                        QgsSnappingConfig,
-                       QgsPointLocator,
                        QgsTolerance,
                        QgsRectangle,
-                       QgsPoint,
+                       QgsPointXY,
                        QgsFeature,
                        QgsGeometry,
-                       QgsProject,
                        QgsLayerDefinition,
                        QgsMapLayerDependency
                        )
 
 from qgis.testing import start_app, unittest
-from utilities import unitTestDataPath
 
 from qgis.PyQt.QtCore import QSize, QPoint
 
@@ -50,7 +47,7 @@ class TestLayerDependencies(unittest.TestCase):
     def setUpClass(cls):
         """Run before all tests"""
 
-        # create a temp spatialite db with a trigger
+        # create a temp SpatiaLite db with a trigger
         fo = tempfile.NamedTemporaryFile()
         fn = fo.name
         fo.close()
@@ -77,7 +74,7 @@ class TestLayerDependencies(unittest.TestCase):
         assert (cls.linesLayer.isValid())
         cls.pointsLayer2 = QgsVectorLayer("dbname='%s' table=\"node2\" (geom) sql=" % fn, "_points2", "spatialite")
         assert (cls.pointsLayer2.isValid())
-        QgsMapLayerRegistry.instance().addMapLayers([cls.pointsLayer, cls.linesLayer, cls.pointsLayer2])
+        QgsProject.instance().addMapLayers([cls.pointsLayer, cls.linesLayer, cls.pointsLayer2])
 
         # save the project file
         fo = tempfile.NamedTemporaryFile()
@@ -113,6 +110,7 @@ class TestLayerDependencies(unittest.TestCase):
         u = QgsSnappingUtils()
         u.setMapSettings(ms)
         cfg = u.config()
+        cfg.setEnabled(True)
         cfg.setMode(QgsSnappingConfig.AdvancedConfiguration)
         cfg.setIndividualLayerSettings(self.pointsLayer,
                                        QgsSnappingConfig.IndividualLayerSettings(True,
@@ -122,10 +120,10 @@ class TestLayerDependencies(unittest.TestCase):
         m = u.snapToMap(QPoint(95, 100))
         self.assertTrue(m.isValid())
         self.assertTrue(m.hasVertex())
-        self.assertEqual(m.point(), QgsPoint(1, 0))
+        self.assertEqual(m.point(), QgsPointXY(1, 0))
 
         f = QgsFeature(self.linesLayer.fields())
-        f.setFeatureId(1)
+        f.setId(1)
         geom = QgsGeometry.fromWkt("LINESTRING(0 0,1 1)")
         f.setGeometry(geom)
         self.linesLayer.startEditing()
@@ -143,17 +141,17 @@ class TestLayerDependencies(unittest.TestCase):
         self.pointsLayer.setDependencies([QgsMapLayerDependency(self.linesLayer.id())])
         # add another line
         f = QgsFeature(self.linesLayer.fields())
-        f.setFeatureId(2)
+        f.setId(2)
         geom = QgsGeometry.fromWkt("LINESTRING(0 0,0.5 0.5)")
         f.setGeometry(geom)
         self.linesLayer.startEditing()
         self.linesLayer.addFeatures([f])
         self.linesLayer.commitChanges()
-        # check the snapped point is ok
+        # check the snapped point is OK
         m = u.snapToMap(QPoint(45, 50))
         self.assertTrue(m.isValid())
         self.assertTrue(m.hasVertex())
-        self.assertEqual(m.point(), QgsPoint(0.5, 0.5))
+        self.assertEqual(m.point(), QgsPointXY(0.5, 0.5))
         self.pointsLayer.setDependencies([])
 
         # test chained layer dependencies A -> B -> C
@@ -165,17 +163,17 @@ class TestLayerDependencies(unittest.TestCase):
         self.pointsLayer2.setDependencies([QgsMapLayerDependency(self.pointsLayer.id())])
         # add another line
         f = QgsFeature(self.linesLayer.fields())
-        f.setFeatureId(3)
+        f.setId(3)
         geom = QgsGeometry.fromWkt("LINESTRING(0 0.2,0.5 0.8)")
         f.setGeometry(geom)
         self.linesLayer.startEditing()
         self.linesLayer.addFeatures([f])
         self.linesLayer.commitChanges()
-        # check the second snapped point is ok
+        # check the second snapped point is OK
         m = u.snapToMap(QPoint(75, 100 - 80))
         self.assertTrue(m.isValid())
         self.assertTrue(m.hasVertex())
-        self.assertEqual(m.point(), QgsPoint(0.7, 0.8))
+        self.assertEqual(m.point(), QgsPointXY(0.7, 0.8))
         self.pointsLayer.setDependencies([])
         self.pointsLayer2.setDependencies([])
 
@@ -195,7 +193,7 @@ class TestLayerDependencies(unittest.TestCase):
         QgsLayerDefinition.exportLayerDefinition(tmpfile, [ltr])
 
         grp = ltr.addGroup("imported")
-        QgsLayerDefinition.loadLayerDefinition(tmpfile, grp)
+        QgsLayerDefinition.loadLayerDefinition(tmpfile, QgsProject.instance(), grp)
 
         newPointsLayer = None
         newLinesLayer = None
@@ -204,15 +202,15 @@ class TestLayerDependencies(unittest.TestCase):
                 newPointsLayer = l.layer()
             elif l.layerId().startswith('lines'):
                 newLinesLayer = l.layer()
-        self.assertFalse(newPointsLayer is None)
-        self.assertFalse(newLinesLayer is None)
+        self.assertIsNotNone(newPointsLayer)
+        self.assertIsNotNone(newLinesLayer)
         self.assertTrue(newLinesLayer.id() in [dep.layerId() for dep in newPointsLayer.dependencies()])
 
         self.pointsLayer.setDependencies([])
 
     def test_signalConnection(self):
         # remove all layers
-        QgsMapLayerRegistry.instance().removeAllMapLayers()
+        QgsProject.instance().removeAllMapLayers()
         # set dependencies and add back layers
         self.pointsLayer = QgsVectorLayer("dbname='%s' table=\"node\" (geom) sql=" % self.fn, "points", "spatialite")
         assert (self.pointsLayer.isValid())
@@ -223,9 +221,9 @@ class TestLayerDependencies(unittest.TestCase):
         self.pointsLayer.setDependencies([QgsMapLayerDependency(self.linesLayer.id())])
         self.pointsLayer2.setDependencies([QgsMapLayerDependency(self.pointsLayer.id())])
         # this should update connections between layers
-        QgsMapLayerRegistry.instance().addMapLayers([self.pointsLayer])
-        QgsMapLayerRegistry.instance().addMapLayers([self.linesLayer])
-        QgsMapLayerRegistry.instance().addMapLayers([self.pointsLayer2])
+        QgsProject.instance().addMapLayers([self.pointsLayer])
+        QgsProject.instance().addMapLayers([self.linesLayer])
+        QgsProject.instance().addMapLayers([self.pointsLayer2])
 
         ms = QgsMapSettings()
         ms.setOutputSize(QSize(100, 100))
@@ -235,6 +233,7 @@ class TestLayerDependencies(unittest.TestCase):
         u = QgsSnappingUtils()
         u.setMapSettings(ms)
         cfg = u.config()
+        cfg.setEnabled(True)
         cfg.setMode(QgsSnappingConfig.AdvancedConfiguration)
         cfg.setIndividualLayerSettings(self.pointsLayer,
                                        QgsSnappingConfig.IndividualLayerSettings(True,
@@ -245,17 +244,17 @@ class TestLayerDependencies(unittest.TestCase):
         u.setConfig(cfg)
         # add another line
         f = QgsFeature(self.linesLayer.fields())
-        f.setFeatureId(4)
+        f.setId(4)
         geom = QgsGeometry.fromWkt("LINESTRING(0.5 0.2,0.6 0)")
         f.setGeometry(geom)
         self.linesLayer.startEditing()
         self.linesLayer.addFeatures([f])
         self.linesLayer.commitChanges()
-        # check the second snapped point is ok
+        # check the second snapped point is OK
         m = u.snapToMap(QPoint(75, 100 - 0))
         self.assertTrue(m.isValid())
         self.assertTrue(m.hasVertex())
-        self.assertEqual(m.point(), QgsPoint(0.8, 0.0))
+        self.assertEqual(m.point(), QgsPointXY(0.8, 0.0))
 
         self.pointsLayer.setDependencies([])
         self.pointsLayer2.setDependencies([])

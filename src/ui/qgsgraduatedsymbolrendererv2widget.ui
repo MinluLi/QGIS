@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>442</width>
-    <height>554</height>
+    <width>482</width>
+    <height>618</height>
    </rect>
   </property>
   <layout class="QGridLayout" name="gridLayout">
@@ -30,12 +30,6 @@
       <size>
        <width>10</width>
        <height>0</height>
-      </size>
-     </property>
-     <property name="maximumSize">
-      <size>
-       <width>500</width>
-       <height>16777215</height>
       </size>
      </property>
      <property name="focusPolicy">
@@ -69,7 +63,7 @@
    <item row="2" column="0">
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Legend Format</string>
+      <string>Legend format</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -148,154 +142,117 @@ Negative rounds to powers of 10</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="0" colspan="2">
-    <widget class="QStackedWidget" name="mMethodStackedWidget">
+   <item row="4" column="0">
+    <widget class="QLabel" name="lblColorRamp">
+     <property name="text">
+      <string>Color ramp</string>
+     </property>
+     <property name="buddy">
+      <cstring>btnColorRamp</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <widget class="QgsColorRampButton" name="btnColorRamp">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
+     <property name="minimumSize">
+      <size>
+       <width>120</width>
+       <height>0</height>
+      </size>
+     </property>
      <property name="maximumSize">
       <size>
        <width>16777215</width>
-       <height>50</height>
+       <height>16777215</height>
       </size>
      </property>
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="page">
-      <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,1,0,0,0">
-       <property name="margin">
-        <number>0</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="label_7">
-         <property name="text">
-          <string>Color ramp</string>
-         </property>
-         <property name="buddy">
-          <cstring>cboGraduatedColorRamp</cstring>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QgsColorRampComboBox" name="cboGraduatedColorRamp"/>
-       </item>
-       <item>
-        <widget class="QPushButton" name="mButtonEditRamp">
-         <property name="text">
-          <string>Edit</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="cbxInvertedColorRamp">
-         <property name="text">
-          <string>Invert</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="page_2">
-      <layout class="QGridLayout" name="gridLayout_2">
-       <property name="margin">
-        <number>0</number>
-       </property>
-       <item row="0" column="2">
-        <widget class="QgsDoubleSpinBox" name="minSizeSpinBox">
-         <property name="decimals">
-          <number>6</number>
-         </property>
-         <property name="maximum">
-          <double>999999999.000000000000000</double>
-         </property>
-         <property name="singleStep">
-          <double>0.200000000000000</double>
-         </property>
-         <property name="value">
-          <double>1.000000000000000</double>
-         </property>
-         <property name="showClearButton" stdset="0">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="label_10">
-         <property name="text">
-          <string>Size from </string>
-         </property>
-         <property name="buddy">
-          <cstring>cboGraduatedColorRamp</cstring>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="2">
-        <widget class="QgsDoubleSpinBox" name="maxSizeSpinBox">
-         <property name="decimals">
-          <number>6</number>
-         </property>
-         <property name="maximum">
-          <double>999999999.000000000000000</double>
-         </property>
-         <property name="singleStep">
-          <double>0.200000000000000</double>
-         </property>
-         <property name="value">
-          <double>10.000000000000000</double>
-         </property>
-         <property name="showClearButton" stdset="0">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="label_2">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>to</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="5">
-        <widget class="QgsUnitSelectionWidget" name="mSizeUnitWidget" native="true">
-         <property name="minimumSize">
-          <size>
-           <width>14</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="focusPolicy">
-          <enum>Qt::StrongFocus</enum>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
     </widget>
    </item>
-   <item row="5" column="0" colspan="2">
+   <item row="5" column="0">
+    <widget class="QLabel" name="lblSize">
+     <property name="text">
+      <string>Size from </string>
+     </property>
+     <property name="buddy">
+      <cstring>minSizeSpinBox</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <layout class="QHBoxLayout" name="layoutSize">
+     <item>
+      <widget class="QgsDoubleSpinBox" name="minSizeSpinBox">
+       <property name="decimals">
+        <number>6</number>
+       </property>
+       <property name="maximum">
+        <double>999999999.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>0.200000000000000</double>
+       </property>
+       <property name="value">
+        <double>1.000000000000000</double>
+       </property>
+       <property name="showClearButton" stdset="0">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblSizeTo">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>to</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QgsDoubleSpinBox" name="maxSizeSpinBox">
+       <property name="decimals">
+        <number>6</number>
+       </property>
+       <property name="maximum">
+        <double>999999999.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>0.200000000000000</double>
+       </property>
+       <property name="value">
+        <double>10.000000000000000</double>
+       </property>
+       <property name="showClearButton" stdset="0">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="6" column="1">
+    <widget class="QgsUnitSelectionWidget" name="mSizeUnitWidget" native="true">
+     <property name="minimumSize">
+      <size>
+       <width>14</width>
+       <height>0</height>
+      </size>
+     </property>
+     <property name="focusPolicy">
+      <enum>Qt::StrongFocus</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0" colspan="2">
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
       <number>0</number>
@@ -353,32 +310,13 @@ Negative rounds to powers of 10</string>
          </item>
          <item>
           <widget class="QComboBox" name="cboGraduatedMode">
-           <item>
-            <property name="text">
-             <string>Equal Interval</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Quantile (Equal Count)</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Natural Breaks (Jenks)</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Standard Deviation</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Pretty Breaks</string>
-            </property>
-           </item>
+           <property name="editable">
+            <bool>false</bool>
+           </property>
           </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widget" native="true"/>
          </item>
          <item>
           <spacer name="horizontalSpacer_4">
@@ -425,6 +363,54 @@ Negative rounds to powers of 10</string>
         </layout>
        </item>
        <item>
+        <widget class="QgsCollapsibleGroupBoxBasic" name="mGroupBoxSymmetric">
+         <property name="title">
+          <string>Symmetric Classification</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,1">
+          <item row="0" column="1">
+           <widget class="QgsDoubleSpinBox" name="spinSymmetryPointForOtherMethods">
+            <property name="specialValueText">
+             <string/>
+            </property>
+            <property name="minimum">
+             <double>-99999999999999995164818811802792197885196090803013355167206819763650035712.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>99999999999999995164818811802792197885196090803013355167206819763650035712.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>100.000000000000000</double>
+            </property>
+            <property name="showClearButton" stdset="0">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Around</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QComboBox" name="cboSymmetryPointForPretty"/>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QCheckBox" name="cbxAstride">
+            <property name="text">
+             <string>Create class astride symmetry value</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="horizontalLayout_3">
          <item>
           <widget class="QPushButton" name="btnGraduatedClassify">
@@ -458,7 +444,7 @@ Negative rounds to powers of 10</string>
          <item>
           <widget class="QPushButton" name="btnDeleteAllClasses">
            <property name="text">
-            <string>Delete all</string>
+            <string>Delete All</string>
            </property>
           </widget>
          </item>
@@ -516,17 +502,6 @@ Negative rounds to powers of 10</string>
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsFieldExpressionWidget</class>
-   <extends>QWidget</extends>
-   <header location="global">qgsfieldexpressionwidget.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>QgsColorRampComboBox</class>
-   <extends>QComboBox</extends>
-   <header>qgscolorrampcombobox.h</header>
-  </customwidget>
-  <customwidget>
    <class>QgsDoubleSpinBox</class>
    <extends>QDoubleSpinBox</extends>
    <header>qgsdoublespinbox.h</header>
@@ -538,27 +513,51 @@ Negative rounds to powers of 10</string>
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>QgsFieldExpressionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsfieldexpressionwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsColorRampButton</class>
+   <extends>QToolButton</extends>
+   <header>qgscolorrampbutton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>QgsGraduatedHistogramWidget</class>
    <extends>QWidget</extends>
    <header>qgsgraduatedhistogramwidget.h</header>
    <container>1</container>
   </customwidget>
+  <customwidget>
+   <class>QgsCollapsibleGroupBoxBasic</class>
+   <extends>QGroupBox</extends>
+   <header>qgscollapsiblegroupbox.h</header>
+   <container>1</container>
+  </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>cboGraduatedColorRamp</tabstop>
-  <tabstop>mButtonEditRamp</tabstop>
-  <tabstop>cbxInvertedColorRamp</tabstop>
+  <tabstop>mExpressionWidget</tabstop>
+  <tabstop>btnChangeGraduatedSymbol</tabstop>
+  <tabstop>txtLegendFormat</tabstop>
+  <tabstop>spinPrecision</tabstop>
+  <tabstop>cbxTrimTrailingZeroes</tabstop>
+  <tabstop>methodComboBox</tabstop>
+  <tabstop>btnColorRamp</tabstop>
+  <tabstop>minSizeSpinBox</tabstop>
+  <tabstop>maxSizeSpinBox</tabstop>
+  <tabstop>mSizeUnitWidget</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>viewGraduated</tabstop>
   <tabstop>cboGraduatedMode</tabstop>
   <tabstop>spinGraduatedClasses</tabstop>
   <tabstop>btnGraduatedClassify</tabstop>
-  <tabstop>viewGraduated</tabstop>
   <tabstop>btnGraduatedAdd</tabstop>
   <tabstop>btnGraduatedDelete</tabstop>
   <tabstop>btnDeleteAllClasses</tabstop>
-  <tabstop>cbxLinkBoundaries</tabstop>
-  <tabstop>mSizeUnitWidget</tabstop>
   <tabstop>btnAdvanced</tabstop>
-  <tabstop>minSizeSpinBox</tabstop>
+  <tabstop>cbxLinkBoundaries</tabstop>
  </tabstops>
  <resources>
   <include location="../../images/images.qrc"/>

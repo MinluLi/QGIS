@@ -1,4 +1,6 @@
-/** \brief The qgsrasterlayerproperties class is used to set up how raster layers are displayed.
+
+/**
+ * \brief The qgsrasterlayerproperties class is used to set up how raster layers are displayed.
  */
 /* **************************************************************************
                           qgsrasterlayerproperties.h  -  description
@@ -21,34 +23,35 @@
 
 #include "qgsoptionsdialogbase.h"
 #include "ui_qgsrasterlayerpropertiesbase.h"
-#include "qgisgui.h"
-#include "qgscontexthelp.h"
+#include "qgsguiutils.h"
+#include "qgshelp.h"
 #include "qgsmaplayerstylemanager.h"
+#include "qgsmaptoolemitpoint.h"
+#include "qgis_app.h"
 
-class QgsPoint;
+class QgsPointXY;
 class QgsMapLayer;
 class QgsMapCanvas;
 class QgsRasterLayer;
-class QgsMapToolEmitPoint;
+class QgsMetadataWidget;
 class QgsRasterRenderer;
 class QgsRasterRendererWidget;
 class QgsRasterHistogramWidget;
 
-/** Property sheet for a raster map layer
-  *@author Tim Sutton
+/**
+ * Property sheet for a raster map layer
   */
-
 class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private Ui::QgsRasterLayerPropertiesBase
 {
     Q_OBJECT
 
   public:
-    /** \brief Constructor
-     * @param ml Map layer for which properties will be displayed
+
+    /**
+     * \brief Constructor
+     * \param ml Map layer for which properties will be displayed
      */
-    QgsRasterLayerProperties( QgsMapLayer *lyr, QgsMapCanvas* theCanvas, QWidget *parent = nullptr, Qt::WindowFlags = QgisGui::ModalDialogFlags );
-    //! \brief Destructor
-    ~QgsRasterLayerProperties();
+    QgsRasterLayerProperties( QgsMapLayer *lyr, QgsMapCanvas *canvas, QWidget *parent = nullptr, Qt::WindowFlags = QgsGuiUtils::ModalDialogFlags );
 
     //! Synchronize state with associated raster layer
     void sync();
@@ -60,35 +63,36 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     //! Called when cancel button is pressed
     void onCancel();
     //! \brief Slot to update layer display name as original is edited.
-    void on_mLayerOrigNameLineEd_textEdited( const QString& text );
+    void mLayerOrigNameLineEd_textEdited( const QString &text );
     //! \brief this slot asks the rasterlayer to construct pyramids
-    void on_buttonBuildPyramids_clicked();
+    void buttonBuildPyramids_clicked();
     //! \brief slot executed when user presses "Add Values From Display" button on the transparency page
-    void on_pbnAddValuesFromDisplay_clicked();
+    void pbnAddValuesFromDisplay_clicked();
     //! \brief slot executed when user presses "Add Values Manually" button on the transparency page
-    void on_pbnAddValuesManually_clicked();
+    void pbnAddValuesManually_clicked();
     //! \brief slot executed when user changes the layer's CRS
-    void on_mCrsSelector_crsChanged( const QgsCoordinateReferenceSystem& crs );
+    void mCrsSelector_crsChanged( const QgsCoordinateReferenceSystem &crs );
     //! \brief slot executed when user wishes to reset noNoDataValue and transparencyTable to default value
-    void on_pbnDefaultValues_clicked();
+    void pbnDefaultValues_clicked();
     //! \brief slot executed when user wishes to export transparency values
-    void on_pbnExportTransparentPixelValues_clicked();
+    void pbnExportTransparentPixelValues_clicked();
     //! \brief auto slot executed when the active page in the main widget stack is changed
-    void mOptionsStackedWidget_CurrentChanged( int indx );
+    void optionsStackedWidget_CurrentChanged( int index ) override;
     //! \brief slow executed when user wishes to import transparency values
-    void on_pbnImportTransparentPixelValues_clicked();
+    void pbnImportTransparentPixelValues_clicked();
     //! \brief slot executed when user presses "Remove Selected Row" button on the transparency page
-    void on_pbnRemoveSelectedRow_clicked();
-    //! \brief slot executed when the single band radio button is pressed.
-    //! \brief slot executed when the reset null value to file default icon is selected
+    void pbnRemoveSelectedRow_clicked();
+
+    /**
+     * \brief slot executed when the single band radio button is pressed.
+     * \brief slot executed when the reset null value to file default icon is selected
+     */
     //void on_btnResetNull_clicked();
 
-    void pixelSelected( const QgsPoint& );
-    //! \brief slot executed when the transparency level changes.
-    void sliderTransparency_valueChanged( int );
+    void pixelSelected( const QgsPointXY &, const Qt::MouseButton & );
 
   private slots:
-    void on_mRenderTypeComboBox_currentIndexChanged( int index );
+    void mRenderTypeComboBox_currentIndexChanged( int index );
     //! Load the default style when appropriate button is pressed.
     void loadDefaultStyle_clicked();
     //! Save the default style when appropriate button is pressed.
@@ -97,11 +101,24 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     void loadStyle_clicked();
     //! Save a style when appriate button is pressed.
     void saveStyleAs_clicked();
+    //! Restore dialog modality and focus, usually after a pixel clicked to pick transparency color
+    void restoreWindowModality();
+
+
+    //! Load a saved metadata file.
+    void loadMetadata();
+    //! Save a metadata.
+    void saveMetadataAs();
+    //! Save the default metadata.
+    void saveDefaultMetadata();
+    //! Load the default metadata.
+    void loadDefaultMetadata();
+
     //! Help button
-    void on_buttonBox_helpRequested() { QgsContextHelp::run( metaObject()->className() ); }
+    void showHelp();
 
     //! Slot to reset all color rendering options to default
-    void on_mResetColorRenderingBtn_clicked();
+    void mResetColorRenderingBtn_clicked();
 
     //! Enable or disable Build pyramids button depending on selection in pyramids list
     void toggleBuildPyramidsButton();
@@ -113,18 +130,21 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     void toggleColorizeControls( bool colorizeEnabled );
 
     //! Transparency cell changed
-    void transparencyCellTextEdited( const QString & text );
+    void transparencyCellTextEdited( const QString &text );
 
     void aboutToShowStyleMenu();
 
     //! Make GUI reflect the layer's state
     void syncToLayer();
 
-  signals:
-    //! Emitted when changes to layer were saved to update legend
-    void refreshLegend( const QString& layerID, bool expandItem );
+    void urlClicked( const QUrl &url );
 
   private:
+    QPushButton *mBtnStyle = nullptr;
+    QPushButton *mBtnMetadata = nullptr;
+    QAction *mActionLoadMetadata = nullptr;
+    QAction *mActionSaveMetadataAs = nullptr;
+
     //! \brief  A constant that signals property not used
     const QString TRSTRING_NOT_SET;
 
@@ -145,24 +165,26 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     //! \brief Flag to indicate if RGB minimum maximum values are actual minimum maximum values
     bool mRGBMinimumMaximumEstimated;
 
-    //! \brief Pointer to the raster layer that this property dilog changes the behaviour of.
-    QgsRasterLayer * mRasterLayer;
+    //! \brief Pointer to the raster layer that this property dilog changes the behavior of.
+    QgsRasterLayer *mRasterLayer = nullptr;
 
-    /** \brief If the underlying raster layer doesn't have a provider
+    /**
+     * \brief If the underlying raster layer doesn't have a provider
 
         This variable is used to determine if various parts of the Properties UI are
         included or not
      */
     //bool mRasterLayerIsInternal;
 
-    QgsRasterRendererWidget* mRendererWidget;
+    QgsRasterRendererWidget *mRendererWidget = nullptr;
+    QgsMetadataWidget *mMetadataWidget = nullptr;
 
     bool rasterIsMultiBandColor();
 
     void setupTransparencyTable( int nBands );
 
     //! \brief Clear the current transparency table and populate the table with the correct types for current drawing mode and data type
-    void populateTransparencyTable( QgsRasterRenderer* renderer );
+    void populateTransparencyTable( QgsRasterRenderer *renderer );
 
     void setTransparencyCell( int row, int column, double value );
     void setTransparencyCellValue( int row, int column, double value );
@@ -170,7 +192,7 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     void setTransparencyToEdited( int row );
     void adjustTransparencyCellWidth( int row, int column );
 
-    void setRendererWidget( const QString& rendererName );
+    void setRendererWidget( const QString &rendererName );
 
     //TODO: we should move these gradient generators somewhere more generic
     //so they can be used generically throughout the app
@@ -182,15 +204,22 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     qreal mGradientHeight;
     qreal mGradientWidth;
 
-    QgsMapCanvas* mMapCanvas;
-    QgsMapToolEmitPoint* mPixelSelectorTool;
+    QgsMapCanvas *mMapCanvas = nullptr;
+    std::unique_ptr<QgsMapToolEmitPoint> mPixelSelectorTool;
 
-    QgsRasterHistogramWidget* mHistogramWidget;
+    QgsRasterHistogramWidget *mHistogramWidget = nullptr;
 
     QVector<bool> mTransparencyToEdited;
 
-    /** Previous layer style. Used to reset style to previous state if new style
-     * was loaded but dialog is cancelled */
+    /**
+     * Previous layer style. Used to reset style to previous state if new style
+     * was loaded but dialog is canceled */
     QgsMapLayerStyle mOldStyle;
+
+    bool mDisableRenderTypeComboBoxCurrentIndexChanged = false;
+
+    bool mMetadataFilled;
+
+    friend class QgsAppScreenShots;
 };
 #endif

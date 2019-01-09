@@ -17,32 +17,38 @@
 #define QGSKEYVALUEWIDGET_H
 
 #include "qgstablewidgetbase.h"
+#include "qgis.h"
 #include <QAbstractTableModel>
 #include <QMap>
+#include "qgis_gui.h"
 
+
+#ifndef SIP_RUN
 ///@cond PRIVATE
-/** @ingroup gui
+
+/**
+ * \ingroup gui
  * Table model to edit a QVariantMap.
- * @note added in QGIS 3.0
- * @note not available in Python bindings
+ * \note not available in Python bindings
+ * \since QGIS 3.0
  */
 class GUI_EXPORT QgsKeyValueModel : public QAbstractTableModel
 {
     Q_OBJECT
   public:
 
-    explicit QgsKeyValueModel( QObject *parent = 0 );
-    void setMap( const QVariantMap& map );
+    explicit QgsKeyValueModel( QObject *parent = nullptr );
+    void setMap( const QVariantMap &map );
     QVariantMap map() const;
 
-    int rowCount( const QModelIndex& parent = QModelIndex() ) const override;
-    int columnCount( const QModelIndex& parent = QModelIndex() ) const override;
+    int rowCount( const QModelIndex &parent = QModelIndex() ) const override;
+    int columnCount( const QModelIndex &parent = QModelIndex() ) const override;
     QVariant headerData( int section, Qt::Orientation orientation, int role ) const override;
-    QVariant data( const QModelIndex& index, int role = Qt::DisplayRole ) const override;
-    bool setData( const QModelIndex & index, const QVariant & value, int role = Qt::EditRole ) override;
+    QVariant data( const QModelIndex &index, int role = Qt::DisplayRole ) const override;
+    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole ) override;
     Qt::ItemFlags flags( const QModelIndex &index ) const override;
-    bool insertRows( int position, int rows, const QModelIndex & parent =  QModelIndex() ) override;
-    bool removeRows( int position, int rows, const QModelIndex &parent =  QModelIndex() ) override;
+    bool insertRows( int position, int rows, const QModelIndex &parent = QModelIndex() ) override;
+    bool removeRows( int position, int rows, const QModelIndex &parent = QModelIndex() ) override;
 
     typedef QPair<QString, QVariant> Line;
 
@@ -50,30 +56,32 @@ class GUI_EXPORT QgsKeyValueModel : public QAbstractTableModel
     QVector<Line> mLines;
 };
 ///@endcond
+#endif
 
-
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Widget allowing to edit a QVariantMap, using a table.
- * @note added in QGIS 3.0
+ * \since QGIS 3.0
  */
 class GUI_EXPORT QgsKeyValueWidget: public QgsTableWidgetBase
 {
     Q_OBJECT
     Q_PROPERTY( QVariantMap map READ map WRITE setMap )
   public:
+
     /**
      * Constructor.
      */
-    explicit QgsKeyValueWidget( QWidget* parent = nullptr );
+    explicit QgsKeyValueWidget( QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
     /**
      * Set the initial value of the widget.
      */
-    void setMap( const QVariantMap& map );
+    void setMap( const QVariantMap &map );
 
     /**
-     * Get the edit value.
-     * @return the QVariantMap
+     * Gets the edit value.
+     * \returns the QVariantMap
      */
     QVariantMap map() const { return mModel.map(); }
 

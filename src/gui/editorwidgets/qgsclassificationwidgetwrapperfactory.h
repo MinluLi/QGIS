@@ -17,8 +17,12 @@
 #define QGSCLASSIFICATIONWIDGETWRAPPERFACTORY_H
 
 #include "qgseditorwidgetfactory.h"
+#include "qgis_gui.h"
 
-/** \ingroup gui
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
  * \class QgsClassificationWidgetWrapperFactory
  * \note not available in Python bindings
  */
@@ -26,12 +30,12 @@
 class GUI_EXPORT QgsClassificationWidgetWrapperFactory : public QgsEditorWidgetFactory
 {
   public:
-    explicit QgsClassificationWidgetWrapperFactory( const QString& name );
+    explicit QgsClassificationWidgetWrapperFactory( const QString &name );
 
     // QgsEditorWidgetFactory interface
   public:
-    QgsEditorWidgetWrapper* create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const override;
-    QgsEditorConfigWidget* configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const override;
+    QgsEditorWidgetWrapper *create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const override;
+    QgsEditorConfigWidget *configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const override;
 };
 
 #endif // QGSCLASSIFICATIONWIDGETWRAPPERFACTORY_H

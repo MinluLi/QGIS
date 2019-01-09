@@ -17,103 +17,101 @@
 #define QGSTABWIDGET_H
 
 #include <QTabWidget>
+#include "qgis_gui.h"
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * The QgsTabWidget class is the same as the QTabWidget but with additional methods to
  * temporarily hide/show tabs.
  *
- * @note Added in QGIS 3.0
+ * \since QGIS 3.0
  */
 class GUI_EXPORT QgsTabWidget : public QTabWidget
 {
     Q_OBJECT
 
   public:
+
     /**
      * Create a new QgsTabWidget with the optionally provided parent.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
     QgsTabWidget( QWidget *parent = nullptr );
 
     /**
      * Hides the tab with the given widget
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    void hideTab( QWidget* tab );
+    void hideTab( QWidget *tab );
 
     /**
      * Shows the tab with the given widget
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    void showTab( QWidget* tab );
+    void showTab( QWidget *tab );
 
     /**
      * Control the visibility for the tab with the given widget.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    void setTabVisible( QWidget* tab, bool visible );
+    void setTabVisible( QWidget *tab, bool visible );
 
     /**
      * Returns the index of the tab with the given widget.
      * This index is not the same as the one provided to insertTab and removeTab
      * since these methods are not aware of hidden tabs.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    int realTabIndex( QWidget* widget );
+    int realTabIndex( QWidget *widget );
 
     /**
      * Is called internally whenever a new tab has been inserted.
      *
      * Is used to keep track of currently available and visible tabs.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    virtual void tabInserted( int index ) override;
+    void tabInserted( int index ) override;
 
     /**
      * Is called internally whenever a tab has been removed.
      *
      * Is used to keep track of currently available and visible tabs.
      *
-     * @note Added in QGIS 3.0
+     * \since QGIS 3.0
      */
-    virtual void tabRemoved( int index ) override;
+    void tabRemoved( int index ) override;
 
   private:
     void synchronizeIndexes();
 
     struct TabInformation
     {
-      TabInformation( QWidget* wdg, const QString& lbl )
-          : sourceIndex( -1 )
-          , widget( wdg )
-          , label( lbl )
-          , visible( true )
+      TabInformation( QWidget *wdg, const QString &lbl )
+        : widget( wdg )
+        , label( lbl )
       {}
 
-      TabInformation()
-          : sourceIndex( -1 )
-          , widget( nullptr )
-          , visible( true )
-      {}
+      //! Constructor for TabInformation
+      TabInformation() = default;
 
-      bool operator ==( const TabInformation& other );
+      bool operator ==( const TabInformation &other );
 
-      int sourceIndex;
-      QWidget* widget;
+      int sourceIndex = -1;
+      QWidget *widget = nullptr;
       QString label;
-      bool visible;
+      bool visible = true;
     };
 
-    TabInformation tabInfo( QWidget* widget );
+    TabInformation tabInfo( QWidget *widget );
 
     QList<TabInformation> mTabs;
-    bool mSetTabVisibleFlag;
+    bool mSetTabVisibleFlag = false;
 };
 
 #endif // QGSTABWIDGET_H

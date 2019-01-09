@@ -14,7 +14,7 @@
  ***************************************************************************/
 
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include <editorwidgets/qgsspinbox.h>
 
@@ -53,7 +53,7 @@ void TestQgsSpinBox::cleanup()
 
 void TestQgsSpinBox::clear()
 {
-  QgsSpinBox* spinBox = new QgsSpinBox();
+  QgsSpinBox *spinBox = new QgsSpinBox();
   spinBox->setMaximum( 10 );
   spinBox->setMinimum( 1 );
   spinBox->setValue( 5 );
@@ -74,7 +74,7 @@ void TestQgsSpinBox::clear()
 
 void TestQgsSpinBox::expression()
 {
-  QgsSpinBox* spinBox = new QgsSpinBox();
+  QgsSpinBox *spinBox = new QgsSpinBox();
   spinBox->setMinimum( -10 );
   spinBox->setMaximum( 10 );
   spinBox->setValue( 1 );
@@ -144,5 +144,5 @@ void TestQgsSpinBox::expression()
   delete spinBox;
 }
 
-QTEST_MAIN( TestQgsSpinBox )
+QGSTEST_MAIN( TestQgsSpinBox )
 #include "testqgsspinbox.moc"

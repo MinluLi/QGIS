@@ -14,22 +14,25 @@
  ***************************************************************************/
 #include "qgseditorwidgetautoconf.h"
 #include "qgseditorwidgetregistry.h"
+#include "qgsvectordataprovider.h"
+#include "qgsgui.h"
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Widget auto conf plugin that guesses what widget type to use in function of what the widgets support.
  *
- * @note not available in Python bindings
- * @note added in QGIS 3.0
+ * \note not available in Python bindings
+ * \since QGIS 3.0
  */
 class FromFactoriesPlugin: public QgsEditorWidgetAutoConfPlugin
 {
   public:
-    virtual QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer* vl, const QString& fieldName, int& score ) const override
+    QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer *vl, const QString &fieldName, int &score ) const override
     {
       int bestScore = 0;
       QString bestType;
-      const QMap<QString, QgsEditorWidgetFactory*> factories = QgsEditorWidgetRegistry::instance()->factories();
-      for ( QMap<QString, QgsEditorWidgetFactory*>::const_iterator i = factories.begin(); i != factories.end(); ++i )
+      const QMap<QString, QgsEditorWidgetFactory *> factories = QgsGui::editorWidgetRegistry()->factories();
+      for ( QMap<QString, QgsEditorWidgetFactory *>::const_iterator i = factories.begin(); i != factories.end(); ++i )
       {
         const int index = vl->fields().lookupField( fieldName );
         if ( index >= 0 )
@@ -45,23 +48,24 @@ class FromFactoriesPlugin: public QgsEditorWidgetAutoConfPlugin
       if ( bestScore > 0 )
       {
         score = 10;
-        return QgsEditorWidgetSetup( bestType, QgsEditorWidgetConfig() );
+        return QgsEditorWidgetSetup( bestType, QVariantMap() );
       }
       return QgsEditorWidgetSetup();
     }
 };
 
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * Widget auto conf plugin that reads the widget setup to use from what the data provider says.
  *
- * @note not available in Python bindings
- * @note added in QGIS 3.0
+ * \note not available in Python bindings
+ * \since QGIS 3.0
  */
 class FromDbTablePlugin: public QgsEditorWidgetAutoConfPlugin
 {
   public:
-    virtual QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer* vl, const QString& fieldName, int& score ) const override
+    QgsEditorWidgetSetup editorWidgetSetup( const QgsVectorLayer *vl, const QString &fieldName, int &score ) const override
     {
       QgsField field = vl->fields().field( fieldName );
       if ( !field.editorWidgetSetup().isNull() )
@@ -83,14 +87,27 @@ QgsEditorWidgetAutoConf::QgsEditorWidgetAutoConf()
   registerPlugin( new FromDbTablePlugin() );
 }
 
-QgsEditorWidgetSetup QgsEditorWidgetAutoConf::editorWidgetSetup( const QgsVectorLayer* vl, const QString& fieldName ) const
+QgsEditorWidgetSetup QgsEditorWidgetAutoConf::editorWidgetSetup( const QgsVectorLayer *vl, const QString &fieldName ) const
 {
-  QgsEditorWidgetSetup result( QStringLiteral( "TextEdit" ), QgsEditorWidgetConfig() );
+  QgsEditorWidgetSetup result( QStringLiteral( "TextEdit" ), QVariantMap() );
 
-  if ( vl->fields().indexFromName( fieldName ) >= 0 )
+  int fieldIndex = vl->fields().indexFromName( fieldName );
+  if ( fieldIndex >= 0 )
   {
+
+    if ( vl->fields().fieldOrigin( fieldIndex ) == QgsFields::OriginProvider )
+    {
+      // important check - for provider fields, we CANNOT use auto configured widgets if the field
+      // uses a default value clause - otherwise the widget will obliterate the default value clause
+      // (e.g., by trying to convert it to a number/date/etc). Instead we have to use a text edit
+      // widget so that the clause remains intact
+      int providerOrigin = vl->fields().fieldOriginIndex( fieldIndex );
+      if ( !vl->dataProvider()->defaultValueClause( providerOrigin ).isEmpty() )
+        return result;
+    }
+
     int bestScore = 0;
-    Q_FOREACH ( QSharedPointer<QgsEditorWidgetAutoConfPlugin> cur, plugins )
+    Q_FOREACH ( std::shared_ptr<QgsEditorWidgetAutoConfPlugin> cur, plugins )
     {
       int score = 0;
       const QgsEditorWidgetSetup curResult = cur->editorWidgetSetup( vl, fieldName, score );
@@ -105,8 +122,8 @@ QgsEditorWidgetSetup QgsEditorWidgetAutoConf::editorWidgetSetup( const QgsVector
   return result;
 }
 
-void QgsEditorWidgetAutoConf::registerPlugin( QgsEditorWidgetAutoConfPlugin* plugin )
+void QgsEditorWidgetAutoConf::registerPlugin( QgsEditorWidgetAutoConfPlugin *plugin )
 {
-  plugins.append( QSharedPointer<QgsEditorWidgetAutoConfPlugin>( plugin ) );
+  plugins.append( std::shared_ptr<QgsEditorWidgetAutoConfPlugin>( plugin ) );
 }
 ///@endcond

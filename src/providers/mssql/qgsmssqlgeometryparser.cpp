@@ -117,25 +117,11 @@ ShapeType (1 byte)
 /************************************************************************/
 
 QgsMssqlGeometryParser::QgsMssqlGeometryParser()
-    : pszData( nullptr )
-    , pszWkb( nullptr )
-    , nWkbLen( 0 )
-    , nWkbMaxLen( 100 )
-    , chByteOrder( QgsApplication::endian() )
-    , chProps( 0 )
-    , nPointSize( 0 )
-    , nPointPos( 0 )
-    , nNumPoints( 0 )
-    , nFigurePos( 0 )
-    , nNumFigures( 0 )
-    , nShapePos( 0 )
-    , nNumShapes( 0 )
-    , nSRSId( 0 )
-    , IsGeography( false )
+  : chByteOrder( QgsApplication::endian() )
 {
 }
 
-void QgsMssqlGeometryParser::DumpMemoryToLog( const char* pszMsg, unsigned char* pszInput, int nLen )
+void QgsMssqlGeometryParser::DumpMemoryToLog( const char *pszMsg, unsigned char *pszInput, int nLen )
 {
 #if 0
   char buf[55];
@@ -172,12 +158,12 @@ void QgsMssqlGeometryParser::DumpMemoryToLog( const char* pszMsg, unsigned char*
 /*                         CopyBytes()                                  */
 /************************************************************************/
 
-void QgsMssqlGeometryParser::CopyBytes( void* src, int len )
+void QgsMssqlGeometryParser::CopyBytes( void *src, int len )
 {
   if ( nWkbLen + len > nWkbMaxLen )
   {
-    QgsDebugMsg( "CopyBytes wkb buffer realloc" );
-    unsigned char* pszWkbTmp = new unsigned char[nWkbLen + len + 100];
+    QgsDebugMsg( QStringLiteral( "CopyBytes wkb buffer realloc" ) );
+    unsigned char *pszWkbTmp = new unsigned char[nWkbLen + len + 100];
     memcpy( pszWkbTmp, pszWkb, nWkbLen );
     delete[] pszWkb;
     pszWkb = pszWkbTmp;
@@ -469,11 +455,11 @@ void QgsMssqlGeometryParser::ReadGeometryCollection( int iShape )
 /*                         ParseSqlGeometry()                           */
 /************************************************************************/
 
-unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput, int nLen )
+unsigned char *QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char *pszInput, int nLen )
 {
   if ( nLen < 10 )
   {
-    QgsDebugMsg( "ParseSqlGeometry not enough data" );
+    QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
     DumpMemoryToLog( "Not enough data", pszInput, nLen );
     return nullptr;
   }
@@ -486,7 +472,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
 
   if ( ReadByte( 4 ) != 1 )
   {
-    QgsDebugMsg( "ParseSqlGeometry corrupt data" );
+    QgsDebugMsg( QStringLiteral( "ParseSqlGeometry corrupt data" ) );
     DumpMemoryToLog( "Corrupt data", pszInput, nLen );
     return nullptr;
   }
@@ -515,7 +501,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( nLen < 6 + nPointSize )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry not enough data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -531,7 +517,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( nLen < 6 + 2 * nPointSize )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry not enough data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -572,7 +558,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( nLen < nFigurePos )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry not enough data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -591,7 +577,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( nLen < nShapePos )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry not enough data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -601,7 +587,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( nLen < nShapePos + 9 * nNumShapes )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry not enough data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry not enough data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -616,7 +602,7 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
     if ( ParentOffset( 0 ) != 0xFFFFFFFF )
     {
       delete [] pszWkb;
-      QgsDebugMsg( "ParseSqlGeometry corrupt data" );
+      QgsDebugMsg( QStringLiteral( "ParseSqlGeometry corrupt data" ) );
       DumpMemoryToLog( "Not enough data", pszInput, nLen );
       return nullptr;
     }
@@ -642,12 +628,12 @@ unsigned char* QgsMssqlGeometryParser::ParseSqlGeometry( unsigned char* pszInput
       case ST_MULTIPOLYGON:
         ReadMultiPolygon( 0 );
         break;
-        //case ST_GEOMETRYCOLLECTION:
-        //ReadGeometryCollection(0);
-        //break;
+      //case ST_GEOMETRYCOLLECTION:
+      //ReadGeometryCollection(0);
+      //break;
       default:
         delete [] pszWkb;
-        QgsDebugMsg( "ParseSqlGeometry unsupported geometry type" );
+        QgsDebugMsg( QStringLiteral( "ParseSqlGeometry unsupported geometry type" ) );
         DumpMemoryToLog( "Unsupported geometry type", pszInput, nLen );
         return nullptr;
     }

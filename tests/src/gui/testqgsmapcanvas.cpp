@@ -13,21 +13,20 @@
  *                                                                         *
  ***************************************************************************/
 
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 #include <qgsapplication.h>
 #include <qgsmapcanvas.h>
 #include <qgsvectorlayer.h>
-#include <qgsmaplayerregistry.h>
+#include <qgsproject.h>
 #include <qgsrenderchecker.h>
 #include <qgsvectordataprovider.h>
 #include <qgsmaptoolpan.h>
-#include "qgstestutils.h"
 
 namespace QTest
 {
   template<>
-  char* toString( const QgsRectangle& r )
+  char *toString( const QgsRectangle &r )
   {
     QByteArray ba = r.toString().toLocal8Bit();
     return qstrdup( ba.data() );
@@ -37,7 +36,7 @@ namespace QTest
 class QgsMapToolTest : public QgsMapTool
 {
   public:
-    QgsMapToolTest( QgsMapCanvas* canvas ) : QgsMapTool( canvas ) {}
+    QgsMapToolTest( QgsMapCanvas *canvas ) : QgsMapTool( canvas ) {}
 
 };
 
@@ -45,9 +44,7 @@ class TestQgsMapCanvas : public QObject
 {
     Q_OBJECT
   public:
-    TestQgsMapCanvas()
-        : mCanvas( nullptr )
-    {}
+    TestQgsMapCanvas() = default;
 
   private slots:
     void initTestCase(); // will be called before the first testfunction is executed.
@@ -57,11 +54,12 @@ class TestQgsMapCanvas : public QObject
     void testMagnification();
     void testMagnificationExtent();
     void testMagnificationScale();
+    void testScaleLockCanvasResize();
     void testZoomByWheel();
     void testShiftZoom();
 
   private:
-    QgsMapCanvas* mCanvas;
+    QgsMapCanvas *mCanvas = nullptr;
 };
 
 
@@ -76,6 +74,7 @@ void TestQgsMapCanvas::initTestCase()
 
 void TestQgsMapCanvas::cleanupTestCase()
 {
+  QgsApplication::exitQgis();
 }
 
 
@@ -140,10 +139,8 @@ void TestQgsMapCanvas::testMagnification()
       myPointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
 
   // prepare map canvas
-  QList<QgsMapCanvasLayer> layers;
-  layers.append( layer );
-  mCanvas->setLayerSet( layers );
-  QgsMapLayerRegistry::instance()->addMapLayers( QList<QgsMapLayer *>() << layer );
+  mCanvas->setLayers( QList<QgsMapLayer *>() << layer );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << layer );
 
   mCanvas->setExtent( layer->extent() );
 
@@ -197,7 +194,7 @@ void TestQgsMapCanvas::testMagnification()
   checker.setControlName( QStringLiteral( "expected_map_magnification" ) );
   checker.setRenderedImage( tmpName );
   checker.setSizeTolerance( 10, 10 );
-  QCOMPARE( checker.compareImages( "map_magnification", 100 ), true );
+  QCOMPARE( checker.compareImages( QStringLiteral( "map_magnification" ), 100 ), true );
 }
 
 void compareExtent( const QgsRectangle &initialExtent,
@@ -219,10 +216,8 @@ void TestQgsMapCanvas::testMagnificationExtent()
       myPointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
 
   // prepare map canvas
-  QList<QgsMapCanvasLayer> layers;
-  layers.append( layer );
-  mCanvas->setLayerSet( layers );
-  QgsMapLayerRegistry::instance()->addMapLayers( QList<QgsMapLayer *>() << layer );
+  mCanvas->setLayers( QList<QgsMapLayer *>() << layer );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << layer );
 
   // zoomToFullExtent
   mCanvas->zoomToFullExtent();
@@ -282,7 +277,7 @@ void TestQgsMapCanvas::testMagnificationExtent()
   // zoomScale
   initialExtent = mCanvas->extent();
   double scale = mCanvas->scale();
-  mCanvas->zoomScale( 6.052017*10e7 );
+  mCanvas->zoomScale( 6.052017 * 10e7 );
 
   mCanvas->setMagnificationFactor( 4.0 );
   mCanvas->setMagnificationFactor( 1.0 );
@@ -306,6 +301,29 @@ void TestQgsMapCanvas::testMagnificationScale()
   QCOMPARE( initialScale, mCanvas->scale() );
 }
 
+void TestQgsMapCanvas::testScaleLockCanvasResize()
+{
+  QSize prevSize = mCanvas->size();
+  mCanvas->resize( 600, 400 );
+  QCOMPARE( mCanvas->width(), 600 );
+  QCOMPARE( mCanvas->height(), 400 );
+
+  mCanvas->setMagnificationFactor( 2.0 );
+  double initialScale = mCanvas->scale();
+  mCanvas->setScaleLocked( true );
+
+  mCanvas->resize( 300, 200 );
+  QCOMPARE( mCanvas->width(), 300 );
+  QCOMPARE( mCanvas->height(), 200 );
+
+  QCOMPARE( mCanvas->magnificationFactor(), 2.0 );
+  QCOMPARE( mCanvas->scale(), initialScale );
+
+  mCanvas->setScaleLocked( false );
+  mCanvas->setMagnificationFactor( 1.0 );
+  mCanvas->resize( prevSize );
+}
+
 void TestQgsMapCanvas::testZoomByWheel()
 {
   mCanvas->setExtent( QgsRectangle( 0, 0, 10, 10 ) );
@@ -316,25 +334,25 @@ void TestQgsMapCanvas::testZoomByWheel()
   mCanvas->setWheelFactor( 2 );
 
   //test zoom out
-  QWheelEvent e( QPoint( 0, 0 ), -1, Qt::NoButton, Qt::NoModifier );
+  QWheelEvent e( QPoint( 0, 0 ), -QWheelEvent::DefaultDeltasPerStep, Qt::NoButton, Qt::NoModifier );
   mCanvas->wheelEvent( &e );
   QGSCOMPARENEAR( mCanvas->extent().width(), originalWidth * 2.0, 0.1 );
   QGSCOMPARENEAR( mCanvas->extent().height(), originalHeight * 2.0, 0.1 );
 
   //test zoom in
-  e = QWheelEvent( QPoint( 0, 0 ), 1, Qt::NoButton, Qt::NoModifier );
+  e = QWheelEvent( QPoint( 0, 0 ), QWheelEvent::DefaultDeltasPerStep, Qt::NoButton, Qt::NoModifier );
   mCanvas->wheelEvent( &e );
   QGSCOMPARENEAR( mCanvas->extent().width(), originalWidth, 0.1 );
   QGSCOMPARENEAR( mCanvas->extent().height(), originalHeight, 0.1 );
 
   // test zoom out with ctrl
-  e = QWheelEvent( QPoint( 0, 0 ), -1, Qt::NoButton, Qt::ControlModifier );
+  e = QWheelEvent( QPoint( 0, 0 ), -QWheelEvent::DefaultDeltasPerStep, Qt::NoButton, Qt::ControlModifier );
   mCanvas->wheelEvent( &e );
   QGSCOMPARENEAR( mCanvas->extent().width(), 1.05 * originalWidth, 0.1 );
   QGSCOMPARENEAR( mCanvas->extent().height(), 1.05 * originalHeight, 0.1 );
 
   //test zoom in with ctrl
-  e = QWheelEvent( QPoint( 0, 0 ), 1, Qt::NoButton, Qt::ControlModifier );
+  e = QWheelEvent( QPoint( 0, 0 ), QWheelEvent::DefaultDeltasPerStep, Qt::NoButton, Qt::ControlModifier );
   mCanvas->wheelEvent( &e );
   QGSCOMPARENEAR( mCanvas->extent().width(), originalWidth, 0.1 );
   QGSCOMPARENEAR( mCanvas->extent().height(), originalHeight, 0.1 );
@@ -406,5 +424,5 @@ void TestQgsMapCanvas::testShiftZoom()
   QGSCOMPARENEAR( mCanvas->extent().height(), originalHeight, 0.00001 );
 }
 
-QTEST_MAIN( TestQgsMapCanvas )
+QGSTEST_MAIN( TestQgsMapCanvas )
 #include "testqgsmapcanvas.moc"

@@ -16,6 +16,7 @@
 #ifndef QQGSDATAPROVIDER_H
 #define QQGSDATAPROVIDER_H
 
+#include "qgis_core.h"
 #include <QDateTime>
 #include <QObject>
 #include <QString>
@@ -23,17 +24,18 @@
 
 //#include "qgsdataitem.h"
 #include "qgsdatasourceuri.h"
+#include "qgslayermetadata.h"
 #include "qgserror.h"
 
-typedef int dataCapabilities_t();
+typedef int dataCapabilities_t(); // SIP_SKIP
 
 class QgsRectangle;
 class QgsCoordinateReferenceSystem;
 
 
-/** \ingroup core
+/**
+ * \ingroup core
  * Abstract base class for spatial data provider implementations.
- * @author Gary E.Sherman
  *
  * This object needs to inherit from QObject to enable event
  * processing in the Postgres/PostGIS provider (QgsPostgresProvider).
@@ -46,11 +48,30 @@ class QgsCoordinateReferenceSystem;
 
 class CORE_EXPORT QgsDataProvider : public QObject
 {
+
+#ifdef SIP_RUN
+    SIP_CONVERT_TO_SUBCLASS_CODE
+    if ( qobject_cast<QgsVectorDataProvider *>( sipCpp ) )
+    {
+      sipType = sipType_QgsVectorDataProvider;
+    }
+    else if ( qobject_cast<QgsRasterDataProvider *>( sipCpp ) )
+    {
+      sipType = sipType_QgsRasterDataProvider;
+    }
+    else if ( qobject_cast<QgsMeshDataProvider *>( sipCpp ) )
+    {
+      sipType = sipType_QgsMeshDataProvider;
+    }
+    else
+    {
+      sipType = 0;
+    }
+    SIP_END
+#endif
     Q_OBJECT
 
   public:
-
-    Q_ENUMS( DataCapability )
 
     enum DataCapability
     {
@@ -60,6 +81,7 @@ class CORE_EXPORT QgsDataProvider : public QObject
       Database            = 1 << 2,
       Net                 = 1 << 3  // Internet source
     };
+    Q_ENUM( DataCapability )
 
     /**
      * Properties are used to pass custom configuration options into data providers.
@@ -74,17 +96,29 @@ class CORE_EXPORT QgsDataProvider : public QObject
       CustomData   = 3000          //!< Custom properties for 3rd party providers or very provider-specific properties which are not expected to be of interest for other providers can be added starting from this value up.
     };
 
-    QgsDataProvider( QString const & uri = "" )
-        : mDataSourceURI( uri )
-    {}
 
     /**
-     * We need this so the subclass destructors get called
+     * Setting options for creating vector data providers.
+     * \since QGIS 3.2
      */
-    virtual ~QgsDataProvider() {}
+    struct ProviderOptions
+    {
+      int unused; //! @todo remove me once there are actual members here (breaks SIP <4.19)
+    };
 
+    /**
+     * Create a new dataprovider with the specified in the \a uri.
+     *
+     * Additional creation options are specified within the \a options value.
+     */
+    QgsDataProvider( const QString &uri = QString(), const QgsDataProvider::ProviderOptions &options = QgsDataProvider::ProviderOptions() )
+      : mDataSourceURI( uri )
+    {
+      Q_UNUSED( options );
+    }
 
-    /** Returns the coordinate system for the data source.
+    /**
+     * Returns the coordinate system for the data source.
      * If the provider isn't capable of returning its projection then an invalid
      * QgsCoordinateReferenceSystem will be returned.
      */
@@ -94,19 +128,19 @@ class CORE_EXPORT QgsDataProvider : public QObject
     /**
      * Set the data source specification. This may be a path or database
      * connection string
-     * @param uri source specification
+     * \param uri source specification
      */
-    virtual void setDataSourceUri( const QString & uri )
+    virtual void setDataSourceUri( const QString &uri )
     {
       mDataSourceURI = uri;
     }
 
     /**
-     * Get the data source specification. This may be a path or database
+     * Gets the data source specification. This may be a path or database
      * connection string
-     * @param expandAuthConfig Whether to expand any assigned authentication configuration
-     * @return data source specification
-     * @note The default authentication configuration expansion is FALSE. This keeps credentials
+     * \param expandAuthConfig Whether to expand any assigned authentication configuration
+     * \returns data source specification
+     * \note The default authentication configuration expansion is FALSE. This keeps credentials
      * out of layer data source URIs and project files. Expansion should be specifically done
      * only when needed within a provider
      */
@@ -123,10 +157,29 @@ class CORE_EXPORT QgsDataProvider : public QObject
       }
     }
 
+    /**
+     * Set the data source specification.
+     *
+     * \since QGIS 3.0
+     */
+    void setUri( const QgsDataSourceUri &uri )
+    {
+      mDataSourceURI = uri.uri( true );
+    }
+
+    /**
+     * Gets the data source specification.
+     *
+     * \since QGIS 3.0
+     */
+    QgsDataSourceUri uri() const
+    {
+      return QgsDataSourceUri( mDataSourceURI );
+    }
 
     /**
      * Returns the extent of the layer
-     * @return QgsRectangle containing the extent of the layer
+     * \returns QgsRectangle containing the extent of the layer
      */
     virtual QgsRectangle extent() const = 0;
 
@@ -153,7 +206,7 @@ class CORE_EXPORT QgsDataProvider : public QObject
      * that can be used by the data provider to create a subset.
      * Must be implemented in the dataprovider.
      */
-    virtual bool setSubsetString( const QString& subset, bool updateFeatureCount = true )
+    virtual bool setSubsetString( const QString &subset, bool updateFeatureCount = true )
     {
       // NOP by default
       Q_UNUSED( subset );
@@ -162,7 +215,8 @@ class CORE_EXPORT QgsDataProvider : public QObject
     }
 
 
-    /** Returns true if the provider supports setting of subset strings.
+    /**
+     * Returns true if the provider supports setting of subset strings.
     */
     virtual bool supportsSubsetString() const { return false; }
 
@@ -174,7 +228,7 @@ class CORE_EXPORT QgsDataProvider : public QObject
      */
     virtual QString subsetString() const
     {
-      return QString::null;
+      return QString();
     }
 
 
@@ -183,12 +237,20 @@ class CORE_EXPORT QgsDataProvider : public QObject
      *
      * Sub-layers are used when the provider's source can combine layers
      * it knows about in some way before it hands them off to the provider.
+     *
+     * \see SUBLAYER_SEPARATOR
      */
     virtual QStringList subLayers() const
     {
       return QStringList();  // Empty
     }
 
+    /**
+     * String sequence used for separating components of sublayers strings.
+     * \see subLayers()
+     * \since QGIS 3.0
+     */
+    static QString SUBLAYER_SEPARATOR;
 
     /**
      * Sub-layer styles for each sub-layer handled by this provider,
@@ -204,7 +266,7 @@ class CORE_EXPORT QgsDataProvider : public QObject
 
 
     /**
-     * return the number of layers for the current data source
+     * Returns the number of layers for the current data source
      */
     virtual uint subLayerCount() const
     {
@@ -242,14 +304,15 @@ class CORE_EXPORT QgsDataProvider : public QObject
     }
 
 
-    /** Return a provider name
+    /**
+     * Returns a provider name
      *
      * Essentially just returns the provider key.  Should be used to build file
      * dialogs so that providers can be shown with their supported types. Thus
      * if more than one provider supports a given format, the user is able to
      * select a specific provider to open that file.
      *
-     * @note
+     * \note
      *
      * Instead of being pure virtual, might be better to generalize this
      * behavior and presume that none of the sub-classes are going to do
@@ -259,11 +322,12 @@ class CORE_EXPORT QgsDataProvider : public QObject
     virtual QString name() const = 0;
 
 
-    /** Return description
+    /**
+     * Returns description
      *
-     * Return a terse string describing what the provider is.
+     * Returns a terse string describing what the provider is.
      *
-     * @note
+     * \note
      *
      * Instead of being pure virtual, might be better to generalize this
      * behavior and presume that none of the sub-classes are going to do
@@ -273,36 +337,39 @@ class CORE_EXPORT QgsDataProvider : public QObject
     virtual QString description() const = 0;
 
 
-    /** Return vector file filter string
+    /**
+     * Returns vector file filter string
      *
      * Returns a string suitable for a QFileDialog of vector file formats
      * supported by the data provider.  Naturally this will be an empty string
      * for those data providers that do not deal with plain files, such as
      * databases and servers.
      *
-     * @note It'd be nice to eventually be raster/vector neutral.
+     * \note It'd be nice to eventually be raster/vector neutral.
      */
     virtual QString fileVectorFilters() const
     {
-      return QLatin1String( "" );
+      return QString();
     }
 
 
-    /** Return raster file filter string
+    /**
+     * Returns raster file filter string
      *
      * Returns a string suitable for a QFileDialog of raster file formats
      * supported by the data provider.  Naturally this will be an empty string
      * for those data providers that do not deal with plain files, such as
      * databases and servers.
      *
-     * @note It'd be nice to eventually be raster/vector neutral.
+     * \note It'd be nice to eventually be raster/vector neutral.
      */
     virtual QString fileRasterFilters() const
     {
-      return QLatin1String( "" );
+      return QString();
     }
 
-    /** Reloads the data from the source. Needs to be implemented by providers with data caches to
+    /**
+     * Reloads the data from the source. Needs to be implemented by providers with data caches to
      * synchronize with changes in the data source
      */
     virtual void reloadData() {}
@@ -313,18 +380,21 @@ class CORE_EXPORT QgsDataProvider : public QObject
     //! Current time stamp of data source
     virtual QDateTime dataTimestamp() const { return QDateTime(); }
 
-    /** Get current status error. This error describes some principal problem
+    /**
+     * Gets current status error. This error describes some principal problem
      *  for which provider cannot work and thus is not valid. It is not last error
      *  after accessing data by block(), identify() etc.
      */
     virtual QgsError error() const { return mError; }
 
-    /** Invalidate connections corresponding to specified name
-     * @note added in QGIS 2.16
+    /**
+     * Invalidate connections corresponding to specified name
+     * \since QGIS 2.16
      */
-    virtual void invalidateConnections( const QString& connection ) { Q_UNUSED( connection ); }
+    virtual void invalidateConnections( const QString &connection ) { Q_UNUSED( connection ); }
 
-    /** Enter update mode.
+    /**
+     * Enter update mode.
      *
      * This is aimed at providers that can open differently the connection to
      * the datasource, according it to be in update mode or in read-only mode.
@@ -341,13 +411,14 @@ class CORE_EXPORT QgsDataProvider : public QObject
      * a concept of stack of calls that must be handled by the provider. Only the first
      * call to enterUpdateMode() will really turn update mode on.
      *
-     * @return true in case of success (or no-op implementation), false in case of failure.
+     * \returns true in case of success (or no-op implementation), false in case of failure.
      *
-     * @note added in QGIS 2.16
+     * \since QGIS 2.16
      */
     virtual bool enterUpdateMode() { return true; }
 
-    /** Leave update mode.
+    /**
+     * Leave update mode.
      *
      * This is aimed at providers that can open differently the connection to
      * the datasource, according it to be in update mode or in read-only mode.
@@ -359,9 +430,9 @@ class CORE_EXPORT QgsDataProvider : public QObject
      * a concept of stack of calls that must be handled by the provider. Only the last
      * call to leaveUpdateMode() will really turn update mode off.
      *
-     * @return true in case of success (or no-op implementation), false in case of failure.
+     * \returns true in case of success (or no-op implementation), false in case of failure.
      *
-     * @note added in QGIS 2.16
+     * \since QGIS 2.16
      */
     virtual bool leaveUpdateMode() { return true; }
 
@@ -369,33 +440,96 @@ class CORE_EXPORT QgsDataProvider : public QObject
      * Allows setting arbitrary properties on the provider.
      * It depends on the provider which properties are supported.
      *
-     * @note added in 2.16
+     * \since QGIS 2.16
      */
-    void setProviderProperty( ProviderProperty property, const QVariant& value );
+    void setProviderProperty( ProviderProperty property, const QVariant &value );
 
     /**
      * Allows setting arbitrary properties on the provider.
      * It depends on the provider which properties are supported.
      *
-     * @note added in 2.16
+     * \since QGIS 2.16
      */
-    void setProviderProperty( int property, const QVariant& value );
+    void setProviderProperty( int property, const QVariant &value ); // SIP_SKIP
 
     /**
-     * Get the current value of a certain provider property.
+     * Gets the current value of a certain provider property.
      * It depends on the provider which properties are supported.
      *
-     * @note added in 2.16
+     * \since QGIS 2.16
      */
-    QVariant providerProperty( ProviderProperty property, const QVariant& defaultValue = QVariant() ) const;
+    QVariant providerProperty( ProviderProperty property, const QVariant &defaultValue = QVariant() ) const;
 
     /**
-     * Get the current value of a certain provider property.
+     * Gets the current value of a certain provider property.
      * It depends on the provider which properties are supported.
      *
-     * @note added in 2.16
+     * \since QGIS 2.16
      */
-    QVariant providerProperty( int property , const QVariant& defaultValue ) const;
+    QVariant providerProperty( int property, const QVariant &defaultValue ) const; // SIP_SKIP
+
+    /**
+     * Set whether the provider will listen to datasource notifications
+     * If set, the provider will issue notify signals.
+     *
+     * The default implementation does nothing.
+     *
+     * \see notify
+     *
+     * \since QGIS 3.0
+     */
+    virtual void setListening( bool isListening );
+
+#ifndef SIP_RUN
+
+    /**
+     * Stores settings related to the context in which a preview job runs.
+     * \note Not available in Python bindings
+     * \since QGIS 3.0
+     */
+    struct PreviewContext
+    {
+      //! Previous rendering time for the layer, in ms
+      double lastRenderingTimeMs = -1;
+
+      //! Default maximum allowable render time, in ms
+      double maxRenderingTimeMs = MAXIMUM_LAYER_PREVIEW_TIME_MS;
+    };
+#endif
+
+    /**
+     * Returns whether the layer must be rendered in preview jobs.
+     *
+     * The \a context argument gives useful information which can be used
+     * to determine whether the layer should be rendered or not.
+     *
+     * The base implementation returns true if lastRenderingTimeMs <= maxRenderingTimeMs.
+     *
+     *
+     * \note not available in Python bindings
+     * \since QGIS 3.0
+     */
+    virtual bool renderInPreview( const QgsDataProvider::PreviewContext &context ); // SIP_SKIP
+
+    /**
+     * Returns layer metadata collected from the provider's source.
+     *
+     * Individual data providers must implement this method if they support collecting metadata.
+     *
+     * \see writeLayerMetadata()
+     * \since QGIS 3.0
+    */
+    virtual QgsLayerMetadata layerMetadata() const { return QgsLayerMetadata(); }
+
+    /**
+     * Writes layer \a metadata to the underlying provider source. Support depends
+     * on individual provider capabilities.
+     *
+     * Returns true if metadata was successfully written to the data provider.
+     * \see layerMetadata()
+     * \since QGIS 3.0
+    */
+    virtual bool writeLayerMetadata( const QgsLayerMetadata &metadata ) { Q_UNUSED( metadata ); return false; }
 
   signals:
 
@@ -416,12 +550,17 @@ class CORE_EXPORT QgsDataProvider : public QObject
     void dataChanged();
 
     /**
-     *   This is emitted whenever data or metadata (e.g. color table, extent) has changed
-     *   @param changed binary combination of changes
+     * Emitted when datasource issues a notification
+     *
+     * \see setListening
+     *
+     * \since QGIS 3.0
      */
-    void dataChanged( int changed );
+    void notify( const QString &msg );
+
 
   protected:
+
     /**
      * Timestamp of data in the moment when the data were loaded by provider.
      */
@@ -431,10 +570,10 @@ class CORE_EXPORT QgsDataProvider : public QObject
     QgsError mError;
 
     //! Add error message
-    void appendError( const QgsErrorMessage & theMessage ) { mError.append( theMessage );}
+    void appendError( const QgsErrorMessage &message ) { mError.append( message ); }
 
-    //! Set error message
-    void setError( const QgsError & theError ) { mError = theError;}
+    //! Sets error message
+    void setError( const QgsError &error ) { mError = error;}
 
   private:
 

@@ -12,10 +12,10 @@ Email                : sherman at mrcc dot com
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QPixmap>
 
-#define CPL_SUPRESS_CPLUSPLUS
+#define CPL_SUPRESS_CPLUSPLUS  //#spellok
 #include <gdal.h>
 
 //header for class being tested
@@ -63,7 +63,7 @@ void TestQgsApplication::accountName()
   //test cached return works correctly
   QCOMPARE( loginName, QgsApplication::userLoginName() );
 
-  //can't test contents, as it can be validly empty (eg on Travis). Just testing that we don't crash
+  //can't test contents, as it can be validly empty (e.g., on Travis). Just testing that we don't crash
   QString fullName = QgsApplication::userFullName();
   qDebug() << QStringLiteral( "Got full name: '%1'" ).arg( fullName );
   //test cached return works correctly
@@ -83,7 +83,6 @@ void TestQgsApplication::platformName()
   QCOMPARE( QgsApplication::platform(), QString( "desktop" ) );
 }
 
-
 void TestQgsApplication::checkPaths()
 {
   QString myPath = QgsApplication::authorsFilePath();
@@ -101,5 +100,5 @@ void TestQgsApplication::checkGdalSkip()
   QVERIFY( !QgsApplication::skippedGdalDrivers().contains( "GTiff" ) );
 }
 
-QTEST_MAIN( TestQgsApplication )
+QGSTEST_MAIN( TestQgsApplication )
 #include "testqgsapplication.moc"

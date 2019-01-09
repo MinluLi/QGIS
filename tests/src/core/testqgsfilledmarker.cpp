@@ -12,7 +12,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <QtTest/QtTest>
+#include "qgstest.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -26,17 +26,18 @@
 #include <qgsvectorlayer.h>
 #include <qgsapplication.h>
 #include <qgsproviderregistry.h>
-#include <qgsmaplayerregistry.h>
+#include <qgsproject.h>
 #include <qgssymbol.h>
 #include <qgssinglesymbolrenderer.h>
 #include "qgsmarkersymbollayer.h"
 #include "qgsfillsymbollayer.h"
-#include "qgsdatadefined.h"
+#include "qgsproperty.h"
 
 //qgis test includes
 #include "qgsrenderchecker.h"
 
-/** \ingroup UnitTests
+/**
+ * \ingroup UnitTests
  * This is a unit test for QgsFilledMarkerSymbolLayer.
  */
 class TestQgsFilledMarkerSymbol : public QObject
@@ -44,13 +45,7 @@ class TestQgsFilledMarkerSymbol : public QObject
     Q_OBJECT
 
   public:
-    TestQgsFilledMarkerSymbol()
-        : mTestHasError( false )
-        , mpPointsLayer( nullptr )
-        , mFilledMarkerLayer( nullptr )
-        , mMarkerSymbol( nullptr )
-        , mSymbolRenderer( nullptr )
-    {}
+    TestQgsFilledMarkerSymbol() = default;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -63,14 +58,14 @@ class TestQgsFilledMarkerSymbol : public QObject
     void bounds();
 
   private:
-    bool mTestHasError;
+    bool mTestHasError =  false ;
 
-    bool imageCheck( const QString& theType );
+    bool imageCheck( const QString &type );
     QgsMapSettings mMapSettings;
-    QgsVectorLayer * mpPointsLayer;
-    QgsFilledMarkerSymbolLayer* mFilledMarkerLayer;
-    QgsMarkerSymbol* mMarkerSymbol;
-    QgsSingleSymbolRenderer* mSymbolRenderer;
+    QgsVectorLayer *mpPointsLayer = nullptr;
+    QgsFilledMarkerSymbolLayer *mFilledMarkerLayer = nullptr;
+    QgsMarkerSymbol *mMarkerSymbol = nullptr;
+    QgsSingleSymbolRenderer *mSymbolRenderer = nullptr;
     QString mTestDataDir;
     QString mReport;
 };
@@ -96,12 +91,8 @@ void TestQgsFilledMarkerSymbol::initTestCase()
   mpPointsLayer = new QgsVectorLayer( pointFileInfo.filePath(),
                                       pointFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
 
-  // Register the layer with the registry
-  QgsMapLayerRegistry::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPointsLayer );
-
   //setup symbol
-  QgsGradientFillSymbolLayer* gradientFill = new QgsGradientFillSymbolLayer();
+  QgsGradientFillSymbolLayer *gradientFill = new QgsGradientFillSymbolLayer();
   gradientFill->setColor( QColor( "red" ) );
   gradientFill->setColor2( QColor( "blue" ) );
   gradientFill->setGradientType( QgsGradientFillSymbolLayer::Linear );
@@ -110,7 +101,7 @@ void TestQgsFilledMarkerSymbol::initTestCase()
   gradientFill->setGradientSpread( QgsGradientFillSymbolLayer::Pad );
   gradientFill->setReferencePoint1( QPointF( 0, 0 ) );
   gradientFill->setReferencePoint2( QPointF( 1, 1 ) );
-  QgsFillSymbol* fillSymbol = new QgsFillSymbol();
+  QgsFillSymbol *fillSymbol = new QgsFillSymbol();
   fillSymbol->changeSymbolLayer( 0, gradientFill );
 
   mFilledMarkerLayer = new QgsFilledMarkerSymbolLayer();
@@ -124,7 +115,7 @@ void TestQgsFilledMarkerSymbol::initTestCase()
   // since maprender does not require a qui
   // and is more light weight
   //
-  mMapSettings.setLayers( QStringList() << mpPointsLayer->id() );
+  mMapSettings.setLayers( QList<QgsMapLayer *>() << mpPointsLayer );
   mReport += QLatin1String( "<h1>Filled Marker Tests</h1>\n" );
 
 }
@@ -138,6 +129,8 @@ void TestQgsFilledMarkerSymbol::cleanupTestCase()
     myQTextStream << mReport;
     myFile.close();
   }
+
+  delete mpPointsLayer;
 
   QgsApplication::exitQgis();
 }
@@ -153,9 +146,9 @@ void TestQgsFilledMarkerSymbol::dataDefinedShape()
 {
   mFilledMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Circle );
   mFilledMarkerLayer->setSize( 10 );
-  mFilledMarkerLayer->setDataDefinedProperty( QStringLiteral( "name" ), new QgsDataDefined( true, true, QStringLiteral( "if(\"class\"='Jet','square','star')" ) ) );
+  mFilledMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyName, QgsProperty::fromExpression( QStringLiteral( "if(\"class\"='Jet','square','star')" ) ) );
   bool result = imageCheck( QStringLiteral( "filledmarker_datadefinedshape" ) );
-  mFilledMarkerLayer->removeDataDefinedProperty( QStringLiteral( "name" ) );
+  mFilledMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertyName, QgsProperty() );
   QVERIFY( result );
 }
 
@@ -164,12 +157,12 @@ void TestQgsFilledMarkerSymbol::bounds()
   mFilledMarkerLayer->setColor( QColor( 200, 200, 200 ) );
   mFilledMarkerLayer->setShape( QgsSimpleMarkerSymbolLayerBase::Circle );
   mFilledMarkerLayer->setSize( 5 );
-  mFilledMarkerLayer->setDataDefinedProperty( QStringLiteral( "size" ), new QgsDataDefined( true, true, QStringLiteral( "min(\"importance\" * 2, 6)" ) ) );
+  mFilledMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertySize, QgsProperty::fromExpression( QStringLiteral( "min(\"importance\" * 2, 6)" ) ) );
 
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, true );
   bool result = imageCheck( QStringLiteral( "filledmarker_bounds" ) );
   mMapSettings.setFlag( QgsMapSettings::DrawSymbolBounds, false );
-  mFilledMarkerLayer->removeDataDefinedProperty( QStringLiteral( "size" ) );
+  mFilledMarkerLayer->setDataDefinedProperty( QgsSymbolLayer::PropertySize, QgsProperty() );
   QVERIFY( result );
 }
 
@@ -178,7 +171,7 @@ void TestQgsFilledMarkerSymbol::bounds()
 //
 
 
-bool TestQgsFilledMarkerSymbol::imageCheck( const QString& theTestType )
+bool TestQgsFilledMarkerSymbol::imageCheck( const QString &testType )
 {
   //use the QgsRenderChecker test utility class to
   //ensure the rendered output matches our control image
@@ -186,12 +179,12 @@ bool TestQgsFilledMarkerSymbol::imageCheck( const QString& theTestType )
   mMapSettings.setOutputDpi( 96 );
   QgsRenderChecker myChecker;
   myChecker.setControlPathPrefix( QStringLiteral( "symbol_filledmarker" ) );
-  myChecker.setControlName( "expected_" + theTestType );
+  myChecker.setControlName( "expected_" + testType );
   myChecker.setMapSettings( mMapSettings );
-  bool myResultFlag = myChecker.runTest( theTestType );
+  bool myResultFlag = myChecker.runTest( testType );
   mReport += myChecker.report();
   return myResultFlag;
 }
 
-QTEST_MAIN( TestQgsFilledMarkerSymbol )
+QGSTEST_MAIN( TestQgsFilledMarkerSymbol )
 #include "testqgsfilledmarker.moc"

@@ -27,21 +27,22 @@ import os
 
 from qgis.PyQt.QtCore import QSize
 from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtXml import (QDomDocument, QDomElement)
+from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.core import (QgsVectorLayer,
-                       QgsMapLayerRegistry,
+                       QgsProject,
                        QgsRectangle,
                        QgsMultiRenderChecker,
                        QgsPointClusterRenderer,
-                       QgsFontUtils,
                        QgsUnitTypes,
                        QgsMapUnitScale,
                        QgsMarkerSymbol,
                        QgsSingleSymbolRenderer,
+                       QgsReadWriteContext,
                        QgsPointDisplacementRenderer,
                        QgsMapSettings,
-                       QgsDataDefined
+                       QgsProperty,
+                       QgsSymbolLayer
                        )
 from qgis.testing import start_app, unittest
 from utilities import (unitTestDataPath)
@@ -57,7 +58,7 @@ class TestQgsPointClusterRenderer(unittest.TestCase):
     def setUp(self):
         myShpFile = os.path.join(TEST_DATA_DIR, 'points.shp')
         self.layer = QgsVectorLayer(myShpFile, 'Points', 'ogr')
-        QgsMapLayerRegistry.instance().addMapLayer(self.layer)
+        QgsProject.instance().addMapLayer(self.layer)
 
         self.renderer = QgsPointClusterRenderer()
         sym1 = QgsMarkerSymbol.createSimple({'color': '#ff00ff', 'size': '3', 'outline_style': 'no'})
@@ -66,7 +67,7 @@ class TestQgsPointClusterRenderer(unittest.TestCase):
         self.renderer.setClusterSymbol(QgsMarkerSymbol.createSimple({'color': '#ffff00', 'size': '3', 'outline_style': 'no'}))
         self.layer.setRenderer(self.renderer)
 
-        rendered_layers = [self.layer.id()]
+        rendered_layers = [self.layer]
         self.mapsettings = QgsMapSettings()
         self.mapsettings.setOutputSize(QSize(400, 400))
         self.mapsettings.setOutputDpi(96)
@@ -74,7 +75,7 @@ class TestQgsPointClusterRenderer(unittest.TestCase):
         self.mapsettings.setLayers(rendered_layers)
 
     def tearDown(self):
-        QgsMapLayerRegistry.instance().removeAllMapLayers()
+        QgsProject.instance().removeAllMapLayers()
 
     def _setProperties(self, r):
         """ set properties for a renderer for testing with _checkProperties"""
@@ -114,8 +115,8 @@ class TestQgsPointClusterRenderer(unittest.TestCase):
         r = QgsPointClusterRenderer()
         self._setProperties(r)
         doc = QDomDocument("testdoc")
-        elem = r.save(doc)
-        c = QgsPointClusterRenderer.create(elem)
+        elem = r.save(doc, QgsReadWriteContext())
+        c = QgsPointClusterRenderer.create(elem, QgsReadWriteContext())
         self._checkProperties(c)
 
     def testConvert(self):
@@ -170,8 +171,8 @@ class TestQgsPointClusterRenderer(unittest.TestCase):
         old_marker = self.layer.renderer().clusterSymbol().clone()
 
         new_marker = QgsMarkerSymbol.createSimple({'color': '#ffff00', 'size': '3', 'outline_style': 'no'})
-        new_marker.symbolLayer(0).setDataDefinedProperty('color', QgsDataDefined('@cluster_color'))
-        new_marker.symbolLayer(0).setDataDefinedProperty('size', QgsDataDefined('@cluster_size*2'))
+        new_marker.symbolLayer(0).setDataDefinedProperty(QgsSymbolLayer.PropertyFillColor, QgsProperty.fromExpression('@cluster_color'))
+        new_marker.symbolLayer(0).setDataDefinedProperty(QgsSymbolLayer.PropertySize, QgsProperty.fromExpression('@cluster_size*2'))
         self.layer.renderer().setClusterSymbol(new_marker)
         renderchecker = QgsMultiRenderChecker()
         renderchecker.setMapSettings(self.mapsettings)

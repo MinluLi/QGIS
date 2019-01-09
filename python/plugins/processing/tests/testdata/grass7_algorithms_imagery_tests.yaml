@@ -1,6 +1,7 @@
 # See ../README.md for a description of the file format
 
 tests:
+
 # i.* modules
   - algorithm: grass7:i.emissivity
     name: GRASS7 i.emissivity
@@ -38,7 +39,9 @@ tests:
         type: raster
     results:
       output:
-        hash: 358c7745aaa5d7fbc56b34a21821fdfdc61f68e6ca79fb996a2241d8
+        hash:
+        - 358c7745aaa5d7fbc56b34a21821fdfdc61f68e6ca79fb996a2241d8
+        - 8b3936d73c0a52acf7e290f1856a9d4a4959694bb8bcdfd4d1e88826
         type: rasterhash
         
   - algorithm: grass7:i.eb.eta
@@ -315,20 +318,20 @@ tests:
           - '128.6900'
 
 # this doesn't work in travis-ci environment (probably due to libfftw version).
-#  - algorithm: grass7:i.fft
-#    name: GRASS7 i.fft
-#    params:
-#      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
-#      input:
-#        name: custom/grass7/float_raster.tif
-#        type: raster
-#    results:
-#      imaginary:
-#        hash: 94249384dd8b6019f0024501bc9a093cba9dd025c183d3fb46d77027
-#        type: rasterhash
-#      real:
-#        hash: 09ab93c65aa2dde4da422b62a5ed3e38208e2da072cec2b0eb837a47
-#        type: rasterhash
+  - algorithm: grass7:i.fft
+    name: GRASS7 i.fft
+    params:
+      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
+      input:
+        name: custom/grass7/float_raster.tif
+        type: raster
+    results:
+      imaginary:
+        hash: 94249384dd8b6019f0024501bc9a093cba9dd025c183d3fb46d77027
+        type: rasterhash
+      real:
+        hash: 09ab93c65aa2dde4da422b62a5ed3e38208e2da072cec2b0eb837a47
+        type: rasterhash
 
   - algorithm: grass7:i.segment
     name: GRASS7 i.segment
@@ -351,10 +354,14 @@ tests:
       threshold: 0.5
     results:
       goodness:
-        hash: 4d7728e28734d2b67427a514bcd155d254d30b3424bf4e0ad8f0f0c6
+        hash:
+        - 4d7728e28734d2b67427a514bcd155d254d30b3424bf4e0ad8f0f0c6
+        - 755eccae32fd3406dc33daf02942c107256eb59f6b9e4cdef173892a
         type: rasterhash
       output:
-        hash: b65992a5d48b867d4a32a533f38e7a72cb1ba18f1e261c6be132baca
+        hash:
+        - b65992a5d48b867d4a32a533f38e7a72cb1ba18f1e261c6be132baca
+        - 4331b7bc0a60d7bc886795e27bc633b81cdea1268706fdf913061d99
         type: rasterhash
 
   - algorithm: grass7:i.gensig
@@ -489,39 +496,44 @@ tests:
         hash: 87b3d0be1315a040a61c4d4dec2bd5837881ad207a4140a89a28997a
         type: rasterhash
 
-#  - algorithm: grass7:i.evapo.time
-#    name: GRASS7 i.evapo.time
-#    params:
-#      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
-#      eta:
-#        params:
-#        - name: custom/grass7/raster_5class.tif
-#          type: raster
-#        - name: custom/grass7/raster_4class.tif
-#          type: raster
-#        type: multi
-#      eta_doy:
-#        params:
-#        - name: custom/grass7/raster_6class.tif
-#          type: raster
-#        - name: custom/grass7/raster_5class.tif
-#          type: raster
-#        type: multi
-#      eto:
-#        params:
-#        - name: custom/grass7/float_raster.tif
-#          type: raster
-#        - name: custom/grass7/raster_6class.tif
-#          type: raster
-#        type: multi
-#    results:
-#      output:
-#        hash: a361b729bf0b0628fa66822297dc57e71e0b2e56331f7145c3cfdce6
-#        type: rasterhash
+  - algorithm: grass7:i.evapo.time
+    name: GRASS7 i.evapo.time
+    params:
+      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
+      eta:
+        params:
+        - name: custom/grass7/raster_5class.tif
+          type: raster
+        - name: custom/grass7/raster_4class.tif
+          type: raster
+        type: multi
+      eta_doy:
+        params:
+        - name: custom/grass7/raster_6class.tif
+          type: raster
+        - name: custom/grass7/raster_5class.tif
+          type: raster
+        type: multi
+      eto:
+        params:
+        - name: custom/grass7/float_raster.tif
+          type: raster
+        - name: custom/grass7/raster_6class.tif
+          type: raster
+        type: multi
+    results:
+      output:
+        hash:
+        - a361b729bf0b0628fa66822297dc57e71e0b2e56331f7145c3cfdce6
+        - 00f909594106bf0aca7b909841b30532a816ddc8f53f4c0d30481710
+        - 4d950df3d3f092409194f0c928aab1cedd81d82524d0fad0feb07348
+        - 9c1b3f3ee94c6360b7b04bc00ed5e08faefea4e0968c1eb644d689b9
+        type: rasterhash
 
-  - algorithm: grass7:i.eb.hsebal01
+  - algorithm: grass7:i.eb.hsebal01.coords
     name: GRASS7 i.eb.hsebal01
     params:
+      -a: true
       GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
       aerodynresistance:
         name: custom/grass7/raster_6class.tif
@@ -541,20 +553,20 @@ tests:
       output:
         hash: cac9e91f9b5182fbad336fd46ecebcf5185327e009ae8dc4cc0367fc
         type: rasterhash
-        
-  - algorithm: grass7:i.modis.qc
-    name: GRASS7 i.modis.qc
-    params:
-      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
-      input:
-        name: custom/grass7/float_raster.tif
-        type: raster
-      productname: 8
-      qcname: 5
-    results:
-      output:
-        hash: 0439e59b8c142a7f58cdece674c058891b64aafb1273ed6ce5e3ecf9
-        type: rasterhash
+
+#  - algorithm: grass7:i.modis.qc
+#    name: GRASS7 i.modis.qc
+#    params:
+#      GRASS_REGION_PARAMETER: '344500.0,358400.0,6682800.0,6693700.0'
+#      input:
+#        name: custom/grass7/float_raster.tif
+#        type: raster
+#      productname: 8
+#      qcname: 5
+#    results:
+#      output:
+#        hash: 0439e59b8c142a7f58cdece674c058891b64aafb1273ed6ce5e3ecf9
+#        type: rasterhash
 
   - algorithm: grass7:i.image.mosaic
     name: GRASS7 i.image.mosaic
@@ -616,5 +628,7 @@ tests:
         name: custom/grass7/i.atcorr.txt
     results:
       output:
-        hash: e5fada2ec43658e25a34d0486e810dec1cad289b626f6d1c4bbfea18
+        hash:
+        - e5fada2ec43658e25a34d0486e810dec1cad289b626f6d1c4bbfea18
+        - dad0f79abac42d42abb01b7a1d96871a09d8bb4647b6a443197475c2
         type: rasterhash

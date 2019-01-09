@@ -27,12 +27,15 @@
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
+       <property name="toolTip">
+        <string>Go back</string>
+       </property>
        <property name="text">
         <string/>
        </property>
        <property name="icon">
         <iconset resource="../../../images/images.qrc">
-         <normaloff>:/images/themes/default/mActionArrowLeft.png</normaloff>:/images/themes/default/mActionArrowLeft.png</iconset>
+         <normaloff>:/images/themes/default/mActionArrowLeft.svg</normaloff>:/images/themes/default/mActionArrowLeft.svg</iconset>
        </property>
        <property name="autoRepeat">
         <bool>false</bool>
@@ -55,7 +58,7 @@
     </layout>
    </item>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="QgsScrollArea" name="scrollArea">
      <property name="frameShape">
       <enum>QFrame::NoFrame</enum>
      </property>
@@ -76,8 +79,7 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="QStackedWidget" name="mStackedWidget">
-        </widget>
+        <widget class="QStackedWidget" name="mStackedWidget"/>
        </item>
       </layout>
      </widget>
@@ -85,6 +87,14 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qgsscrollarea.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="../../../images/images.qrc"/>
  </resources>

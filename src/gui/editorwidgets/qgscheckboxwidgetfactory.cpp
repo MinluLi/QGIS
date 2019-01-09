@@ -18,58 +18,35 @@
 #include "qgscheckboxwidgetwrapper.h"
 #include "qgscheckboxconfigdlg.h"
 
-QgsCheckboxWidgetFactory::QgsCheckboxWidgetFactory( const QString& name )
-    : QgsEditorWidgetFactory( name )
+QgsCheckboxWidgetFactory::QgsCheckboxWidgetFactory( const QString &name )
+  : QgsEditorWidgetFactory( name )
 {
 }
 
-QgsEditorWidgetWrapper* QgsCheckboxWidgetFactory::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const
+QgsEditorWidgetWrapper *QgsCheckboxWidgetFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsCheckboxWidgetWrapper( vl, fieldIdx, editor, parent );
 }
 
-QgsSearchWidgetWrapper*QgsCheckboxWidgetFactory::createSearchWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsSearchWidgetWrapper *QgsCheckboxWidgetFactory::createSearchWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsCheckboxSearchWidgetWrapper( vl, fieldIdx, parent );
 }
 
-QgsEditorConfigWidget* QgsCheckboxWidgetFactory::configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsEditorConfigWidget *QgsCheckboxWidgetFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsCheckBoxConfigDlg( vl, fieldIdx, parent );
 }
 
-QgsEditorWidgetConfig QgsCheckboxWidgetFactory::readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx )
+QHash<const char *, int> QgsCheckboxWidgetFactory::supportedWidgetTypes()
 {
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  QgsEditorWidgetConfig cfg;
-
-  cfg.insert( QStringLiteral( "CheckedState" ), configElement.attribute( QStringLiteral( "CheckedState" ) ) );
-  cfg.insert( QStringLiteral( "UncheckedState" ), configElement.attribute( QStringLiteral( "UncheckedState" ) ) );
-
-  return cfg;
-}
-
-void QgsCheckboxWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx )
-{
-  Q_UNUSED( doc )
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  configElement.setAttribute( QStringLiteral( "CheckedState" ), config.value( QStringLiteral( "CheckedState" ), "1" ).toString() );
-  configElement.setAttribute( QStringLiteral( "UncheckedState" ), config.value( QStringLiteral( "UncheckedState" ), "0" ).toString() );
-}
-
-QHash<const char*, int> QgsCheckboxWidgetFactory::supportedWidgetTypes()
-{
-  QHash<const char*, int> map = QHash<const char*, int>();
+  QHash<const char *, int> map = QHash<const char *, int>();
   map.insert( QCheckBox::staticMetaObject.className(), 10 );
   map.insert( QGroupBox::staticMetaObject.className(), 10 );
   return map;
 }
 
-unsigned int QgsCheckboxWidgetFactory::fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const
+unsigned int QgsCheckboxWidgetFactory::fieldScore( const QgsVectorLayer *vl, int fieldIdx ) const
 {
   const QVariant::Type type = vl->fields().field( fieldIdx ).type();
   return type == QVariant::Bool ? 20 : 5;

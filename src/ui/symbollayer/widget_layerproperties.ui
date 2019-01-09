@@ -71,7 +71,7 @@
    <item row="3" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <property name="spacing">
-      <number>0</number>
+      <number>6</number>
      </property>
      <property name="bottomMargin">
       <number>0</number>
@@ -84,9 +84,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QgsDataDefinedButton" name="mEnabledDDBtn">
+      <widget class="QgsPropertyOverrideButton" name="mEnabledDDBtn">
        <property name="text">
-        <string>...</string>
+        <string>…</string>
        </property>
       </widget>
      </item>
@@ -125,9 +125,9 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsDataDefinedButton</class>
+   <class>QgsPropertyOverrideButton</class>
    <extends>QToolButton</extends>
-   <header>qgsdatadefinedbutton.h</header>
+   <header>qgspropertyoverridebutton.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

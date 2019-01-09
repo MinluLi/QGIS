@@ -1,4 +1,5 @@
-﻿--
+
+--
 -- PostgreSQL database dump
 --
 
@@ -30,7 +31,7 @@ SET default_with_oids = false;
 
 --
 -- TOC entry 171 (class 1259 OID 377761)
--- Name: someData; Type: TABLE; Schema: qgis_test; Owner: postgres; Tablespace: 
+-- Name: someData; Type: TABLE; Schema: qgis_test; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE qgis_test."someData" (
@@ -42,10 +43,17 @@ CREATE TABLE qgis_test."someData" (
     geom public.geometry(Point,4326)
 );
 
+COMMENT ON TABLE qgis_test."someData" IS 'QGIS Test Table';
+
 CREATE TABLE qgis_test."some_poly_data" (
     pk SERIAL NOT NULL,
     geom public.geometry(Polygon,4326)
 );
+
+CREATE OR REPLACE VIEW qgis_test.some_poly_data_view
+  AS
+    SELECT *
+    FROM qgis_test.some_poly_data;
 
 --
 -- TOC entry 4068 (class 0 OID 377761)
@@ -67,6 +75,14 @@ INSERT INTO qgis_test."some_poly_data" (pk, geom) VALUES
 (3, ST_GeomFromText('Polygon ((-68.4 75.8, -67.5 72.6, -68.6 73.7, -70.2 72.9, -68.4 75.8))', 4326) ),
 (4, NULL)
 ;
+
+
+CREATE TABLE qgis_test.array_tbl (id serial PRIMARY KEY, location int[], geom geometry(Point,3857));
+
+INSERT INTO qgis_test.array_tbl (location, geom) VALUES ('{1, 2, 3}', 'srid=3857;Point(913209.0358 5606025.2373)'::geometry);
+INSERT INTO qgis_test.array_tbl (location, geom) VALUES ('{}', 'srid=3857;Point(913214.6741 5606017.8743)'::geometry);
+INSERT INTO qgis_test.array_tbl (geom) VALUES ('srid=3857;Point(913204.9128 5606011.4565)'::geometry);
+
 
 -- Provider check with compound key
 
@@ -92,7 +108,7 @@ INSERT INTO qgis_test."someDataCompound" ( key1, key2, pk, cnt, name, name2, num
 
 --
 -- TOC entry 3953 (class 2606 OID 377768)
--- Name: someData_pkey; Type: CONSTRAINT; Schema: qgis_test; Owner: postgres; Tablespace: 
+-- Name: someData_pkey; Type: CONSTRAINT; Schema: qgis_test; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY qgis_test."someData"
@@ -230,6 +246,17 @@ CREATE TABLE qgis_test.mls3d(
 );
 
 INSERT INTO qgis_test.mls3d values (1, 'srid=4326;MultiLineString((0 0 0, 1 1 1),(2 2 2, 3 3 3))'::geometry);
+
+
+-- Test of 4D geometries (with Z and M values)
+
+CREATE TABLE qgis_test.pt4d(
+       id int,
+       geom Geometry(PointZM,4326)
+);
+
+INSERT INTO qgis_test.pt4d values (1, 'srid=4326;PointZM(1 2 3 4)'::geometry);
+
 
 
 -----------------------------------------
@@ -457,4 +484,50 @@ CREATE TABLE qgis_test.widget_styles(
 );
 
 INSERT INTO qgis_editor_widget_styles VALUES
-('qgis_test', 'widget_styles', 'fld1', 'FooEdit', '<config><option key="param1" value="value1"/><option key="param2" value="2"/></config>');
+('qgis_test', 'widget_styles', 'fld1', 'FooEdit', '<config type="Map"><Option name="param1" value="value1" type="QString"/><Option name="param2" value="2" type="QString"/></config>');
+
+--------------------------------------
+-- Table for boolean
+--
+
+CREATE TABLE qgis_test.boolean_table
+(
+  id int PRIMARY KEY,
+  fld1 BOOLEAN
+);
+
+INSERT INTO qgis_test.boolean_table VALUES
+(1, TRUE),
+(2, FALSE),
+(3, NULL);
+
+-----------------------------
+-- Table for constraint tests
+--
+
+DROP TABLE IF EXISTS qgis_test.constraints;
+CREATE TABLE qgis_test.constraints
+(
+  gid serial NOT NULL PRIMARY KEY, -- implicit unique key
+  val int, -- unique constraint
+  name text NOT NULL, -- unique index
+  description text,
+  CONSTRAINT constraint_val UNIQUE (val),
+  CONSTRAINT constraint_val2 UNIQUE (val) -- create double unique constraint for test
+);
+
+CREATE UNIQUE INDEX constraints_uniq
+  ON qgis_test.constraints
+  USING btree
+  (name COLLATE pg_catalog."default"); -- unique index
+
+CREATE TABLE qgis_test.check_constraints (
+  id integer PRIMARY KEY,
+  a integer,
+  b integer, CHECK (a > b)
+);
+INSERT INTO qgis_test.check_constraints VALUES (
+  1, -- id
+  4, -- a
+  3  -- b
+)

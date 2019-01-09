@@ -20,118 +20,75 @@ email                : ersts@amnh.org
 #include "qgscolorrampshader.h"
 #include "qgsrastershader.h"
 #include "qgsrasterblock.h"
+#include "qgssymbollayerutils.h"
+
 #include <QDomDocument>
 #include <QDomElement>
 
-QgsRasterShader::QgsRasterShader( double theMinimumValue, double theMaximumValue )
+QgsRasterShader::QgsRasterShader( double minimumValue, double maximumValue )
+  : mMinimumValue( minimumValue )
+  , mMaximumValue( maximumValue )
+  , mRasterShaderFunction( new QgsRasterShaderFunction( mMinimumValue, mMaximumValue ) )
 {
-  QgsDebugMsgLevel( "called.", 4 );
-
-  mMinimumValue = theMinimumValue;
-  mMaximumValue = theMaximumValue;
-  mRasterShaderFunction = new QgsRasterShaderFunction( mMinimumValue, mMaximumValue );
+  QgsDebugMsgLevel( QStringLiteral( "called." ), 4 );
 }
 
-QgsRasterShader::~QgsRasterShader()
-{
-  delete mRasterShaderFunction;
-}
-
-/**
-  Generates and new RGBA value based on one input value
-
-  @param theValue The original value to base a new RGBA value on
-  @param theReturnRedValue  The red component of the new RGBA value
-  @param theReturnGreenValue  The green component of the new RGBA value
-  @param theReturnBlueValue  The blue component of the new RGBA value
-  @param theReturnAlpha  The alpha component of the new RGBA value
-  @return True if the return values are valid otherwise false
-*/
-bool QgsRasterShader::shade( double theValue, int* theReturnRedValue, int* theReturnGreenValue, int* theReturnBlueValue, int *theReturnAlpha )
+bool QgsRasterShader::shade( double value, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlpha )
 {
   if ( mRasterShaderFunction )
   {
-    return mRasterShaderFunction->shade( theValue, theReturnRedValue, theReturnGreenValue, theReturnBlueValue, theReturnAlpha );
-  }
-
-  return false;
-}
-/**
-  Generates and new RGBA value based on an original RGBA value
-
-
-  @param theRedValue The red component of the original value to base a new RGBA value on
-  @param theGreenValue The green component of the original value to base a new RGBA value on
-  @param theBlueValue The blue component of the original value to base a new RGBA value on
-  @param theAlphaValue  The alpha component of the original value to base a new RGBA value on
-  @param theReturnRedValue  The red component of the new RGBA value
-  @param theReturnGreenValue  The green component of the new RGBA value
-  @param theReturnBlueValue  The blue component of the new RGBA value
-  @param theReturnAlphaValue  The alpha component of the new RGBA value
-  @return True if the return values are valid otherwise false
-*/
-bool QgsRasterShader::shade( double theRedValue, double theGreenValue, double theBlueValue, double theAlphaValue, int* theReturnRedValue, int* theReturnGreenValue, int* theReturnBlueValue, int* theReturnAlphaValue )
-{
-  if ( mRasterShaderFunction )
-  {
-    return mRasterShaderFunction->shade( theRedValue, theGreenValue, theBlueValue, theAlphaValue, theReturnRedValue, theReturnGreenValue, theReturnBlueValue, theReturnAlphaValue );
+    return mRasterShaderFunction->shade( value, returnRedValue, returnGreenValue, returnBlueValue, returnAlpha );
   }
 
   return false;
 }
 
-/**
-    A public function that allows the user to set their own custom shader function.
-
-    @param theFunction A pointer to the new raster shader function
-*/
-void QgsRasterShader::setRasterShaderFunction( QgsRasterShaderFunction* theFunction )
+bool QgsRasterShader::shade( double redValue, double greenValue, double blueValue, double alphaValue, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlphaValue )
 {
-  QgsDebugMsgLevel( "called.", 4 );
+  if ( mRasterShaderFunction )
+  {
+    return mRasterShaderFunction->shade( redValue, greenValue, blueValue, alphaValue, returnRedValue, returnGreenValue, returnBlueValue, returnAlphaValue );
+  }
 
-  if ( mRasterShaderFunction == theFunction )
+  return false;
+}
+
+void QgsRasterShader::setRasterShaderFunction( QgsRasterShaderFunction *function )
+{
+  QgsDebugMsgLevel( QStringLiteral( "called." ), 4 );
+
+  if ( mRasterShaderFunction.get() == function )
     return;
 
-  if ( theFunction )
+  if ( function )
   {
-    delete mRasterShaderFunction;
-    mRasterShaderFunction = theFunction;
+    mRasterShaderFunction.reset( function );
   }
 }
 
-/**
-    Set the maximum value for the raster shader.
-
-    @param theValue The new maximum value
-*/
-void QgsRasterShader::setMaximumValue( double theValue )
+void QgsRasterShader::setMaximumValue( double value )
 {
-  QgsDebugMsgLevel( "Value = " + QString::number( theValue ), 4 );
+  QgsDebugMsgLevel( "Value = " + QString::number( value ), 4 );
 
-  mMaximumValue = theValue;
+  mMaximumValue = value;
   if ( mRasterShaderFunction )
   {
-    mRasterShaderFunction->setMaximumValue( theValue );
+    mRasterShaderFunction->setMaximumValue( value );
   }
 }
 
-/**
-    Set the maximum value for the raster shader
-
-    @param theValue The new minimum value
-*/
-void QgsRasterShader::setMinimumValue( double theValue )
+void QgsRasterShader::setMinimumValue( double value )
 {
-  QgsDebugMsgLevel( "Value = " + QString::number( theValue ), 4 );
+  QgsDebugMsgLevel( "Value = " + QString::number( value ), 4 );
 
-  mMinimumValue = theValue;
+  mMinimumValue = value;
   if ( mRasterShaderFunction )
   {
-    mRasterShaderFunction->setMinimumValue( theValue );
+    mRasterShaderFunction->setMinimumValue( value );
   }
 }
 
-void QgsRasterShader::writeXml( QDomDocument& doc, QDomElement& parent ) const
+void QgsRasterShader::writeXml( QDomDocument &doc, QDomElement &parent ) const
 {
   if ( parent.isNull() || !mRasterShaderFunction )
   {
@@ -139,58 +96,22 @@ void QgsRasterShader::writeXml( QDomDocument& doc, QDomElement& parent ) const
   }
 
   QDomElement rasterShaderElem = doc.createElement( QStringLiteral( "rastershader" ) );
-  QgsColorRampShader* colorRampShader = dynamic_cast<QgsColorRampShader*>( mRasterShaderFunction );
+  QgsColorRampShader *colorRampShader = dynamic_cast<QgsColorRampShader *>( mRasterShaderFunction.get() );
   if ( colorRampShader )
   {
-    QDomElement colorRampShaderElem = doc.createElement( QStringLiteral( "colorrampshader" ) );
-    colorRampShaderElem.setAttribute( QStringLiteral( "colorRampType" ), colorRampShader->colorRampTypeAsQString() );
-    colorRampShaderElem.setAttribute( QStringLiteral( "clip" ), colorRampShader->clip() );
-    //items
-    QList<QgsColorRampShader::ColorRampItem> itemList = colorRampShader->colorRampItemList();
-    QList<QgsColorRampShader::ColorRampItem>::const_iterator itemIt = itemList.constBegin();
-    for ( ; itemIt != itemList.constEnd(); ++itemIt )
-    {
-      QDomElement itemElem = doc.createElement( QStringLiteral( "item" ) );
-      itemElem.setAttribute( QStringLiteral( "label" ), itemIt->label );
-      itemElem.setAttribute( QStringLiteral( "value" ), QgsRasterBlock::printValue( itemIt->value ) );
-      itemElem.setAttribute( QStringLiteral( "color" ), itemIt->color.name() );
-      itemElem.setAttribute( QStringLiteral( "alpha" ), itemIt->color.alpha() );
-      colorRampShaderElem.appendChild( itemElem );
-    }
-    rasterShaderElem.appendChild( colorRampShaderElem );
+    rasterShaderElem.appendChild( colorRampShader->writeXml( doc ) );
   }
   parent.appendChild( rasterShaderElem );
 }
 
-void QgsRasterShader::readXml( const QDomElement& elem )
+void QgsRasterShader::readXml( const QDomElement &elem )
 {
   //only colorrampshader
   QDomElement colorRampShaderElem = elem.firstChildElement( QStringLiteral( "colorrampshader" ) );
   if ( !colorRampShaderElem.isNull() )
   {
-    QgsColorRampShader* colorRampShader = new QgsColorRampShader();
-    colorRampShader->setColorRampType( colorRampShaderElem.attribute( QStringLiteral( "colorRampType" ), QStringLiteral( "INTERPOLATED" ) ) );
-    colorRampShader->setClip( colorRampShaderElem.attribute( QStringLiteral( "clip" ), QStringLiteral( "0" ) ) == QLatin1String( "1" ) );
-
-    QList<QgsColorRampShader::ColorRampItem> itemList;
-    QDomElement itemElem;
-    QString itemLabel;
-    double itemValue;
-    QColor itemColor;
-
-    QDomNodeList itemNodeList = colorRampShaderElem.elementsByTagName( QStringLiteral( "item" ) );
-    itemList.reserve( itemNodeList.size() );
-    for ( int i = 0; i < itemNodeList.size(); ++i )
-    {
-      itemElem = itemNodeList.at( i ).toElement();
-      itemValue = itemElem.attribute( QStringLiteral( "value" ) ).toDouble();
-      itemLabel = itemElem.attribute( QStringLiteral( "label" ) );
-      itemColor.setNamedColor( itemElem.attribute( QStringLiteral( "color" ) ) );
-      itemColor.setAlpha( itemElem.attribute( QStringLiteral( "alpha" ), QStringLiteral( "255" ) ).toInt() );
-
-      itemList.push_back( QgsColorRampShader::ColorRampItem( itemValue, itemColor, itemLabel ) );
-    }
-    colorRampShader->setColorRampItemList( itemList );
+    QgsColorRampShader *colorRampShader = new QgsColorRampShader();
+    colorRampShader->readXml( colorRampShaderElem );
     setRasterShaderFunction( colorRampShader );
   }
 }

@@ -21,20 +21,26 @@ from qgis.core import (
     QgsVectorLayer,
     QgsProject,
     QgsRelation,
-    QgsMapLayerRegistry,
     QgsTransaction,
-    QgsFeatureRequest
-)
-
-from qgis.gui import (
-    QgsEditorWidgetRegistry,
-    QgsRelationWidgetWrapper,
-    QgsAttributeEditorContext,
+    QgsFeatureRequest,
     QgsVectorLayerTools
 )
 
+from qgis.gui import (
+    QgsGui,
+    QgsRelationWidgetWrapper,
+    QgsAttributeEditorContext,
+    QgsMapCanvas
+)
+
 from qgis.PyQt.QtCore import QTimer
-from qgis.PyQt.QtWidgets import QToolButton, QTableView, QApplication
+from qgis.PyQt.QtWidgets import (
+    QToolButton,
+    QMessageBox,
+    QDialogButtonBox,
+    QTableView,
+    QApplication
+)
 from qgis.testing import start_app, unittest
 
 start_app()
@@ -48,7 +54,8 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         Setup the involved layers and relations for a n:m relation
         :return:
         """
-        QgsEditorWidgetRegistry.initEditors()
+        cls.mapCanvas = QgsMapCanvas()
+        QgsGui.editorWidgetRegistry().initEditors(cls.mapCanvas)
         cls.dbconn = 'service=\'qgis_test\''
         if 'QGIS_PGTEST_DB' in os.environ:
             cls.dbconn = os.environ['QGIS_PGTEST_DB']
@@ -57,9 +64,9 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         cls.vl_a = QgsVectorLayer(cls.dbconn + ' sslmode=disable key=\'pk\' table="qgis_test"."authors" sql=', 'authors', 'postgres')
         cls.vl_link = QgsVectorLayer(cls.dbconn + ' sslmode=disable key=\'pk\' table="qgis_test"."books_authors" sql=', 'books_authors', 'postgres')
 
-        QgsMapLayerRegistry.instance().addMapLayer(cls.vl_b)
-        QgsMapLayerRegistry.instance().addMapLayer(cls.vl_a)
-        QgsMapLayerRegistry.instance().addMapLayer(cls.vl_link)
+        QgsProject.instance().addMapLayer(cls.vl_b)
+        QgsProject.instance().addMapLayer(cls.vl_a)
+        QgsProject.instance().addMapLayer(cls.vl_link)
 
         cls.relMgr = QgsProject.instance().relationManager()
 
@@ -67,7 +74,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         cls.rel_a.setReferencingLayer(cls.vl_link.id())
         cls.rel_a.setReferencedLayer(cls.vl_a.id())
         cls.rel_a.addFieldPair('fk_author', 'pk')
-        cls.rel_a.setRelationId('rel_a')
+        cls.rel_a.setId('rel_a')
         assert(cls.rel_a.isValid())
         cls.relMgr.addRelation(cls.rel_a)
 
@@ -75,7 +82,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         cls.rel_b.setReferencingLayer(cls.vl_link.id())
         cls.rel_b.setReferencedLayer(cls.vl_b.id())
         cls.rel_b.addFieldPair('fk_book', 'pk')
-        cls.rel_b.setRelationId('rel_b')
+        cls.rel_b.setId('rel_b')
         assert(cls.rel_b.isValid())
         cls.relMgr.addRelation(cls.rel_b)
 
@@ -91,6 +98,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
 
     def tearDown(self):
         self.rollbackTransaction()
+        del self.transaction
 
     def test_delete_feature(self):
         """
@@ -107,6 +115,16 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         self.widget.featureSelectionManager().select([fid])
 
         btn = self.widget.findChild(QToolButton, 'mDeleteFeatureButton')
+
+        def clickOk():
+            # Click the "Delete features" button on the confirmation message
+            # box
+            widget = self.widget.findChild(QMessageBox)
+            buttonBox = widget.findChild(QDialogButtonBox)
+            deleteButton = next((b for b in buttonBox.buttons() if buttonBox.buttonRole(b) == QDialogButtonBox.AcceptRole))
+            deleteButton.click()
+
+        QTimer.singleShot(1, clickOk)
         btn.click()
 
         # This is the important check that the feature is deleted
@@ -125,7 +143,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
 
         self.assertEqual(self.table_view.model().rowCount(), 4)
 
-    @unittest.expectedFailure(os.environ.get('QT_VERSION', '5') == '4' and os.environ.get('TRAVIS_OS_NAME', '') == 'linux') # It's probably not related to this variables at all, but that's the closest we can get to the real source of this problem at the moment...
+    @unittest.expectedFailure(os.environ.get('QT_VERSION', '5') == '4' and os.environ.get('TRAVIS_OS_NAME', '') == 'linux')  # It's probably not related to this variables at all, but that's the closest we can get to the real source of this problem at the moment...
     def test_add_feature(self):
         """
         Check if a new related feature is added
@@ -153,7 +171,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         wrapper = self.createWrapper(self.vl_a, '"name"=\'Douglas Adams\'')  # NOQA
 
         f = QgsFeature(self.vl_b.fields())
-        f.setAttributes([self.vl_b.dataProvider().defaultValue(0), 'The Hitchhiker\'s Guide to the Galaxy'])
+        f.setAttributes([self.vl_b.dataProvider().defaultValueClause(0), 'The Hitchhiker\'s Guide to the Galaxy'])
         self.vl_b.addFeature(f)
 
         def choose_linked_feature():
@@ -181,7 +199,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         """
         Check if a linked feature can be unlinked
         """
-        wrapper = self.createWrapper(self.vl_b)
+        wrapper = self.createWrapper(self.vl_b)   # NOQA
 
         # All authors are listed
         self.assertEqual(self.table_view.model().rowCount(), 4)
@@ -234,7 +252,7 @@ class TestQgsRelationEditWidget(unittest.TestCase):
         """
         lyrs = [self.vl_a, self.vl_b, self.vl_link]
 
-        self.transaction = QgsTransaction.create([l.id() for l in lyrs])
+        self.transaction = QgsTransaction.create(lyrs)
         self.transaction.begin()
         for l in lyrs:
             l.startEditing()
@@ -318,7 +336,7 @@ class VlTools(QgsVectorLayerTools):
             if v:
                 values.append(v)
             else:
-                values.append(layer.dataProvider().defaultValue(i))
+                values.append(layer.dataProvider().defaultValueClause(i))
         f = QgsFeature(layer.fields())
         f.setAttributes(self.values)
         f.setGeometry(defaultGeometry)
@@ -334,6 +352,7 @@ class VlTools(QgsVectorLayerTools):
 
     def saveEdits(self, layer):
         pass
+
 
 if __name__ == '__main__':
     unittest.main()

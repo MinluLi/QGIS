@@ -18,6 +18,7 @@
 #ifndef QGSRASTERBANDSTATS
 #define QGSRASTERBANDSTATS
 
+#include "qgis_core.h"
 #include <QString>
 #include <QVector>
 
@@ -25,7 +26,8 @@
 
 #include "qgsrectangle.h"
 
-/** \ingroup core
+/**
+ * \ingroup core
  * The RasterBandStats struct is a container for statistics about a single
  * raster band.
  */
@@ -78,11 +80,13 @@ class CORE_EXPORT QgsRasterBandStats
     // TODO: check if no data are excluded in stats calculation
     qgssize elementCount;
 
-    /** \brief The maximum cell value in the raster band. NO_DATA values
+    /**
+     * \brief The maximum cell value in the raster band. NO_DATA values
      * are ignored. This does not use the gdal GetMaximmum function. */
     double maximumValue;
 
-    /** \brief The minimum cell value in the raster band. NO_DATA values
+    /**
+     * \brief The minimum cell value in the raster band. NO_DATA values
      * are ignored. This does not use the gdal GetMinimum function. */
     double minimumValue;
 

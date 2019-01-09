@@ -17,8 +17,9 @@
 #define QGSFIELDCALCULATOR_H
 
 #include "ui_qgsfieldcalculatorbase.h"
-#include "qgscontexthelp.h"
+#include "qgshelp.h"
 #include "qgsfields.h"
+#include "qgis_app.h"
 
 class QgsVectorLayer;
 
@@ -27,26 +28,24 @@ class APP_EXPORT QgsFieldCalculator: public QDialog, private Ui::QgsFieldCalcula
 {
     Q_OBJECT
   public:
-    QgsFieldCalculator( QgsVectorLayer* vl, QWidget* parent = nullptr );
-    ~QgsFieldCalculator();
+    QgsFieldCalculator( QgsVectorLayer *vl, QWidget *parent = nullptr );
 
     int changedAttributeId() const { return mAttributeId; }
 
   public slots:
     void accept() override;
 
-    void on_mNewFieldGroupBox_toggled( bool on );
-    void on_mUpdateExistingGroupBox_toggled( bool on );
-    void on_mCreateVirtualFieldCheckbox_stateChanged( int state );
-    void on_mOutputFieldNameLineEdit_textChanged( const QString& text );
-    void on_mOutputFieldTypeComboBox_activated( int index );
-
-    void on_mButtonBox_helpRequested() { QgsContextHelp::run( metaObject()->className() ); }
+    void mNewFieldGroupBox_toggled( bool on );
+    void mUpdateExistingGroupBox_toggled( bool on );
+    void mCreateVirtualFieldCheckbox_stateChanged( int state );
+    void mOutputFieldNameLineEdit_textChanged( const QString &text );
+    void mOutputFieldTypeComboBox_activated( int index );
 
   private slots:
-    //! Sets the ok button enabled / disabled
+    //! Sets the OK button enabled / disabled
     void setOkButtonState();
     void setPrecisionMinMax();
+    void showHelp();
 
   private:
     //! default constructor forbidden
@@ -56,22 +55,12 @@ class APP_EXPORT QgsFieldCalculator: public QDialog, private Ui::QgsFieldCalcula
     //! Inserts the types supported by the provider into the combo box
     void populateOutputFieldTypes();
 
-    QgsVectorLayer* mVectorLayer;
+    QgsVectorLayer *mVectorLayer = nullptr;
     //! Key: field name, Value: field index
     QMap<QString, int> mFieldMap;
 
     //! Create a field based on the definitions
-    inline QgsField fieldDefinition()
-    {
-      return QgsField( mOutputFieldNameLineEdit->text(),
-                       static_cast< QVariant::Type >( mOutputFieldTypeComboBox->itemData( mOutputFieldTypeComboBox->currentIndex(), Qt::UserRole ).toInt() ),
-                       mOutputFieldTypeComboBox->itemData( mOutputFieldTypeComboBox->currentIndex(), Qt::UserRole + 1 ).toString(),
-                       mOutputFieldWidthSpinBox->value(),
-                       mOutputFieldPrecisionSpinBox->value(),
-                       QString(),
-                       static_cast< QVariant::Type >( mOutputFieldTypeComboBox->itemData( mOutputFieldTypeComboBox->currentIndex(), Qt::UserRole + 6 ).toInt() )
-                     );
-    }
+    QgsField fieldDefinition();
 
     //! Idx of changed attribute
     int mAttributeId;

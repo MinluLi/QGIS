@@ -16,7 +16,6 @@
 #include "qgsapplication.h"
 #include "qgisapp.h"
 #include "qgsattributetabledialog.h"
-#include "qgscursors.h"
 #include "qgsdistancearea.h"
 #include "qgsfeature.h"
 #include "qgsfeaturestore.h"
@@ -29,37 +28,37 @@
 #include "qgsmaptopixel.h"
 #include "qgsmessageviewer.h"
 #include "qgsmaptoolidentifyaction.h"
+#include "qgsmaptoolselectionhandler.h"
 #include "qgsrasterlayer.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 #include "qgsproject.h"
-#include "qgsmaplayerregistry.h"
 #include "qgsrenderer.h"
 #include "qgsunittypes.h"
+#include "qgsstatusbar.h"
+#include "qgsactionscoperegistry.h"
+#include "qgssettings.h"
+#include "qgsmapmouseevent.h"
 
-#include <QSettings>
-#include <QMouseEvent>
 #include <QCursor>
 #include <QPixmap>
 #include <QStatusBar>
 #include <QVariant>
 
-QgsMapToolIdentifyAction::QgsMapToolIdentifyAction( QgsMapCanvas * canvas )
-    : QgsMapToolIdentify( canvas )
+QgsMapToolIdentifyAction::QgsMapToolIdentifyAction( QgsMapCanvas *canvas )
+  : QgsMapToolIdentify( canvas )
 {
   mToolName = tr( "Identify" );
-  // set cursor
-  QPixmap myIdentifyQPixmap = QPixmap(( const char ** ) identify_cursor );
-  mCursor = QCursor( myIdentifyQPixmap, 1, 1 );
-
-  connect( this, SIGNAL( changedRasterResults( QList<IdentifyResult>& ) ), this, SLOT( handleChangedRasterResults( QList<IdentifyResult>& ) ) );
-
+  setCursor( QgsApplication::getThemeCursor( QgsApplication::Cursor::Identify ) );
+  connect( this, &QgsMapToolIdentify::changedRasterResults, this, &QgsMapToolIdentifyAction::handleChangedRasterResults );
   mIdentifyMenu->setAllowMultipleReturn( true );
-
-  QgsMapLayerAction* attrTableAction = new QgsMapLayerAction( tr( "Show attribute table" ), mIdentifyMenu, QgsMapLayer::VectorLayer, QgsMapLayerAction::MultipleFeatures );
-  connect( attrTableAction, SIGNAL( triggeredForFeatures( QgsMapLayer*, const QList<QgsFeature> ) ), this, SLOT( showAttributeTable( QgsMapLayer*, const QList<QgsFeature> ) ) );
+  QgsMapLayerAction *attrTableAction = new QgsMapLayerAction( tr( "Show Attribute Table" ), mIdentifyMenu, QgsMapLayer::VectorLayer, QgsMapLayerAction::MultipleFeatures );
+  connect( attrTableAction, &QgsMapLayerAction::triggeredForFeatures, this, &QgsMapToolIdentifyAction::showAttributeTable );
   identifyMenu()->addCustomAction( attrTableAction );
+  mSelectionHandler = new QgsMapToolSelectionHandler( canvas, QgsMapToolSelectionHandler::SelectSimple );
+  connect( mSelectionHandler, &QgsMapToolSelectionHandler::geometryChanged, this, &QgsMapToolIdentifyAction::identifyFromGeometry );
+
 }
 
 QgsMapToolIdentifyAction::~QgsMapToolIdentifyAction()
@@ -68,6 +67,7 @@ QgsMapToolIdentifyAction::~QgsMapToolIdentifyAction()
   {
     mResultsDialog->done( 0 );
   }
+  delete mSelectionHandler;
 }
 
 QgsIdentifyResultsDialog *QgsMapToolIdentifyAction::resultsDialog()
@@ -76,18 +76,22 @@ QgsIdentifyResultsDialog *QgsMapToolIdentifyAction::resultsDialog()
   {
     mResultsDialog = new QgsIdentifyResultsDialog( mCanvas, mCanvas->window() );
 
-    connect( mResultsDialog, SIGNAL( formatChanged( QgsRasterLayer * ) ), this, SLOT( formatChanged( QgsRasterLayer * ) ) );
-    connect( mResultsDialog, SIGNAL( copyToClipboard( QgsFeatureStore & ) ), this, SLOT( handleCopyToClipboard( QgsFeatureStore & ) ) );
+    connect( mResultsDialog.data(), static_cast<void ( QgsIdentifyResultsDialog::* )( QgsRasterLayer * )>( &QgsIdentifyResultsDialog::formatChanged ), this, &QgsMapToolIdentify::formatChanged );
+    connect( mResultsDialog.data(), &QgsIdentifyResultsDialog::copyToClipboard, this, &QgsMapToolIdentifyAction::handleCopyToClipboard );
+    connect( mResultsDialog.data(), &QgsIdentifyResultsDialog::selectionModeChanged, this, [this]
+    {
+      mSelectionHandler->setSelectionMode( mResultsDialog->selectionMode() );
+    } );
   }
 
   return mResultsDialog;
 }
 
-void QgsMapToolIdentifyAction::showAttributeTable( QgsMapLayer* layer, const QList<QgsFeature>& featureList )
+void QgsMapToolIdentifyAction::showAttributeTable( QgsMapLayer *layer, const QList<QgsFeature> &featureList )
 {
   resultsDialog()->clear();
 
-  QgsVectorLayer* vl = qobject_cast<QgsVectorLayer*>( layer );
+  QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( layer );
   if ( !vl )
     return;
 
@@ -98,55 +102,50 @@ void QgsMapToolIdentifyAction::showAttributeTable( QgsMapLayer* layer, const QLi
   }
   filter = filter.replace( QRegExp( ",$" ), QStringLiteral( ")" ) );
 
-  QgsAttributeTableDialog* tableDialog = new QgsAttributeTableDialog( vl );
+  QgsAttributeTableDialog *tableDialog = new QgsAttributeTableDialog( vl, QgsAttributeTableFilterModel::ShowFilteredList );
   tableDialog->setFilterExpression( filter );
   tableDialog->show();
 }
 
-void QgsMapToolIdentifyAction::canvasMoveEvent( QgsMapMouseEvent* e )
-{
-  Q_UNUSED( e );
-}
 
-void QgsMapToolIdentifyAction::canvasPressEvent( QgsMapMouseEvent* e )
-{
-  Q_UNUSED( e );
-}
-
-void QgsMapToolIdentifyAction::canvasReleaseEvent( QgsMapMouseEvent* e )
+void QgsMapToolIdentifyAction::identifyFromGeometry()
 {
   resultsDialog()->clear();
-  connect( this, SIGNAL( identifyProgress( int, int ) ), QgisApp::instance(), SLOT( showProgress( int, int ) ) );
-  connect( this, SIGNAL( identifyMessage( QString ) ), QgisApp::instance(), SLOT( showStatusMessage( QString ) ) );
+  connect( this, &QgsMapToolIdentifyAction::identifyMessage, QgisApp::instance(), &QgisApp::showStatusMessage );
+
+  QgsGeometry geometry = mSelectionHandler->selectedGeometry();
+  bool isSinglePoint = geometry.type() == QgsWkbTypes::PointGeometry;
+
+  if ( isSinglePoint )
+    setClickContextScope( geometry.asPoint() );
 
   identifyMenu()->setResultsIfExternalAction( false );
 
   // enable the right click for extended menu so it behaves as a contextual menu
   // this would be removed when a true contextual menu is brought in QGIS
-  bool extendedMenu = e->modifiers() == Qt::ShiftModifier || e->button() == Qt::RightButton;
+  bool extendedMenu = isSinglePoint && mShowExtendedMenu;
   identifyMenu()->setExecWithSingleResult( extendedMenu );
   identifyMenu()->setShowFeatureActions( extendedMenu );
   IdentifyMode mode = extendedMenu ? LayerSelection : DefaultQgsSetting;
 
-  QList<IdentifyResult> results = QgsMapToolIdentify::identify( e->x(), e->y(), mode );
+  QList<IdentifyResult> results = QgsMapToolIdentify::identify( geometry, mode, AllLayers );
 
-  disconnect( this, SIGNAL( identifyProgress( int, int ) ), QgisApp::instance(), SLOT( showProgress( int, int ) ) );
-  disconnect( this, SIGNAL( identifyMessage( QString ) ), QgisApp::instance(), SLOT( showStatusMessage( QString ) ) );
+  disconnect( this, &QgsMapToolIdentifyAction::identifyMessage, QgisApp::instance(), &QgisApp::showStatusMessage );
 
   if ( results.isEmpty() )
   {
     resultsDialog()->clear();
-    QgisApp::instance()->statusBar()->showMessage( tr( "No features at this position found." ) );
+    QgisApp::instance()->statusBarIface()->showMessage( tr( "No features at this position found." ) );
   }
   else
   {
     // Show the dialog before items are inserted so that items can resize themselves
     // according to dialog size also the first time, see also #9377
-    if ( results.size() != 1 || !QSettings().value( QStringLiteral( "/Map/identifyAutoFeatureForm" ), false ).toBool() )
+    if ( results.size() != 1 || !QgsSettings().value( QStringLiteral( "/Map/identifyAutoFeatureForm" ), false ).toBool() )
       resultsDialog()->QDialog::show();
 
     QList<IdentifyResult>::const_iterator result;
-    for ( result = results.begin(); result != results.end(); ++result )
+    for ( result = results.constBegin(); result != results.constEnd(); ++result )
     {
       resultsDialog()->addFeature( *result );
     }
@@ -159,12 +158,29 @@ void QgsMapToolIdentifyAction::canvasReleaseEvent( QgsMapMouseEvent* e )
   resultsDialog()->updateViewModes();
 }
 
+void QgsMapToolIdentifyAction::canvasMoveEvent( QgsMapMouseEvent *e )
+{
+  mSelectionHandler->canvasMoveEvent( e );
+}
+
+void QgsMapToolIdentifyAction::canvasPressEvent( QgsMapMouseEvent *e )
+{
+  mSelectionHandler->canvasPressEvent( e );
+}
+
+void QgsMapToolIdentifyAction::canvasReleaseEvent( QgsMapMouseEvent *e )
+{
+  mShowExtendedMenu = e->modifiers() == Qt::ShiftModifier || e->button() == Qt::RightButton;
+  mSelectionHandler->canvasReleaseEvent( e );
+  mShowExtendedMenu = false;
+}
+
 void QgsMapToolIdentifyAction::handleChangedRasterResults( QList<IdentifyResult> &results )
 {
   // Add new result after raster format change
-  QgsDebugMsg( QString( "%1 raster results" ).arg( results.size() ) );
+  QgsDebugMsg( QStringLiteral( "%1 raster results" ).arg( results.size() ) );
   QList<IdentifyResult>::const_iterator rresult;
-  for ( rresult = results.begin(); rresult != results.end(); ++rresult )
+  for ( rresult = results.constBegin(); rresult != results.constEnd(); ++rresult )
   {
     if ( rresult->mLayer->type() == QgsMapLayer::RasterLayer )
     {
@@ -176,13 +192,39 @@ void QgsMapToolIdentifyAction::handleChangedRasterResults( QList<IdentifyResult>
 void QgsMapToolIdentifyAction::activate()
 {
   resultsDialog()->activate();
-  QgsMapTool::activate();
+  QgsMapToolIdentify::activate();
 }
 
 void QgsMapToolIdentifyAction::deactivate()
 {
   resultsDialog()->deactivate();
-  QgsMapTool::deactivate();
+  mSelectionHandler->deactivate();
+  QgsMapToolIdentify::deactivate();
+}
+
+void QgsMapToolIdentifyAction::identifyAndShowResults( const QgsGeometry &geom, double searchRadiusMapUnits )
+{
+  setCanvasPropertiesOverrides( searchRadiusMapUnits );
+  mSelectionHandler->setSelectedGeometry( geom );
+  restoreCanvasPropertiesOverrides();
+}
+
+void QgsMapToolIdentifyAction::clearResults()
+{
+  resultsDialog()->clear();
+}
+
+void QgsMapToolIdentifyAction::showResultsForFeature( QgsVectorLayer *vlayer, QgsFeatureId fid, const QgsPoint &pt )
+{
+  QgsFeature feature = vlayer->getFeature( fid );
+  QMap< QString, QString > derivedAttributes = derivedAttributesForPoint( pt );
+  // TODO: private in QgsMapToolIdentify
+  //derivedAttributes.unite( featureDerivedAttributes( feature, vlayer, QgsPointXY( pt ) ) );
+
+  resultsDialog()->addFeature( IdentifyResult( vlayer, feature, derivedAttributes ) );
+  resultsDialog()->show();
+  // update possible view modes
+  resultsDialog()->updateViewModes();
 }
 
 QgsUnitTypes::DistanceUnit QgsMapToolIdentifyAction::displayDistanceUnits() const
@@ -195,10 +237,31 @@ QgsUnitTypes::AreaUnit QgsMapToolIdentifyAction::displayAreaUnits() const
   return QgsProject::instance()->areaUnits();
 }
 
-void QgsMapToolIdentifyAction::handleCopyToClipboard( QgsFeatureStore & featureStore )
+void QgsMapToolIdentifyAction::handleCopyToClipboard( QgsFeatureStore &featureStore )
 {
-  QgsDebugMsg( QString( "features count = %1" ).arg( featureStore.features().size() ) );
+  QgsDebugMsg( QStringLiteral( "features count = %1" ).arg( featureStore.features().size() ) );
   emit copyToClipboard( featureStore );
 }
 
+void QgsMapToolIdentifyAction::setClickContextScope( const QgsPointXY &point )
+{
+  QgsExpressionContextScope clickScope;
+  clickScope.addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "click_x" ), point.x(), true ) );
+  clickScope.addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "click_y" ), point.y(), true ) );
 
+  resultsDialog()->setExpressionContextScope( clickScope );
+
+  if ( mIdentifyMenu )
+  {
+    mIdentifyMenu->setExpressionContextScope( clickScope );
+  }
+}
+
+
+void QgsMapToolIdentifyAction::keyReleaseEvent( QKeyEvent *e )
+{
+  if ( mSelectionHandler->keyReleaseEvent( e ) )
+    return;
+
+  QgsMapTool::keyReleaseEvent( e );
+}

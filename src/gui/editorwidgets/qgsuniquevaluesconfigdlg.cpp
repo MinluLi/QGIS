@@ -15,24 +15,24 @@
 
 #include "qgsuniquevaluesconfigdlg.h"
 
-QgsUniqueValuesConfigDlg::QgsUniqueValuesConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget *parent )
-    : QgsEditorConfigWidget( vl, fieldIdx, parent )
+QgsUniqueValuesConfigDlg::QgsUniqueValuesConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
+  : QgsEditorConfigWidget( vl, fieldIdx, parent )
 {
   setupUi( this );
-  connect( editableUniqueValues, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
+  connect( editableUniqueValues, &QAbstractButton::toggled, this, &QgsEditorConfigWidget::changed );
 }
 
 
-QgsEditorWidgetConfig QgsUniqueValuesConfigDlg::config()
+QVariantMap QgsUniqueValuesConfigDlg::config()
 {
-  QgsEditorWidgetConfig cfg;
+  QVariantMap cfg;
 
   cfg.insert( QStringLiteral( "Editable" ), editableUniqueValues->isChecked() );
 
   return cfg;
 }
 
-void QgsUniqueValuesConfigDlg::setConfig( const QgsEditorWidgetConfig& config )
+void QgsUniqueValuesConfigDlg::setConfig( const QVariantMap &config )
 {
   editableUniqueValues->setChecked( config.value( QStringLiteral( "Editable" ), false ).toBool() );
 }

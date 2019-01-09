@@ -20,16 +20,17 @@
 
 #include "qgspallabeling.h"
 #include "qgstextformatwidget.h"
+#include "qgspropertyoverridebutton.h"
+#include "qgis_app.h"
 
 class APP_EXPORT QgsLabelingGui : public QgsTextFormatWidget, private QgsExpressionContextGenerator
 {
     Q_OBJECT
 
   public:
-    QgsLabelingGui( QgsVectorLayer* layer, QgsMapCanvas* mapCanvas, const QgsPalLayerSettings* settings, QWidget* parent );
+    QgsLabelingGui( QgsVectorLayer *layer, QgsMapCanvas *mapCanvas, const QgsPalLayerSettings &settings, QWidget *parent );
 
     QgsPalLayerSettings layerSettings();
-    void writeSettingsToLayer();
 
     enum LabelMode
     {
@@ -40,27 +41,48 @@ class APP_EXPORT QgsLabelingGui : public QgsTextFormatWidget, private QgsExpress
 
     void setLabelMode( LabelMode mode );
 
-    void setLayer( QgsMapLayer* layer );
+    void setLayer( QgsMapLayer *layer );
+
+    /**
+     * Deactivate a field from data defined properties and update the
+     * corresponding button.
+     *
+     * \param key The property key to deactivate
+     *
+     * \since QGIS 3.0
+     */
+    void deactivateField( QgsPalLayerSettings::Property key );
+
+  signals:
+
+    void auxiliaryFieldCreated();
 
   public slots:
 
-    void apply();
-
     void updateUi();
+
+    void createAuxiliaryField();
 
   protected:
     void blockInitSignals( bool block );
-    void syncDefinedCheckboxFrame( QgsDataDefinedButton* ddBtn, QCheckBox* chkBx, QFrame* f );
-    void populateDataDefinedButtons( QgsPalLayerSettings& s );
-    //! Sets data defined property attribute to map
-    void setDataDefinedProperty( const QgsDataDefinedButton* ddBtn, QgsPalLayerSettings::DataDefinedProperties p, QgsPalLayerSettings& lyr );
+    void syncDefinedCheckboxFrame( QgsPropertyOverrideButton *ddBtn, QCheckBox *chkBx, QFrame *f );
 
   private:
-    QgsVectorLayer* mLayer;
-    const QgsPalLayerSettings* mSettings;
+    QgsVectorLayer *mLayer = nullptr;
+    const QgsPalLayerSettings &mSettings;
+    QgsPropertyCollection mDataDefinedProperties;
     LabelMode mMode;
 
     QgsExpressionContext createExpressionContext() const override;
+
+    void populateDataDefinedButtons();
+    void registerDataDefinedButton( QgsPropertyOverrideButton *button, QgsPalLayerSettings::Property key );
+
+    QMap<QgsPalLayerSettings::Property, QgsPropertyOverrideButton *> mButtons;
+
+  private slots:
+
+    void updateProperty();
 
 };
 

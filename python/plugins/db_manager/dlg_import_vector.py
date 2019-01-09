@@ -24,13 +24,20 @@ The content of this file is based on
 from builtins import str
 from builtins import range
 
-from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
+from qgis.PyQt.QtCore import Qt, QFileInfo
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QApplication
 from qgis.PyQt.QtGui import QCursor
 
-from qgis.core import QgsDataSourceUri, QgsVectorLayer, QgsRasterLayer, QgsMimeDataUtils, QgsMapLayer, QgsProviderRegistry, QgsCoordinateReferenceSystem, QgsVectorLayerImport
+from qgis.core import (QgsDataSourceUri,
+                       QgsVectorLayer,
+                       QgsMapLayer,
+                       QgsProviderRegistry,
+                       QgsCoordinateReferenceSystem,
+                       QgsVectorLayerExporter,
+                       QgsProject,
+                       QgsSettings)
 from qgis.gui import QgsMessageViewer
-from qgis.utils import iface
+from qgis.utils import OverrideCursor
 
 from .ui.ui_DlgImportVector import Ui_DbManagerDlgImportVector as Ui_Dialog
 
@@ -61,6 +68,8 @@ class DlgImportVector(QDialog, Ui_Dialog):
         # updates of UI
         self.setupWorkingMode(self.mode)
         self.cboSchema.currentIndexChanged.connect(self.populateTables)
+        self.widgetSourceSrid.setCrs(QgsProject.instance().crs())
+        self.widgetTargetSrid.setCrs(QgsProject.instance().crs())
 
     def setupWorkingMode(self, mode):
         """ hide the widget to select a layer/file if the input layer is already set """
@@ -71,9 +80,7 @@ class DlgImportVector(QDialog, Ui_Dialog):
 
         if mode == self.ASK_FOR_INPUT_MODE:
             self.btnChooseInputFile.clicked.connect(self.chooseInputFile)
-            # self.cboInputLayer.lineEdit().editingFinished.connect(self.updateInputLayer)
-            self.cboInputLayer.editTextChanged.connect(self.inputPathChanged)
-            # self.cboInputLayer.currentIndexChanged.connect(self.updateInputLayer)
+            self.cboInputLayer.currentTextChanged.connect(self.updateInputLayer)
             self.btnUpdateInputLayer.clicked.connect(self.updateInputLayer)
 
             self.editPrimaryKey.setText(self.default_pk)
@@ -90,7 +97,7 @@ class DlgImportVector(QDialog, Ui_Dialog):
     def checkSupports(self):
         """ update options available for the current input layer """
         allowSpatial = self.db.connector.hasSpatialSupport()
-        hasGeomType = self.inLayer and self.inLayer.hasGeometryType()
+        hasGeomType = self.inLayer and self.inLayer.isSpatial()
         isShapefile = self.inLayer and self.inLayer.providerType() == "ogr" and self.inLayer.storageType() == "ESRI Shapefile"
 
         self.chkGeomColumn.setEnabled(allowSpatial and hasGeomType)
@@ -118,10 +125,11 @@ class DlgImportVector(QDialog, Ui_Dialog):
 
     def populateLayers(self):
         self.cboInputLayer.clear()
-        for index, layer in enumerate(iface.legendInterface().layers()):
+        for nodeLayer in QgsProject.instance().layerTreeRoot().findLayers():
+            layer = nodeLayer.layer()
             # TODO: add import raster support!
             if layer.type() == QgsMapLayer.VectorLayer:
-                self.cboInputLayer.addItem(layer.name(), index)
+                self.cboInputLayer.addItem(layer.name(), layer.id())
 
     def deleteInputLayer(self):
         """ unset the input layer, then destroy it but only if it was created from this dialog """
@@ -136,7 +144,7 @@ class DlgImportVector(QDialog, Ui_Dialog):
     def chooseInputFile(self):
         vectorFormats = QgsProviderRegistry.instance().fileVectorFilters()
         # get last used dir and format
-        settings = QSettings()
+        settings = QgsSettings()
         lastDir = settings.value("/db_manager/lastUsedDir", "")
         lastVectorFormat = settings.value("/UI/lastVectorFileFilter", "")
         # ask for a filename
@@ -148,15 +156,8 @@ class DlgImportVector(QDialog, Ui_Dialog):
         settings.setValue("/db_manager/lastUsedDir", QFileInfo(filename).filePath())
         settings.setValue("/UI/lastVectorFileFilter", lastVectorFormat)
 
-        self.cboInputLayer.setEditText(filename)
-
-    def inputPathChanged(self, path):
-        if self.cboInputLayer.currentIndex() < 0:
-            return
-        self.cboInputLayer.blockSignals(True)
         self.cboInputLayer.setCurrentIndex(-1)
-        self.cboInputLayer.setEditText(path)
-        self.cboInputLayer.blockSignals(False)
+        self.cboInputLayer.setEditText(filename)
 
     def reloadInputLayer(self):
         """ create the input layer and update available options """
@@ -181,8 +182,8 @@ class DlgImportVector(QDialog, Ui_Dialog):
             self.inLayerMustBeDestroyed = True
 
         else:
-            legendIndex = self.cboInputLayer.itemData(index)
-            self.inLayer = iface.legendInterface().layers()[legendIndex]
+            layerId = self.cboInputLayer.itemData(index)
+            self.inLayer = QgsProject.instance().mapLayer(layerId)
             self.inLayerMustBeDestroyed = False
 
         self.checkSupports()
@@ -202,9 +203,10 @@ class DlgImportVector(QDialog, Ui_Dialog):
         self.editGeomColumn.setText(geom)
 
         srcCrs = self.inLayer.crs()
-        srid = srcCrs.postgisSrid() if srcCrs.isValid() else 4326
-        self.editSourceSrid.setText("%s" % srid)
-        self.editTargetSrid.setText("%s" % srid)
+        if not srcCrs.isValid():
+            srcCrs = QgsCoordinateReferenceSystem(4326)
+        self.widgetSourceSrid.setCrs(srcCrs)
+        self.widgetTargetSrid.setCrs(srcCrs)
 
         return True
 
@@ -262,106 +264,104 @@ class DlgImportVector(QDialog, Ui_Dialog):
 
         # sanity checks
         if self.inLayer is None:
-            QMessageBox.information(self, self.tr("Import to database"), self.tr("Input layer missing or not valid"))
+            QMessageBox.critical(self, self.tr("Import to Database"), self.tr("Input layer missing or not valid."))
             return
 
         if self.cboTable.currentText() == "":
-            QMessageBox.information(self, self.tr("Import to database"), self.tr("Output table name is required"))
+            QMessageBox.critical(self, self.tr("Import to Database"), self.tr("Output table name is required."))
             return
 
         if self.chkSourceSrid.isEnabled() and self.chkSourceSrid.isChecked():
-            try:
-                sourceSrid = self.editSourceSrid.text()
-            except ValueError:
-                QMessageBox.information(self, self.tr("Import to database"),
-                                        self.tr("Invalid source srid: must be an integer"))
+            if not self.widgetSourceSrid.crs().isValid():
+                QMessageBox.critical(self, self.tr("Import to Database"),
+                                     self.tr("Invalid source srid: must be a valid crs."))
                 return
 
         if self.chkTargetSrid.isEnabled() and self.chkTargetSrid.isChecked():
-            try:
-                targetSrid = self.editTargetSrid.text()
-            except ValueError:
-                QMessageBox.information(self, self.tr("Import to database"),
-                                        self.tr("Invalid target srid: must be an integer"))
+            if not self.widgetTargetSrid.crs().isValid():
+                QMessageBox.critical(self, self.tr("Import to Database"),
+                                     self.tr("Invalid target srid: must be a valid crs."))
                 return
 
-        # override cursor
-        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-        # store current input layer crs and encoding, so I can restore it
-        prevInCrs = self.inLayer.crs()
-        prevInEncoding = self.inLayer.dataProvider().encoding()
+        with OverrideCursor(Qt.WaitCursor):
+            # store current input layer crs and encoding, so I can restore it
+            prevInCrs = self.inLayer.crs()
+            prevInEncoding = self.inLayer.dataProvider().encoding()
 
-        try:
-            schema = self.outUri.schema() if not self.cboSchema.isEnabled() else self.cboSchema.currentText()
-            table = self.cboTable.currentText()
+            try:
+                schema = self.outUri.schema() if not self.cboSchema.isEnabled() else self.cboSchema.currentText()
+                table = self.cboTable.currentText()
 
-            # get pk and geom field names from the source layer or use the
-            # ones defined by the user
-            srcUri = QgsDataSourceUri(self.inLayer.source())
+                # get pk and geom field names from the source layer or use the
+                # ones defined by the user
+                srcUri = QgsDataSourceUri(self.inLayer.source())
 
-            pk = srcUri.keyColumn() if not self.chkPrimaryKey.isChecked() else self.editPrimaryKey.text()
-            if not pk:
-                pk = self.default_pk
+                pk = srcUri.keyColumn() if not self.chkPrimaryKey.isChecked() else self.editPrimaryKey.text()
+                if not pk:
+                    pk = self.default_pk
 
-            if self.inLayer.hasGeometryType() and self.chkGeomColumn.isEnabled():
-                geom = srcUri.geometryColumn() if not self.chkGeomColumn.isChecked() else self.editGeomColumn.text()
-                if not geom:
-                    geom = self.default_geom
-            else:
-                geom = None
+                if self.inLayer.isSpatial() and self.chkGeomColumn.isEnabled():
+                    geom = srcUri.geometryColumn() if not self.chkGeomColumn.isChecked() else self.editGeomColumn.text()
+                    if not geom:
+                        geom = self.default_geom
+                else:
+                    geom = None
 
-            options = {}
-            if self.chkLowercaseFieldNames.isEnabled() and self.chkLowercaseFieldNames.isChecked():
-                pk = pk.lower()
-                if geom:
-                    geom = geom.lower()
-                options['lowercaseFieldNames'] = True
+                options = {}
+                if self.chkLowercaseFieldNames.isEnabled() and self.chkLowercaseFieldNames.isChecked():
+                    pk = pk.lower()
+                    if geom:
+                        geom = geom.lower()
+                    options['lowercaseFieldNames'] = True
 
-            # get output params, update output URI
-            self.outUri.setDataSource(schema, table, geom, "", pk)
-            uri = self.outUri.uri(False)
+                # get output params, update output URI
+                self.outUri.setDataSource(schema, table, geom, "", pk)
+                typeName = self.db.dbplugin().typeName()
+                providerName = self.db.dbplugin().providerName()
+                if typeName == 'gpkg':
+                    uri = self.outUri.database()
+                    options['update'] = True
+                    options['driverName'] = 'GPKG'
+                    options['layerName'] = table
+                else:
+                    uri = self.outUri.uri(False)
 
-            providerName = self.db.dbplugin().providerName()
-            if self.chkDropTable.isChecked():
-                options['overwrite'] = True
+                if self.chkDropTable.isChecked():
+                    options['overwrite'] = True
 
-            if self.chkSinglePart.isEnabled() and self.chkSinglePart.isChecked():
-                options['forceSinglePartGeometryType'] = True
+                if self.chkSinglePart.isEnabled() and self.chkSinglePart.isChecked():
+                    options['forceSinglePartGeometryType'] = True
 
-            outCrs = QgsCoordinateReferenceSystem()
-            if self.chkTargetSrid.isEnabled() and self.chkTargetSrid.isChecked():
-                targetSrid = int(self.editTargetSrid.text())
-                outCrs = QgsCoordinateReferenceSystem(targetSrid)
+                outCrs = QgsCoordinateReferenceSystem()
+                if self.chkTargetSrid.isEnabled() and self.chkTargetSrid.isChecked():
+                    outCrs = self.widgetTargetSrid.crs()
 
-            # update input layer crs and encoding
-            if self.chkSourceSrid.isEnabled() and self.chkSourceSrid.isChecked():
-                sourceSrid = int(self.editSourceSrid.text())
-                inCrs = QgsCoordinateReferenceSystem(sourceSrid)
-                self.inLayer.setCrs(inCrs)
+                # update input layer crs and encoding
+                if self.chkSourceSrid.isEnabled() and self.chkSourceSrid.isChecked():
+                    inCrs = self.widgetSourceSrid.crs()
+                    self.inLayer.setCrs(inCrs)
 
-            if self.chkEncoding.isEnabled() and self.chkEncoding.isChecked():
-                enc = self.cboEncoding.currentText()
-                self.inLayer.setProviderEncoding(enc)
+                if self.chkEncoding.isEnabled() and self.chkEncoding.isChecked():
+                    enc = self.cboEncoding.currentText()
+                    self.inLayer.setProviderEncoding(enc)
 
-            onlySelected = self.chkSelectedFeatures.isChecked()
+                onlySelected = self.chkSelectedFeatures.isChecked()
 
-            # do the import!
-            ret, errMsg = QgsVectorLayerImport.importLayer(self.inLayer, uri, providerName, outCrs, onlySelected, False, options)
-        except Exception as e:
-            ret = -1
-            errMsg = str(e)
+                # do the import!
+                ret, errMsg = QgsVectorLayerExporter.exportLayer(self.inLayer, uri, providerName, outCrs, onlySelected, options)
+            except Exception as e:
+                ret = -1
+                errMsg = str(e)
 
-        finally:
-            # restore input layer crs and encoding
-            self.inLayer.setCrs(prevInCrs)
-            self.inLayer.setProviderEncoding(prevInEncoding)
-            # restore cursor
-            QApplication.restoreOverrideCursor()
+            finally:
+                # restore input layer crs and encoding
+                self.inLayer.setCrs(prevInCrs)
+                self.inLayer.setProviderEncoding(prevInEncoding)
 
         if ret != 0:
             output = QgsMessageViewer()
-            output.setTitle(self.tr("Import to database"))
-            output.setMessageAsPlainText(self.tr("Error %d\n%s") % (ret, errMsg))
+            output.setTitle(self.tr("Import to Database"))
+            output.setMessageAsPlainText(self.tr("Error {0}\n{1}").format(ret, errMsg))
             output.showMessage()
             return
 
@@ -369,7 +369,9 @@ class DlgImportVector(QDialog, Ui_Dialog):
         if self.chkSpatialIndex.isEnabled() and self.chkSpatialIndex.isChecked():
             self.db.connector.createSpatialIndex((schema, table), geom)
 
-        QMessageBox.information(self, self.tr("Import to database"), self.tr("Import was successful."))
+        self.db.connection().reconnect()
+        self.db.refresh()
+        QMessageBox.information(self, self.tr("Import to Database"), self.tr("Import was successful."))
         return QDialog.accept(self)
 
     def closeEvent(self, event):
@@ -377,12 +379,3 @@ class DlgImportVector(QDialog, Ui_Dialog):
         # from this dialog!
         self.deleteInputLayer()
         QDialog.closeEvent(self, event)
-
-
-if __name__ == '__main__':
-    import sys
-
-    a = QApplication(sys.argv)
-    dlg = DlgImportVector()
-    dlg.show()
-    sys.exit(a.exec_())
